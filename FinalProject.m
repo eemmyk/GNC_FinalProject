@@ -48,29 +48,24 @@ a = 1/r1;
 b = -tan(gamma1) / r1;
 c = 1/(2*r1) * (mju / (r1^3 * theta_dot_1) - 1);
 
-
-%d = 1e-11;
-
 efg_Mat_1 = [30*theta_f^2  -10*theta_f^3  theta_f^4;
             -48*theta_f     18*theta_f^2 -2*theta_f^3; 
              20            -8*theta_f     theta_f^2];
 
-efg_Mat_2 = [1/r - (a + b*theta_f + c*theta_f^2)];
+efg_Mat_2 = [1/r2 - (a + b*theta_f + c*theta_f^2 + d*theta_f^3);
+            -tan(gamma2)/r2 - (b + 2*c*theta_f + 3*d*theta_f^2); 
+            mju/(r2^4*theta2_dot^2) - (1/r2 + 2*c + 6*d*theta_f)];
 
+efg = 1/(2*theta_f^6) * efg_Mat_1 * efg_Mat_2;
 
-
-
-efg = 1/(2*theta_f^6) * 
-
-e = ;
-f = 1e-13;
-g = 1e-14;
+e = efg(1);
+f = efg(2);
+g = efg(3);
 
 %r2 = 1/(a + b*theta_f + c*theta_f^2 + d*theta_f^3 + e*theta_f^4 + f*theta_f^5);
 
-
-f_Theta_a = sqrt((mju/r^4)) / (1/r + 2*c + 6*d*theta + 2*e*theta^2 + 20*f*theta^3 + 30*g*theta^4)
-f_T_a = -mju / (2 * r^3 * cos(gamma)) * (6*d + 24*e*theta + 60*f*theta^2 + 120*g*theta^3 - tan(gamma)/r) / (1/r + 2*c + 6*d*theta + 2*e*theta^2 + 20*f*theta^3 + 30*g*theta^4)^2 
+f_Theta_a = sqrt((mju/r^4)) / (1/r + 2*c + 6*d*theta + 2*e*theta^2 + 20*f*theta^3 + 30*g*theta^4);
+f_T_a = -mju / (2 * r^3 * cos(gamma)) * (6*d + 24*e*theta + 60*f*theta^2 + 120*g*theta^3 - tan(gamma)/r) / (1/r + 2*c + 6*d*theta + 2*e*theta^2 + 20*f*theta^3 + 30*g*theta^4)^2;
 
 costFunction = @(theta) f_T_a / f_Theta_dot;
 
