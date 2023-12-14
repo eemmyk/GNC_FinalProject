@@ -42,19 +42,29 @@ r2 = 150 * 10^6;
 
 %A LOT OF STUFF HERE:
 
-syms a b c d e f g;
-
+syms d;
 
 a = 1/r1;
 b = -tan(gamma1) / r1;
 c = 1/(2*r1) * (mju / (r1^3 * theta_dot_1) - 1);
 
 
+%d = 1e-11;
+
+efg_Mat_1 = [30*theta_f^2  -10*theta_f^3  theta_f^4;
+            -48*theta_f     18*theta_f^2 -2*theta_f^3; 
+             20            -8*theta_f     theta_f^2];
+
+efg_Mat_2 = [1/r];
 
 
-d = 1e-11;
-e = 1e-12;
+
+
+efg = 1/(2*theta_f^6) * 
+
+e = ;
 f = 1e-13;
+g = 1e-14;
 
 %r2 = 1/(a + b*theta_f + c*theta_f^2 + d*theta_f^3 + e*theta_f^4 + f*theta_f^5);
 
