@@ -24,9 +24,15 @@ r2 = 150 * 10^6;
 
 % The time derivative of the radius equation yields
 % r_dot = -r.^2 * (b + 2*c*theta + 3*d*theta^2 + 4*e*theta^3 + 5*f*theta^4)*theta_dot
-% From this we can get the flight
+% From this we can get the flight-path angle gamma may be found
+% tan(gamma) = r_dot / (r * theta_dot) = -r * (b + 2*c*theta + 3*d*theta^2 + 4*e*theta^3 + 5*f*theta^4)
 
 
+%The first and final flight path angles gamma1 and gamma2 can be solved from this equation:
+%tan(gamma1) = -r1 * b
+%tan(gamma2) = -r2 * (b + 2*c*theta + 3*d*theta^2 + 4*e*theta^3 + 5*f*theta^4)
+
+%Additionally the polynomial must satisfy
 
 
 a = 1/r1;
