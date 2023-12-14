@@ -55,7 +55,7 @@ efg_Mat_1 = [30*theta_f^2  -10*theta_f^3  theta_f^4;
             -48*theta_f     18*theta_f^2 -2*theta_f^3; 
              20            -8*theta_f     theta_f^2];
 
-efg_Mat_2 = [1/r];
+efg_Mat_2 = [1/r - (a + b*theta_f + c*theta_f^2)];
 
 
 
