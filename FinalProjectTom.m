@@ -1,4 +1,6 @@
+%..........................................................................
 % Constants Section
+%..........................................................................
 
 earthRadius = 6.371e6; % m
 orbitalAltitude_inner = 2e6; % m
@@ -10,26 +12,34 @@ mu = G*M_earth;
 r1 = orbitalAltitude_inner + earthRadius;
 r2 = orbitalAltitude_outer + earthRadius;
 
-% Constants not defined anywhere else are defined here for convenience
+%..........................................................................
+% Orbital Parameters
+%..........................................................................
 
-theta_dot = 2e-6;
-gamma1 = pi/8;
-gamma2 = pi/4;
-d = 1e-5;
+N = 1; % number of loops
+theta_0 = 0; % r1 angle
+theta_tilde = pi/2; % angle between r1 and r2
 
-% The radius of the orbit can be represented as:
-% r(theta) 1/(a + b*theta + c*theta^2 + d*theta^3 + e*theta^4 + f*theta^5 + g*theta^6)
-
-% N is the number of rotations before the orbit settles. 
-
-N = 4;
-theta_0 = 0;
-theta_tilde = pi/2;
-
-% The total transfer angle is represented by:
+semiMajor = (r1+r2)/2;
+orbitalPeriod = 2*pi*((semiMajor^3)/mu);
 
 theta_f = 2*pi * N + theta_tilde;
-theta = linspace(theta_0, theta_f, 1e4);
+theta = linspace(theta_0, theta_f, 1e6);
+
+transferTime = 23*60*60; % seconds
+
+%..........................................................................
+% The "I don't get how these are supposed to be defined" section
+%..........................................................................
+
+theta_dot = (2*pi)/orbitalPeriod; % rads/s
+gamma1 = pi/20;
+gamma2 = -pi/20;
+d = 1e+10;
+
+%..........................................................................
+% Coefficients Definitions
+%..........................................................................
 
 % The constants a, b, and c are defined explicitly
 
@@ -69,4 +79,13 @@ y = r.*sin(theta);
 
 plot(x, y)
 axis equal
+
+% Note to self:
+% Where I left off, I was about to put in the integral which autocalculates
+% the constant 'd'. I got confused because the integral requires all the
+% other constants, but e f and g are dependent on d. This is a tad
+% complicated but I think the point is to specify a loop where we calculate
+% for each loop of d and after each integral, check if the difference
+% between the two values is smallest. Also, it's possible that theta_dot
+% might be easily calculatable from the specified transfer time.
 
