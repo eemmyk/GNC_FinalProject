@@ -23,6 +23,7 @@ mju = mju_Earth;
 %initial and target orbit parameters
 r1 = 6800*1000;%100 * 10^9;
 e1 = 0.02;
+%It's actually nu not E
 E1 = theta_0;
 gamma1 = asin(e1 * sin(E1) / (1-e1*cos(E1)));
 a1 = r1 / (1 - e1 * cos(E1));
