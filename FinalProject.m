@@ -3,12 +3,14 @@
 clear;
 close all;
 
-t = linspace(0, 100, 1000);
+%Things to change to test stuff out:
+% N, number of rotations around central body
+% theta_tilde, angle between initial and end position
+% Any of the orbital parameters
+% limits for d
+% And stuff
 
-N = 2;
-% phi = 0;
-% 
-theta_0 = 0;
+N = 1;
 theta_tilde = 0;
 
 %The total transfer angle is represented by:
@@ -20,25 +22,43 @@ mju_Sun = 1.32712440018*10^20;
 
 mju = mju_Earth;
 
-%initial and target orbit parameters
-r1 = 6800*1000;%100 * 10^9;
-e1 = 0.02;
-%It's actually nu not E
-E1 = theta_0;
-gamma1 = asin(e1 * sin(E1) / (1-e1*cos(E1)));
-a1 = r1 / (1 - e1 * cos(E1));
-%theta2_dot = d/dt acos((1 - r/a)/e); -->
-v1 = sqrt(2*mju / r1 - mju/a1)
-theta1_dot = v1/(a1*sqrt(-(r1^2/a1^2) + 2*r1/a1 + e1^2 - 1))
+%initial orbit parameters
+a1 = 6800*1000;%100 * 10^9;
+e1 = 0.2;
+%Argument of perigee
+omega1 = 0;
 
-r2 = 15000*1000;%150 * 10^9;
-e2 = 0.01;
-E2 = theta_f;
-gamma2 = asin(e2 * sin(E2) / (1-e2*cos(E2)));
-a2 = r2 / (1 - e2* cos(E2));
+%initial maneuver angle
+nu_0 = pi;
+
+nu1 = omega1 + nu_0;
+%It's actually nu not E
+%E1 = theta_0;
+gamma1 = asin(e1 * sin(nu1) / sqrt(1+2*e1*cos(nu1) + e1^2));
+p1 = a1 * (1-e1^2);
+r1 = p1 / (1+e1*cos(nu1));
 %theta2_dot = d/dt acos((1 - r/a)/e); -->
-v2 = sqrt(2*mju / r2 - mju/a2)
-theta2_dot = v2/(a2*sqrt(-(r2^2/a2^2) + 2*r2/a2 + e2^2 -1))
+v1 = sqrt(2*mju / r1 - mju/a1);
+theta1_dot = v1/(a1*sqrt(-(r1^2/a1^2) + 2*r1/a1 + e1^2 - 1));
+
+%Target orbit parameters
+a2 = 15000*1000;%100 * 10^9;
+e2 = 0.5;
+%Argument of perigee
+omega2 = 0;
+nu2 = nu1 + theta_f - omega2;
+%It's actually nu not E
+%E2 = theta_0;
+gamma2 = asin(e2 * sin(nu2) / sqrt(1+2*e2*cos(nu2) + e2^2));
+p2 = a2 * (1-e2^2);
+r2 = p2 / (1+e2*cos(nu2));
+%theta2_dot = d/dt acos((1 - r/a)/e); -->
+v2 = sqrt(2*mju / r2 - mju/a2);
+theta2_dot = v2/(a2*sqrt(-(r2^2/a2^2) + 2*r2/a2 + e2^2 - 1));
+
+
+theta_0 = 0;
+
 
 %%
 % The radius of the orbit can be represented as:
@@ -70,11 +90,11 @@ theta2_dot = v2/(a2*sqrt(-(r2^2/a2^2) + 2*r2/a2 + e2^2 -1))
 
 %A LOT OF STUFF HERE:
 
-syms a b c d f theta;
+syms d theta;
 
 
-theta1_dot = sqrt(mju/r1^4) / ((1/r1) + 2*c);
-theta2_dot = sqrt(mju/r2^4) / ((1/r2) + 2*c + 6*d*theta_f + 12*e*theta_f^2 + 20 * f*theta_f^3);
+%theta1_dot = sqrt(mju/r1^4) / ((1/r1) + 2*c);
+%theta2_dot = sqrt(mju/r2^4) / ((1/r2) + 2*c + 6*d*theta_f + 12*e*theta_f^2 + 20 * f*theta_f^3);
 
 %gamma1 = atan(-r1 * b);
 %gamma2 = atan(-r2 * (b + 2*c*theta_f + 3*d*theta_f^2 + 4*e*theta_f^3 + 5*f*theta_f^4));
@@ -97,10 +117,11 @@ e = efg(1);
 f = efg(2);
 g = efg(3);
 
+
 %r2 = 1/(a + b*theta_f + c*theta_f^2 + d*theta_f^3 + e*theta_f^4 + f*theta_f^5);
 
-r = 1 ./ (a + b*theta + c*theta.^2 + d*theta.^3 + e*theta.^4 + f*theta.^5);
-gamma = atan(-r * (b + 2*c*theta + 3*d*theta^2 + 4*e*theta^3 + 5*f*theta^4));
+r = 1 ./ (a + b*theta + c*theta.^2 + d*theta.^3 + e*theta.^4 + f*theta.^5 + g*theta.^6);
+gamma = atan(-r * (b + 2*c*theta + 3*d*theta.^2 + 4*e*theta.^3 + 5*f*theta.^4 + 6*g*theta.^5));
 
 f_Theta_dot = sqrt((mju./r.^4)) ./ (1./r + 2*c + 6*d*theta + 2*e*theta.^2 + 20*f*theta.^3 + 30*g*theta.^4);
 f_T_a = -mju ./ (2 * r.^3 * cos(gamma)) * (6*d + 24*e*theta + 60*f*theta.^2 + 120*g*theta.^3 - tan(gamma)./r) ./ (1./r + 2*c + 6*d*theta + 2*e*theta.^2 + 20*f*theta.^3 + 30*g*theta.^4).^2;
@@ -109,16 +130,44 @@ megaFunction = f_T_a / f_Theta_dot;
 
 costFunction = @(theta) megaFunction;
 
-deltaV = integral(costFunction, theta_0, theta_f);
+%deltaV = integral(costFunction, theta, theta_0, theta_f);
 
-x = cos(theta) ./ (a + b*theta + c*theta.^2 + d*theta.^3 + e*theta.^4 + f*theta.^5);
-y = sin(theta) ./ (a + b*theta + c*theta.^2 + d*theta.^3 + e*theta.^4 + f*theta.^5);
-r = 1 ./ (a + b*theta + c*theta.^2 + d*theta.^3 + e*theta.^4 + f*theta.^5);
+nu = linspace(0, 2*pi, 1000);
+orbit1 = [cos(nu+omega1) * p1 ./ (1+e1*cos(nu)); sin(nu+omega1) * p1 ./ (1+e1*cos(nu))];
+orbit2 = [cos(nu+omega2) * p2 ./ (1+e2*cos(nu)); sin(nu+omega2) * p2 ./ (1+e2*cos(nu))];
 
 figure;
 hold on;
 
-plot(x, y);
+plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
+plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
+
+plot(cos(omega1 + nu1) * r1, sin(omega1 + nu1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','b')
+plot(cos(omega2 + nu2) * r2, sin(omega2 + nu2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+
+rectangle('Position',[-2*10^5, -2*10^5, 4*10^5, 4*10^5],'Curvature',[1 1], 'FaceColor',"yellow")
+
+for dVal = linspace(0.00000006, 0.0000001, 10)
+    a_n = a;
+    b_n = b;
+    c_n = c;
+    
+    theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, 1000)));
+    e_n = double(subs(e, d, dVal));
+    f_n = double(subs(f, d, dVal));
+    g_n = double(subs(g, d, dVal));
+    d_n = double(subs(d, d, dVal));
+    
+    r_es = 1 ./ (a_n + b_n*theta_n + c_n*theta_n.^2 + d_n*theta_n.^3 + e_n*theta_n.^4 + f_n*theta_n.^5 + g_n*theta_n.^6);
+    x = cos(theta_n+nu1) .* r_es;
+    y = sin(theta_n+nu1) .* r_es;
+    
+    plot(x, y, "Color", [0.6 0.6 0.6]);
+end
+
+title("Somehow got this far")
+legend("Initial orbit", "Target orbit", "", "", "Transfer Orbits");
+axis equal
 
 %plot(cos(theta))
 
