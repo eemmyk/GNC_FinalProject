@@ -10,12 +10,16 @@ close all;
 % limits for d
 % And stuff
 
-N = 0;
-theta_tilde = pi;
+global tf  theta_f;
 
+tf = 20000;
+
+N = 0;
+
+theta_0 = 0;
+theta_tilde = pi;
 %The total transfer angle is represented by:
 theta_f = 2*pi * N + theta_tilde;
-%theta = linspace(theta_0, theta_f, 1000);
 
 mju_Earth = 3.986004418*10^14;
 mju_Sun = 1.32712440018*10^20;
@@ -38,8 +42,8 @@ r1 = p1 / (1+e1*cos(nu1));
 theta1_dot = sqrt(mju/a1^3) * a1^2/r1^2 * sqrt(1-e1^2);
 
 %Target orbit parameters
-%a2 = 42164*1000;
-a2 = 100 * 10^9;
+a2 = 42164*1000;
+%a2 = 100 * 10^9;
 
 e2 = 0.0;
 %Argument of perigee
@@ -49,8 +53,6 @@ gamma2 = asin(e2 * sin(nu2) / sqrt(1+2*e2*cos(nu2) + e2^2));
 p2 = a2 * (1-e2^2);
 r2 = p2 / (1+e2*cos(nu2));
 theta2_dot = sqrt(mju/a2^3)*a2^2/r2^2 * sqrt(1-e2^2);
-
-theta_0 = 0;
 
 
 %%
@@ -85,13 +87,6 @@ theta_0 = 0;
 
 syms d theta;
 
-
-%theta1_dot = sqrt(mju/r1^4) / ((1/r1) + 2*c);
-%theta2_dot = sqrt(mju/r2^4) / ((1/r2) + 2*c + 6*d*theta_f + 12*e*theta_f^2 + 20 * f*theta_f^3);
-
-%gamma1 = atan(-r1 * b);
-%gamma2 = atan(-r2 * (b + 2*c*theta_f + 3*d*theta_f^2 + 4*e*theta_f^3 + 5*f*theta_f^4));
-
 a = 1/r1;
 b = -tan(gamma1) / r1;
 c = 1/(2*r1) * (mju / (r1^3 * theta1_dot^2) - 1);
@@ -110,22 +105,20 @@ e = efg(1);
 f = efg(2);
 g = efg(3);
 
-
-
-
-
-%r2 = 1/(a + b*theta_f + c*theta_f^2 + d*theta_f^3 + e*theta_f^4 + f*theta_f^5);
-
 r = 1 / (a + b*theta + c*theta^2 + d*theta^3 + e*theta^4 + f*theta^5 + g*theta^6);
 gamma = atan(-r * (b + 2*c*theta + 3*d*theta^2 + 4*e*theta^3 + 5*f*theta^4 + 6*g*theta^5));
 
 f_Theta_dot = sqrt((mju/r^4) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
 f_T_a = -mju / (2 * r^3 * cos(gamma)) * (6*d + 24*e*theta + 60*f*theta^2 + 120*g*theta^3 - tan(gamma)/r) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4)^2;
 
-d_min = 0;%-1 * 1/max(r1, r2);
+d_min = -2 * 1/max(r1, r2);
+
+d_optimized = fzero(@transferTimeOptimization, d_min);
+%%
+d_min = -2 * 1/max(r1, r2);
 d_max = 0.1 * 1/min(r1, r2);
 
-dVal_i = d_min;
+dVal_i = d_optimized;
 
 timeFunction = sqrt((r^4/mju) * (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
 timeFunction_n = subs(timeFunction, d, dVal_i);
@@ -141,7 +134,7 @@ megaFunction_n = subs(megaFunction, d, dVal_i);
 f_T_a_n = subs(f_T_a, d, dVal_i);
 
 costFunction = @(theta) megaFunction;
-costFunction_n = @(theta) megaFunction_n;
+costFunction_n = @(angle) double(subs(megaFunction_n, theta, angle));
 
 t_steps = 100;
 theta_vec = linspace(theta_0, theta_f, t_steps);
@@ -158,8 +151,8 @@ end
 figure;
 plot(thrust(1, :), thrust(2, :));
 
-%deltaV = int(costFunction, theta, theta_0, theta_f);
-deltaV = trapz(path(1, :), path(2,:));
+deltaV = integral(costFunction_n, theta_0, theta_f);
+%deltaV = trapz(path(1, :), path(2,:));
 
 nu = linspace(0, 2*pi, 1000);
 orbit1 = [cos(nu+omega1) * p1 ./ (1+e1*cos(nu)); sin(nu+omega1) * p1 ./ (1+e1*cos(nu))];
@@ -196,6 +189,22 @@ for dVal = linspace(d_min, d_max, 20)
     
     plot(x, y, "Color", [0.6 0.6 0.6]);
 end
+a_n = a;
+b_n = b;
+c_n = c;
+
+theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, 1000)));
+e_n = double(subs(e, d, d_optimized));
+f_n = double(subs(f, d, d_optimized));
+g_n = double(subs(g, d, d_optimized));
+d_n = double(subs(d, d, d_optimized));
+
+r_es = 1 ./ (a_n + b_n*theta_n + c_n*theta_n.^2 + d_n*theta_n.^3 + e_n*theta_n.^4 + f_n*theta_n.^5 + g_n*theta_n.^6);
+x = cos(theta_n+nu1) .* r_es;
+y = sin(theta_n+nu1) .* r_es;
+
+plot(x, y, "Color", [1 0.1 0.1]);
+
 
 title("Somehow got this far")
 legend("Initial orbit", "Target orbit", "", "", "Transfer Orbits");
