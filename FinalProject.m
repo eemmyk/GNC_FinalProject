@@ -10,9 +10,9 @@ close all;
 % limits for d
 % And stuff
 
-global tf  theta_f;
+global tf  theta_f  theta_0;
 
-tf = 45000;
+tf = 40000;
 
 N = 1;
 
@@ -84,7 +84,7 @@ nuSolutions_f = double(nuSolutions_f);
 
 nu2 = mod(nuSolutions_f + 2*pi, 2*pi) + omega2;
 
-theta_tilde = nu2 - nu1;
+theta_tilde = mod(nu2 - nu1 + 2*pi, 2*pi);
 
 gamma2 = asin(e2 * sin(nu2) / sqrt(1+2*e2*cos(nu2) + e2^2));
 p2 = a2 * (1-e2^2);
@@ -151,7 +151,7 @@ gamma = atan(-r * (b + 2*c*theta + 3*d*theta^2 + 4*e*theta^3 + 5*f*theta^4 + 6*g
 f_Theta_dot = sqrt((mju/r^4) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
 f_T_a = -mju / (2 * r^3 * cos(gamma)) * (6*d + 24*e*theta + 60*f*theta^2 + 120*g*theta^3 - tan(gamma)/r) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4)^2;
 
-d_guess =  0.01 * 1/min(r1, r2);
+d_guess = 1e-12;
 
 d_optimized = fzero(@transferTimeOptimization, d_guess);
 %%
@@ -162,6 +162,8 @@ dVal_i = d_optimized;
 
 timeFunction = sqrt((r^4/mju) * (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
 timeFunction_n = subs(timeFunction, d, dVal_i);
+
+timeCut = vpa(timeFunction);
 
 transferTime = @(angle) double(subs(timeFunction_n, theta, angle));
 
@@ -212,23 +214,23 @@ bodyScale = max(a1,a2) * 0.1;
 
 rectangle('Position',[-0.5*bodyScale, -0.5*bodyScale, bodyScale, bodyScale],'Curvature',[1 1], 'FaceColor',"yellow")
 
-for dVal = linspace(d_min, d_max, 20)
-    a_n = a;
-    b_n = b;
-    c_n = c;
-    
-    theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, 1000)));
-    e_n = double(subs(e, d, dVal));
-    f_n = double(subs(f, d, dVal));
-    g_n = double(subs(g, d, dVal));
-    d_n = double(subs(d, d, dVal));
-    
-    r_es = 1 ./ (a_n + b_n*theta_n + c_n*theta_n.^2 + d_n*theta_n.^3 + e_n*theta_n.^4 + f_n*theta_n.^5 + g_n*theta_n.^6);
-    x = cos(theta_n+nu1) .* r_es;
-    y = sin(theta_n+nu1) .* r_es;
-    
-    plot(x, y, "Color", [0.6 0.6 0.6]);
-end
+% for dVal = linspace(d_min, d_max, 20)
+%     a_n = a;
+%     b_n = b;
+%     c_n = c;
+%     
+%     theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, 1000)));
+%     e_n = double(subs(e, d, dVal));
+%     f_n = double(subs(f, d, dVal));
+%     g_n = double(subs(g, d, dVal));
+%     d_n = double(subs(d, d, dVal));
+%     
+%     r_es = 1 ./ (a_n + b_n*theta_n + c_n*theta_n.^2 + d_n*theta_n.^3 + e_n*theta_n.^4 + f_n*theta_n.^5 + g_n*theta_n.^6);
+%     x = cos(theta_n+nu1) .* r_es;
+%     y = sin(theta_n+nu1) .* r_es;
+%     
+%     plot(x, y, "Color", [0.6 0.6 0.6]);
+% end
 a_n = a;
 b_n = b;
 c_n = c;
