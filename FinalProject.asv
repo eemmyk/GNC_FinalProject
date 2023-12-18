@@ -48,6 +48,70 @@ a2 = 42164*1000;
 e2 = 0.0;
 %Argument of perigee
 omega2 = 0;
+
+%Define starting true anomaly
+%nu2_i = 0;
+
+%Time of last perigee pass for object 2
+Tp2 = 0;
+currentTime = 20000;
+
+%This can be used to calculate the current true anomaly with:
+% M = nT = E - e*sin(E)
+% sin(E) = sin(nu2_tf)*sqrt(1-e2^2) / (1+e2*cos(nu2_tf))
+% n2 = sqrt(mju/a2^3);
+% T = currentTime - Tp2;
+% 
+% syms nu2_i
+% 
+% nuSolver_i = n2*T==asin(sin(nu2_i)*sqrt(1-e2^2)/(1+e2*cos(nu2_i)))-e2*sin(nu2_i)*sqrt(1-e2^2) / (1+e2*cos(nu2_i));
+% nuSolutions_i = vpasolve(nuSolver_i, nu2_i);
+% nuSolutions_i = double(nuSolutions_i);
+
+%Trying this one instead
+n2 = sqrt(mju/a2^3);
+T = currentTime - Tp2;
+
+syms nu2_i
+
+nuSolver_i = n2*T==asin(sin(nu2_i)*sqrt(1-e2^2)/(1+e2*cos(nu2_i)))-e2*sin(nu2_i)*sqrt(1-e2^2) / (1+e2*cos(nu2_i));
+nuSolutions_i = vpasolve(nuSolver_i, nu2_i);
+nuSolutions_i = double(nuSolutions_i);
+
+%%
+%Solve nu at tf based on kelper's equations:
+%Calculating the true anomaly at t = tf
+% (M-M0)/n = t-t0
+% n = sqrt(mju / a^3)
+% M = E-e*sin(E)
+% E = acos((e+cos(nu)) / (1+e*cos(nu)))
+
+% sinh(H) = sin(nu) * sqrt(e2^2-1) / (1 + e*cos(nu))
+
+% Xi = e2*sin(nu2_i)*sqrt(e2^2-1)/(1+e2*cos(nu2_i))-asinh(sin(nu2_i)*sqrt(e2^2-1)/(1 + e2*cos(nu2_i)));
+% 
+% syms nu2_tf
+% 
+% nuSolver = sqrt(-a2^3 /mju)*(e2*sin(nu2_tf)*sqrt(e2^2-1)/(1 + e2*cos(nu2_tf))-asinh(sin(nu2_tf)*sqrt(e2^2-1)/(1 + e2*cos(nu2_tf)))-Xi) == tf;
+% nuSolutions = solve(nuSolver, nu2_tf);
+% nuSolutions_n = double(nuSolutions);
+% 
+% n2 = sqrt(mju/a2^3);
+% M0 = acos((e2+cos(nu2_i))/(1+e2*cos(nu2_i)))-e2*(sin(nu2_i)*sqrt(1-e2^2)/(1+e2*cos(nu2_i)));
+% 
+% syms nu2_tf
+% nuSolver = ((acos((e2+cos(nu2_tf))/(1+e2*cos(nu2_tf)))-e2*(sin(nu2_tf)*sqrt(1-e2^2)/(1+e2*cos(nu2_tf))))-M0)/n2 == tf;
+% nuSolutions = vpasolve(nuSolver, nu2_tf);
+% nuSolutions_n = double(nuSolutions);
+% %Since no retrograde orbits are considered, select the positive nu
+% nu2 = nuSolutions_n > 0
+% 
+% % M = 2*pi*(t)
+
+
+
+%%
+
 nu2 = nu1 + theta_f - omega2;
 gamma2 = asin(e2 * sin(nu2) / sqrt(1+2*e2*cos(nu2) + e2^2));
 p2 = a2 * (1-e2^2);
@@ -189,6 +253,22 @@ for dVal = linspace(d_min, d_max, 20)
     
     plot(x, y, "Color", [0.6 0.6 0.6]);
 end
+a_n = a;
+b_n = b;
+c_n = c;
+
+theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, 1000)));
+e_n = double(subs(e, d, d_optimized));
+f_n = double(subs(f, d, d_optimized));
+g_n = double(subs(g, d, d_optimized));
+d_n = double(subs(d, d, d_optimized));
+
+r_es = 1 ./ (a_n + b_n*theta_n + c_n*theta_n.^2 + d_n*theta_n.^3 + e_n*theta_n.^4 + f_n*theta_n.^5 + g_n*theta_n.^6);
+x = cos(theta_n+nu1) .* r_es;
+y = sin(theta_n+nu1) .* r_es;
+
+plot(x, y, "Color", [1 0.1 0.1]);
+
 
 title("Somehow got this far")
 legend("Initial orbit", "Target orbit", "", "", "Transfer Orbits");

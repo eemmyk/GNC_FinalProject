@@ -12,14 +12,11 @@ close all;
 
 global tf  theta_f;
 
-tf = 20000;
+tf = 45000;
 
-N = 0;
+N = 1;
 
 theta_0 = 0;
-theta_tilde = pi;
-%The total transfer angle is represented by:
-theta_f = 2*pi * N + theta_tilde;
 
 mju_Earth = 3.986004418*10^14;
 mju_Sun = 1.32712440018*10^20;
@@ -33,27 +30,70 @@ e1 = 0.0;
 %Argument of perigee
 omega1 = 0;
 %initial maneuver angle
-nu_0 = 0;
+nu_0 = pi;
 nu1 = omega1 + nu_0;
-
 gamma1 = asin(e1 * sin(nu1) / sqrt(1+2*e1*cos(nu1) + e1^2));
 p1 = a1 * (1-e1^2);
 r1 = p1 / (1+e1*cos(nu1));
 theta1_dot = sqrt(mju/a1^3) * a1^2/r1^2 * sqrt(1-e1^2);
 
 %Target orbit parameters
+%Some are known, while others are calculated from desired tof and initial
+%conditions
 a2 = 42164*1000;
 %a2 = 100 * 10^9;
-
 e2 = 0.0;
 %Argument of perigee
 omega2 = 0;
-nu2 = nu1 + theta_f - omega2;
+%Time of last perigee pass for object 2
+Tp2 = 0;
+currentTime = 0;
+
+%Trying this one instead
+n2 = sqrt(mju/a2^3);
+P2 = 2*pi/n2;
+T = mod(currentTime, P2) - Tp2;
+
+% nT = E - e*sin(E)
+% E = 2 * atan(tan((nu-pi)/2)/sqrt((1+e2)/(1-e2)));
+
+syms nu_time
+
+E = 2*atan(tan((nu_time-pi)/2)/sqrt((1+e2)/(1-e2)));
+nuSolver = n2*T==pi+E-e2*sin(E);
+nuSolutions_i = vpasolve(nuSolver, nu_time);
+nuSolutions_i = double(nuSolutions_i);
+
+nu2_i = mod(nuSolutions_i + 2*pi, 2*pi);
+
+%Now we can continue by calculating the true anomaly when the spacecraft
+%reaches orbit 2. At currentTime + tf
+
+finalTime = currentTime + tf;
+T = mod(finalTime, P2) - Tp2;
+
+% nT = E - e*sin(E)
+% E = 2 * atan(tan((nu-pi)/2)/sqrt((1+e2)/(1-e2)));
+
+syms nu_time
+
+E = 2*atan(tan((nu_time-pi)/2)/sqrt((1+e2)/(1-e2)));
+nuSolver = n2*T==pi+E-e2*sin(E);
+nuSolutions_f = vpasolve(nuSolver, nu_time);
+nuSolutions_f = double(nuSolutions_f);
+
+nu2 = mod(nuSolutions_f + 2*pi, 2*pi) + omega2;
+
+theta_tilde = nu2 - nu1;
+
 gamma2 = asin(e2 * sin(nu2) / sqrt(1+2*e2*cos(nu2) + e2^2));
 p2 = a2 * (1-e2^2);
 r2 = p2 / (1+e2*cos(nu2));
 theta2_dot = sqrt(mju/a2^3)*a2^2/r2^2 * sqrt(1-e2^2);
 
+
+%The total transfer angle is represented by:
+theta_f = 2*pi * N + theta_tilde;
 
 %%
 % The radius of the orbit can be represented as:
@@ -111,11 +151,11 @@ gamma = atan(-r * (b + 2*c*theta + 3*d*theta^2 + 4*e*theta^3 + 5*f*theta^4 + 6*g
 f_Theta_dot = sqrt((mju/r^4) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
 f_T_a = -mju / (2 * r^3 * cos(gamma)) * (6*d + 24*e*theta + 60*f*theta^2 + 120*g*theta^3 - tan(gamma)/r) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4)^2;
 
-d_min = -2 * 1/max(r1, r2);
+d_guess =  0.01 * 1/min(r1, r2);
 
-d_optimized = fzero(@transferTimeOptimization, d_min);
+d_optimized = fzero(@transferTimeOptimization, d_guess);
 %%
-d_min = -2 * 1/max(r1, r2);
+d_min = 0 * 1/max(r1, r2);
 d_max = 0.1 * 1/min(r1, r2);
 
 dVal_i = d_optimized;
@@ -126,7 +166,7 @@ timeFunction_n = subs(timeFunction, d, dVal_i);
 transferTime = @(angle) double(subs(timeFunction_n, theta, angle));
 
 %Transfer Time
-time_t = integral(transferTime, theta_0, theta_f);
+%time_t = integral(transferTime, theta_0, theta_f);
 
 megaFunction = f_T_a / f_Theta_dot;
 megaFunction_n = subs(megaFunction, d, dVal_i);
@@ -151,8 +191,8 @@ end
 figure;
 plot(thrust(1, :), thrust(2, :));
 
-deltaV = integral(costFunction_n, theta_0, theta_f);
-%deltaV = trapz(path(1, :), path(2,:));
+%deltaV = integral(costFunction_n, theta_0, theta_f);
+deltaV = trapz(path(1, :), path(2,:));
 
 nu = linspace(0, 2*pi, 1000);
 orbit1 = [cos(nu+omega1) * p1 ./ (1+e1*cos(nu)); sin(nu+omega1) * p1 ./ (1+e1*cos(nu))];

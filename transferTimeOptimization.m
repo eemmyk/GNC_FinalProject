@@ -11,5 +11,8 @@ function [t_error] = transferTimeOptimization(d_in)
     time_t = integral(transferTime, 0, theta_f);
 
     t_error = time_t - tf;
+
+    fprintf("guessed d: %.3f, remaining error: %.2f\n", d_in, t_error);
+
 end
 
