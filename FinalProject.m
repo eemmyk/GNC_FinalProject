@@ -27,12 +27,13 @@ mju = mju_Sun;
 
 %initial orbit parameters
 %a1 = 6800*1000;%500 * 10^9;
-a1 = 150 * 10^9;
-e1 = 0.7;
+%a1 = 150 * 10^9;
+a1 = 1*150*10^9;
+e1 = 0.1;
 %Argument of perigee
-omega1 = pi/2;
+omega1 = 5*pi/180;
 %initial maneuver angle
-nu_0 = 0;
+nu_0 = 3*pi/2;
 nu1 = omega1 + nu_0;
 %In reference coords
 theta1 = nu1;
@@ -45,10 +46,10 @@ theta1_dot = sqrt(mju/a1^3) * a1^2/r1^2 * sqrt(1-e1^2);
 %Some are known, while others are calculated from desired tof and initial
 %conditions
 %a2 = 42164*1000;
-a2 = 100 * 10^9;
-e2 = 0.5;
+a2 = 2*150*10^9;
+e2 = 0.015;
 %Argument of perigee
-omega2 = -pi/2;
+omega2 = -86*pi/180;
 %Time of last perigee pass for object 2
 Tp2 = 0;
 currentTime = 0;
@@ -169,7 +170,9 @@ d_guess = 1e-9;
 
 timeFunction = sqrt((r^4/mju) * (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
 
-d_optimized = fzero(@transferTimeOptimization, d_guess);
+opt = optimset('TolFun', 1e1);
+
+d_optimized = fzero(@transferTimeOptimization, d_guess, opt);
 %%
 % d_min = 0 * 1/max(r1, r2);
 % d_max = 0.1 * 1/min(r1, r2);
@@ -187,7 +190,7 @@ dVal_i = d_optimized;
 
 %megaFunction = thrustFunction / thetaDotFunction;
 
-opt = optimset('TolX',1e-9);
+opt = optimset('TolFun',1e1);
 
 d_fuelOptimal = fminsearch(@deltaVOptimization, 0, opt);
 
