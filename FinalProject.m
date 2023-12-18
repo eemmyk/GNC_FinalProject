@@ -10,9 +10,11 @@ close all;
 % limits for d
 % And stuff
 
-global tf  theta_f  theta_0;
+global tf  theta_f  theta_0  integralApproximationSteps;
 
-tf = 40000;
+tf = 86400 * 365.25 * 1;
+
+integralApproximationSteps = 100;
 
 N = 1;
 
@@ -21,30 +23,32 @@ theta_0 = 0;
 mju_Earth = 3.986004418*10^14;
 mju_Sun = 1.32712440018*10^20;
 
-mju = mju_Earth;
+mju = mju_Sun;
 
 %initial orbit parameters
-a1 = 6800*1000;%500 * 10^9;
-%a1 = 150 * 10^9;
-e1 = 0.0;
+%a1 = 6800*1000;%500 * 10^9;
+a1 = 150 * 10^9;
+e1 = 0.7;
 %Argument of perigee
-omega1 = 0;
+omega1 = pi/2;
 %initial maneuver angle
-nu_0 = pi;
+nu_0 = 0;
 nu1 = omega1 + nu_0;
-gamma1 = asin(e1 * sin(nu1) / sqrt(1+2*e1*cos(nu1) + e1^2));
+%In reference coords
+theta1 = nu1;
+gamma1 = asin(e1 * sin(nu_0) / sqrt(1+2*e1*cos(nu_0) + e1^2));
 p1 = a1 * (1-e1^2);
-r1 = p1 / (1+e1*cos(nu1));
+r1 = p1 / (1+e1*cos(nu_0));
 theta1_dot = sqrt(mju/a1^3) * a1^2/r1^2 * sqrt(1-e1^2);
 
 %Target orbit parameters
 %Some are known, while others are calculated from desired tof and initial
 %conditions
-a2 = 42164*1000;
-%a2 = 100 * 10^9;
-e2 = 0.0;
+%a2 = 42164*1000;
+a2 = 100 * 10^9;
+e2 = 0.5;
 %Argument of perigee
-omega2 = 0;
+omega2 = -pi/2;
 %Time of last perigee pass for object 2
 Tp2 = 0;
 currentTime = 0;
@@ -82,17 +86,20 @@ nuSolver = n2*T==pi+E-e2*sin(E);
 nuSolutions_f = vpasolve(nuSolver, nu_time);
 nuSolutions_f = double(nuSolutions_f);
 
-nu2 = mod(nuSolutions_f + 2*pi, 2*pi) + omega2;
-
-theta_tilde = mod(nu2 - nu1 + 2*pi, 2*pi);
+nu2 = mod(nuSolutions_f + 2*pi, 2*pi);
+%In reference coords
+theta2 = nu2 + omega2;
+theta_tilde = mod(theta2 - theta1 + 2*pi, 2*pi);
 
 gamma2 = asin(e2 * sin(nu2) / sqrt(1+2*e2*cos(nu2) + e2^2));
 p2 = a2 * (1-e2^2);
 r2 = p2 / (1+e2*cos(nu2));
+r2_i = p2 / (1+e2*cos(nu2_i));
 theta2_dot = sqrt(mju/a2^3)*a2^2/r2^2 * sqrt(1-e2^2);
 
 
 %The total transfer angle is represented by:
+
 theta_f = 2*pi * N + theta_tilde;
 
 %%
@@ -148,44 +155,53 @@ g = efg(3);
 r = 1 / (a + b*theta + c*theta^2 + d*theta^3 + e*theta^4 + f*theta^5 + g*theta^6);
 gamma = atan(-r * (b + 2*c*theta + 3*d*theta^2 + 4*e*theta^3 + 5*f*theta^4 + 6*g*theta^5));
 
-f_Theta_dot = sqrt((mju/r^4) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
-f_T_a = -mju / (2 * r^3 * cos(gamma)) * (6*d + 24*e*theta + 60*f*theta^2 + 120*g*theta^3 - tan(gamma)/r) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4)^2;
+global timeFunction thrustFunction thetaDotFunction;
 
-d_guess = 1e-12;
+
+thetaDotFunction = sqrt((mju/r^4) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
+thrustFunction = -mju / (2 * r^3 * cos(gamma)) * (6*d + 24*e*theta + 60*f*theta^2 + 120*g*theta^3 - tan(gamma)/r) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4)^2;
+
+d_guess = 1e-9;
+
+%f_Theta_cross = @(angle) double(subs(subs(thetaDotFunction^2, d, d_guess), theta, angle));
+%theta_cross = fzero(f_Theta_cross, 0.5*(theta_0 + theta_f));
+
+
+timeFunction = sqrt((r^4/mju) * (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
 
 d_optimized = fzero(@transferTimeOptimization, d_guess);
 %%
-d_min = 0 * 1/max(r1, r2);
-d_max = 0.1 * 1/min(r1, r2);
+% d_min = 0 * 1/max(r1, r2);
+% d_max = 0.1 * 1/min(r1, r2);
 
 dVal_i = d_optimized;
 
-timeFunction = sqrt((r^4/mju) * (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
-timeFunction_n = subs(timeFunction, d, dVal_i);
+% timeFunction_n = subs(timeFunction, d, dVal_i);
 
-timeCut = vpa(timeFunction);
+% timeCut = vpa(timeFunction);
 
-transferTime = @(angle) double(subs(timeFunction_n, theta, angle));
+% transferTime = @(angle) double(subs(timeFunction_n, theta, angle));
 
 %Transfer Time
-%time_t = integral(transferTime, theta_0, theta_f);
+%time_t = integral(transferTime, theta_0, theta_f); 
 
-megaFunction = f_T_a / f_Theta_dot;
-megaFunction_n = subs(megaFunction, d, dVal_i);
+%megaFunction = thrustFunction / thetaDotFunction;
 
-f_T_a_n = subs(f_T_a, d, dVal_i);
+opt = optimset('TolX',1e-9);
 
-costFunction = @(theta) megaFunction;
-costFunction_n = @(angle) double(subs(megaFunction_n, theta, angle));
+d_fuelOptimal = fminsearch(@deltaVOptimization, 0, opt);
 
-t_steps = 100;
-theta_vec = linspace(theta_0, theta_f, t_steps);
-path = zeros(2, t_steps);
-thrust = zeros(2, t_steps);
-for i = 1:t_steps
-    path(:,i) = [theta_vec(i); double(subs(megaFunction_n, theta, theta_vec(i)))];
-    thrust(:,i) = [theta_vec(i); double(subs(f_T_a_n, theta, theta_vec(i)))];
+jerkFunction_n = subs(thrustFunction/thetaDotFunction, d, d_fuelOptimal);
+thrustFunction_n = subs(thrustFunction, d, d_fuelOptimal);
+theta_vec = linspace(theta_0, theta_f, integralApproximationSteps);
+jerk = zeros(2, integralApproximationSteps);
+thrust = zeros(2, integralApproximationSteps);
+for i = 1:integralApproximationSteps
+    jerk(:,i) = [theta_vec(i); double(subs(jerkFunction_n, theta, theta_vec(i)))];
+    thrust(:,i) = [theta_vec(i); double(subs(thrustFunction_n, theta, theta_vec(i)))];
 end
+
+deltaV = trapz(jerk(1, :), abs(jerk(2,:)));
 
 % figure;
 % plot(path(1, :), path(2, :));
@@ -193,21 +209,27 @@ end
 figure;
 plot(thrust(1, :), thrust(2, :));
 
+title("Thrust curve")
+xlabel("theta");
+ylabel("thurst [N]");
+
 %deltaV = integral(costFunction_n, theta_0, theta_f);
-deltaV = trapz(path(1, :), path(2,:));
+%deltaV = trapz(path(1, :), abs(path(2,:)));
 
 nu = linspace(0, 2*pi, 1000);
 orbit1 = [cos(nu+omega1) * p1 ./ (1+e1*cos(nu)); sin(nu+omega1) * p1 ./ (1+e1*cos(nu))];
 orbit2 = [cos(nu+omega2) * p2 ./ (1+e2*cos(nu)); sin(nu+omega2) * p2 ./ (1+e2*cos(nu))];
 
+%% Plotting the fixed time trajectory
 figure;
 hold on;
 
 plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
 plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
 
-plot(cos(omega1 + nu1) * r1, sin(omega1 + nu1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','b')
-plot(cos(omega2 + nu2) * r2, sin(omega2 + nu2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+plot(cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
+plot(cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+plot(cos(omega2 + nu2_i) * r2_i, sin(omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')
 
 
 bodyScale = max(a1,a2) * 0.1;
@@ -242,16 +264,48 @@ g_n = double(subs(g, d, d_optimized));
 d_n = double(subs(d, d, d_optimized));
 
 r_es = 1 ./ (a_n + b_n*theta_n + c_n*theta_n.^2 + d_n*theta_n.^3 + e_n*theta_n.^4 + f_n*theta_n.^5 + g_n*theta_n.^6);
-x = cos(theta_n+nu1) .* r_es;
-y = sin(theta_n+nu1) .* r_es;
+x = cos(theta_n+theta1) .* r_es;
+y = sin(theta_n+theta1) .* r_es;
 
 plot(x, y, "Color", [1 0.1 0.1]);
 
 
-title("Somehow got this far")
-legend("Initial orbit", "Target orbit", "", "", "Transfer Orbits");
+title("TOF optimized trajectory")
+legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbits");
 axis equal
+%% Plotting the deltaV optimized trajectory
 
-%plot(cos(theta))
+figure;
+hold on;
 
-%plot(r)
+plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
+plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
+
+plot(cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
+plot(cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+plot(cos(omega2 + nu2_i) * r2_i, sin(omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')
+
+bodyScale = max(a1,a2) * 0.1;
+
+rectangle('Position',[-0.5*bodyScale, -0.5*bodyScale, bodyScale, bodyScale],'Curvature',[1 1], 'FaceColor',"yellow")
+
+a_n = a;
+b_n = b;
+c_n = c;
+
+theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, 1000)));
+e_n = double(subs(e, d, d_fuelOptimal));
+f_n = double(subs(f, d, d_fuelOptimal));
+g_n = double(subs(g, d, d_fuelOptimal));
+d_n = double(subs(d, d, d_fuelOptimal));
+
+r_es = 1 ./ (a_n + b_n*theta_n + c_n*theta_n.^2 + d_n*theta_n.^3 + e_n*theta_n.^4 + f_n*theta_n.^5 + g_n*theta_n.^6);
+x = cos(theta_n+theta1) .* r_es;
+y = sin(theta_n+theta1) .* r_es;
+
+plot(x, y, "Color", [1 0.1 0.1]);
+
+
+title("deltaV optimized trajectory")
+legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbits");
+axis equal
