@@ -11,7 +11,8 @@ close all;
 % limits for d
 % And stuff
 
-global tf  theta_f  theta_0  integralApproximationSteps;
+global tf theta_f theta_0 intApprox a_initial a_final;
+global nu_0 currentTime mju N;
 
 %% Estimation values and set parameters
 
@@ -21,15 +22,15 @@ mju = 1.32712440018*10^20; %Sun
 
 %First orbit semimajor axis
 %a_initial= 6800*1000;%500 * 10^9;
-a_initial = 1050 * 10^9;
+a_initial = 10 * (0.1 + 0.9 * rand()) * 150*10^9;
 %Second orbit semimajor axis
 %a_final = 42164*1000;
-a_final = 2125*10^9;
+a_final = 10 * (0.1 + 0.9 * rand()) * 150*10^9;
 %Number of rotations around central body
-N = 0;
+N = randi(3) - 1;
 
 %Solve TOF or optimize deltaV
-optimizeDV = 1; % 1 --> optimize DV, 0--> solve exact TOF
+optimizeDV = 0; % 1 --> optimize DV, 0--> solve exact TOF
 
 % 1 + 2N hohmann transfer orbits in time
 TOF_estimation = 0.5*(1+N)*pi*sqrt((a_initial+a_final)^3/(8*mju));
@@ -39,20 +40,32 @@ TOF_estimation = 0.5*(1+N)*pi*sqrt((a_initial+a_final)^3/(8*mju));
 
 tf = TOF_estimation;
 
-integralApproximationSteps = 10;
+%Used for dV optimization
+tf_guess = TOF_estimation;
+
+intApprox = 10;
 
 %%Doesn't change, but here not to be a hardcoded value
 theta_0 = 0;
 
+%randomized variables if wanting to use them
+
+% Target will be at random point along 2nd orbit
+currentTime = rand() * 2*pi*sqrt(a_final ^3 / mju);
+
+% Initial burn will be performed at a random point along the first orbit
+nu_0 = rand() * 2 * pi;
+
 %% Calculating the orbital parameters
+global theta2;
 
 %initial orbit parameters
 a1 = a_initial;
-e1 = 0.4;
+e1 = rand()^2;
 %Argument of perigee
-omega1 = pi/4;
+omega1 = rand()*2*pi;
+
 %initial maneuver angle
-nu_0 = rand() * 2*pi;
 nu1 = omega1 + nu_0;
 %In reference coords
 theta1 = nu1;
@@ -65,12 +78,11 @@ theta1_dot = sqrt(mju/a1^3) * a1^2/r1^2 * sqrt(1-e1^2);
 %Some are known, while others are calculated from desired tof and initial
 %conditions
 a2 = a_final;
-e2 = 0.7;
+e2 = rand()^2;
 %Argument of perigee
-omega2 = -pi/2;
+omega2 = rand()*2*pi;
 %Time of last perigee pass for object 2
 Tp2 = 0;
-currentTime = rand() * 2*pi*sqrt(a2 ^3 / mju);
 
 %Trying this one instead
 n2 = sqrt(mju/a2^3);
@@ -118,8 +130,12 @@ theta2_dot = sqrt(mju/a2^3)*a2^2/r2^2 * sqrt(1-e2^2);
 
 
 %The total transfer angle is represented by:
-
 theta_f = 2*pi * N + theta_tilde;
+
+%Propagating the two orbits
+nu = linspace(0, 2*pi, 1000);
+orbit1 = [cos(nu+omega1) * p1 ./ (1+e1*cos(nu)); sin(nu+omega1) * p1 ./ (1+e1*cos(nu))];
+orbit2 = [cos(nu+omega2) * p2 ./ (1+e2*cos(nu)); sin(nu+omega2) * p2 ./ (1+e2*cos(nu))];
 
 %% Solving the coefficients
 syms d theta;
@@ -151,123 +167,136 @@ global timeFunction thrustFunction thetaDotFunction;
 thetaDotFunction = sqrt((mju/r^4) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
 thrustFunction = -mju / (2 * r^3 * cos(gamma)) * (6*d + 24*e*theta + 60*f*theta^2 + 120*g*theta^3 - tan(gamma)/r) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4)^2;
 
-%% TOF optimization
+%Initial guess for d coefficient:
+global d_solution;
 
-d_guess = 1e-12;
+d_solution = 1e-12;
 
-%theta_cross = fminsearch(@thetaSquareFunc, [0, 0]);
+%% TOF optimization and result plotting
+global timeResult
 
-timeFunction = sqrt((r^4/mju) * (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
+%Initialize best values
+timeResult = Inf;
+if optimizeDV == 0
+    %theta_cross = fminsearch(@thetaSquareFunc, [0, 0]);
+    
+    timeFunction = sqrt((r^4/mju) * (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
+    
+    opt = optimset('TolFun', 1e-15, 'TolX', 1e-15);
 
-opt = optimset('TolFun', 1e-6);
-%TOF solution
-d_optimized_tof = fzero(@transferTimeOptimization, d_guess, opt);
+    %TOF solution
+    d_optimized_tof = fzero(@transferTimeOptimization, d_solution, opt);
+    
 
-%% Plotting the fixed time trajectory
-figure;
-hold on;
-
-plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
-plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
-
-plot(cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
-plot(cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
-plot(cos(omega2 + nu2_i) * r2_i, sin(omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')
-
-
-bodyScale = max(a1,a2) * 0.075;
-
-rectangle('Position',[-0.5*bodyScale, -0.5*bodyScale, bodyScale, bodyScale],'Curvature',[1 1], 'FaceColor',"yellow")
-
-a_n = a;
-b_n = b;
-c_n = c;
-
-theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, 1000)));
-e_n = double(subs(e, d, d_optimized_tof));
-f_n = double(subs(f, d, d_optimized_tof));
-g_n = double(subs(g, d, d_optimized_tof));
-d_n = double(subs(d, d, d_optimized_tof));
-
-r_es = 1 ./ (a_n + b_n*theta_n + c_n*theta_n.^2 + d_n*theta_n.^3 + e_n*theta_n.^4 + f_n*theta_n.^5 + g_n*theta_n.^6);
-x = cos(theta_n+theta1) .* r_es;
-y = sin(theta_n+theta1) .* r_es;
-
-plot(x, y, "Color", [1 0.1 0.1]);
-
-
-title("TOF optimized trajectory")
-legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbits");
-axis equal
-
-%% Delta V optimization
-
-d_fuelOptimal_guess = real(d_optimized_tof);
-
-opt = optimset('TolFun',1e1);
-d_fuelOptimal = fminsearch(@deltaVOptimization, d_fuelOptimal_guess, opt);
-
-jerkFunction_n = subs(thrustFunction/thetaDotFunction, d, d_fuelOptimal);
-thrustFunction_n = subs(thrustFunction, d, d_fuelOptimal);
-theta_vec = linspace(theta_0, theta_f, integralApproximationSteps);
-jerk = zeros(2, integralApproximationSteps);
-thrust = zeros(2, integralApproximationSteps);
-for i = 1:integralApproximationSteps
-    jerk(:,i) = [theta_vec(i); double(subs(jerkFunction_n, theta, theta_vec(i)))];
-    thrust(:,i) = [theta_vec(i); double(subs(thrustFunction_n, theta, theta_vec(i)))];
+    %Plot results of TOF solved trajectory
+    figure;
+    hold on;
+    
+    plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
+    plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
+    
+    plot(cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
+    plot(cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+    plot(cos(omega2 + nu2_i) * r2_i, sin(omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')
+    
+    bodyScale = max(a1,a2) * 0.075;
+    
+    rectangle('Position',[-0.5*bodyScale, -0.5*bodyScale, bodyScale, bodyScale],'Curvature',[1 1], 'FaceColor',"yellow")
+    
+    a_n = a;
+    b_n = b;
+    c_n = c;
+    
+    theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, 1000)));
+    e_n = double(subs(e, d, d_optimized_tof));
+    f_n = double(subs(f, d, d_optimized_tof));
+    g_n = double(subs(g, d, d_optimized_tof));
+    d_n = double(subs(d, d, d_optimized_tof));
+    
+    r_es = 1 ./ (a_n + b_n*theta_n + c_n*theta_n.^2 + d_n*theta_n.^3 + e_n*theta_n.^4 + f_n*theta_n.^5 + g_n*theta_n.^6);
+    x = cos(theta_n+theta1) .* r_es;
+    y = sin(theta_n+theta1) .* r_es;
+    
+    plot(x, y, "Color", [1 0.1 0.1]);
+    
+    title(sprintf("TOF optimized trajectory\nTarget time: %.0f Achieved time: %.f0", tf, tf+timeResult));
+    legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbits");
+    axis equal
 end
 
-deltaV = trapz(jerk(1, :), abs(jerk(2,:)));
+%% Delta V optimization and result plotting
+if optimizeDV == 1
+    
+    global interDeltaResult deltaResult theta2_opt d_solution tof_optimal;
 
-figure;
-plot(thrust(1, :), thrust(2, :));
+    %Initialize best values
+    deltaResult = Inf;
+    interDeltaResult = Inf;
 
+    opt = optimset('TolFun',1e1);
+    tf_fuelOptimal = fminsearch(@optimalDVSolver, tf_guess, opt);
 
-timeFunction_n = subs(timeFunction, d, d_fuelOptimal);
-timeFunction_nn = @(angle) double(subs(timeFunction_n, theta, angle));
-dV_TOF = integral(timeFunction_nn, theta_0, theta_f);
+    thrustFunction_n = subs(thrustFunction, d, d_solution);
+    thrustFunction_nn = @(angle) double(subs(thrustFunction_n, theta, angle));
 
-title("Thrust curve")
-xlabel("theta");
-ylabel("thurst [N]");
+    theta_vec = linspace(theta_0, theta_f, intApprox);
+    thrustCurve = [theta_vec; thrustFunction_nn(theta_vec)];    
 
-nu = linspace(0, 2*pi, 1000);
-orbit1 = [cos(nu+omega1) * p1 ./ (1+e1*cos(nu)); sin(nu+omega1) * p1 ./ (1+e1*cos(nu))];
-orbit2 = [cos(nu+omega2) * p2 ./ (1+e2*cos(nu)); sin(nu+omega2) * p2 ./ (1+e2*cos(nu))];
+    %Getting the latest result from the optimization function
 
-%% Plotting the deltaV optimized trajectory
+    % Plot results of dV optimized trajectory
+    figure;
+    plot(thrustCurve(1, :), thrustCurve(2, :));
+    
+    %timeFunction_n = subs(timeFunction, d, d_fuelOptimal);
+    %timeFunction_nn = @(angle) double(subs(timeFunction_n, theta, angle));
+    %dV_TOF = integral(timeFunction_nn, theta_0, theta_f);
+    
+    title("Thrust curve")
+    xlabel("theta");
+    ylabel("thurst [N]");
 
-figure;
-hold on;
+    figure;
+    hold on;
+    
+    plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
+    plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
+    
+    plot(cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
+    plot(cos(theta2_opt) * r2, sin(theta2_opt) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+    plot(cos(omega2 + nu2_i) * r2_i, sin(omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')
+    
+    bodyScale = max(a1,a2) * 0.075;
+    
+    rectangle('Position',[-0.5*bodyScale, -0.5*bodyScale, bodyScale, bodyScale],'Curvature',[1 1], 'FaceColor',"yellow")
+    
+    a_n = a;
+    b_n = b;
+    c_n = c;
+    
+    theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, 1000)));
+    e_n = double(subs(e, d, d_solution));
+    f_n = double(subs(f, d, d_solution));
+    g_n = double(subs(g, d, d_solution));
+    d_n = double(subs(d, d, d_solution));
+    
+    r_es = 1 ./ (a_n + b_n*theta_n + c_n*theta_n.^2 + d_n*theta_n.^3 + e_n*theta_n.^4 + f_n*theta_n.^5 + g_n*theta_n.^6);
+    x = cos(theta_n+theta1) .* r_es;
+    y = sin(theta_n+theta1) .* r_es;
+    
+    plot(x, y, "Color", [1 0.1 0.1]);
+    
+    
+    title(sprintf("deltaV optimized trajectory\n%.0f m/s in %.0f secods", deltaResult, tof_optimal))
+    legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbits");
+    axis equal
+end
 
-plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
-plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
+%% Second to time conversion
 
-plot(cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
-plot(cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
-plot(cos(omega2 + nu2_i) * r2_i, sin(omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')
+function [timestring] = secToTime(seconds)
+    days = mod(seconds, 86400)
+    hours mod()
 
-bodyScale = max(a1,a2) * 0.075;
-
-rectangle('Position',[-0.5*bodyScale, -0.5*bodyScale, bodyScale, bodyScale],'Curvature',[1 1], 'FaceColor',"yellow")
-
-a_n = a;
-b_n = b;
-c_n = c;
-
-theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, 1000)));
-e_n = double(subs(e, d, d_fuelOptimal));
-f_n = double(subs(f, d, d_fuelOptimal));
-g_n = double(subs(g, d, d_fuelOptimal));
-d_n = double(subs(d, d, d_fuelOptimal));
-
-r_es = 1 ./ (a_n + b_n*theta_n + c_n*theta_n.^2 + d_n*theta_n.^3 + e_n*theta_n.^4 + f_n*theta_n.^5 + g_n*theta_n.^6);
-x = cos(theta_n+theta1) .* r_es;
-y = sin(theta_n+theta1) .* r_es;
-
-plot(x, y, "Color", [1 0.1 0.1]);
-
-
-title("deltaV optimized trajectory")
-legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbits");
-axis equal
+    timestring = sprintf("%.0f d %.0f h %.0f m %.0f s", days, hours, mins, secs)
+end

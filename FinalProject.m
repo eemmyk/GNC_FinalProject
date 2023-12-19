@@ -11,7 +11,8 @@ close all;
 % limits for d
 % And stuff
 
-global tf  theta_f  theta_0  integralApproximationSteps;
+global tf theta_f theta_0 intApprox a_initial a_final;
+global nu_0 currentTime mju N;
 
 %% Estimation values and set parameters
 
@@ -21,12 +22,12 @@ mju = 1.32712440018*10^20; %Sun
 
 %First orbit semimajor axis
 %a_initial= 6800*1000;%500 * 10^9;
-a_initial = 1050 * 10^9;
+a_initial = 10 * (0.01 + 0.9 * rand()) * 150*10^9;
 %Second orbit semimajor axis
 %a_final = 42164*1000;
-a_final = 2125*10^9;
+a_final = 10 * (0.01 + 0.9 * rand()) * 150*10^9;
 %Number of rotations around central body
-N = 0;
+N = randi(2) - 1;
 
 %Solve TOF or optimize deltaV
 optimizeDV = 1; % 1 --> optimize DV, 0--> solve exact TOF
@@ -37,9 +38,15 @@ TOF_estimation = 0.5*(1+N)*pi*sqrt((a_initial+a_final)^3/(8*mju));
 %tf = 86400 * 365.25 * 0.5;
 %ratio = tf/TOF_estimation;
 
-tf = TOF_estimation;
+if optimizeDV == 0
+    tf = TOF_estimation;
+else
+    tf = 0;
+end
+%Used for dV optimization
+tf_guess = TOF_estimation;
 
-integralApproximationSteps = 10;
+intApprox = 10;
 
 %%Doesn't change, but here not to be a hardcoded value
 theta_0 = 0;
@@ -47,18 +54,19 @@ theta_0 = 0;
 %randomized variables if wanting to use them
 
 % Target will be at random point along 2nd orbit
-currentTime = 0; %rand() * 2*pi*sqrt(a_final ^3 / mju);
+currentTime = rand() * 2*pi*sqrt(a_final ^3 / mju);
 
 % Initial burn will be performed at a random point along the first orbit
-nu_0 = 0; %rand() * 2 * pi;
+nu_0 = rand() * 2 * pi;
 
 %% Calculating the orbital parameters
+global theta2;
 
 %initial orbit parameters
 a1 = a_initial;
-e1 = 0.4;
+e1 = rand()^2;
 %Argument of perigee
-omega1 = pi/4;
+omega1 = rand()*2*pi;
 
 %initial maneuver angle
 nu1 = omega1 + nu_0;
@@ -73,9 +81,9 @@ theta1_dot = sqrt(mju/a1^3) * a1^2/r1^2 * sqrt(1-e1^2);
 %Some are known, while others are calculated from desired tof and initial
 %conditions
 a2 = a_final;
-e2 = 0.7;
+e2 = rand()^2;
 %Argument of perigee
-omega2 = -pi/2;
+omega2 = rand()*2*pi;
 %Time of last perigee pass for object 2
 Tp2 = 0;
 
@@ -125,8 +133,12 @@ theta2_dot = sqrt(mju/a2^3)*a2^2/r2^2 * sqrt(1-e2^2);
 
 
 %The total transfer angle is represented by:
-
 theta_f = 2*pi * N + theta_tilde;
+
+%Propagating the two orbits
+nu = linspace(0, 2*pi, 1000);
+orbit1 = [cos(nu+omega1) * p1 ./ (1+e1*cos(nu)); sin(nu+omega1) * p1 ./ (1+e1*cos(nu))];
+orbit2 = [cos(nu+omega2) * p2 ./ (1+e2*cos(nu)); sin(nu+omega2) * p2 ./ (1+e2*cos(nu))];
 
 %% Solving the coefficients
 syms d theta;
@@ -159,18 +171,24 @@ thetaDotFunction = sqrt((mju/r^4) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f
 thrustFunction = -mju / (2 * r^3 * cos(gamma)) * (6*d + 24*e*theta + 60*f*theta^2 + 120*g*theta^3 - tan(gamma)/r) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4)^2;
 
 %Initial guess for d coefficient:
-d_guess = 1e-12;
+global d_solution;
+
+d_solution = 1e-12;
 
 %% TOF optimization and result plotting
+global timeResult
+
+%Initialize best values
+timeResult = Inf;
 if optimizeDV == 0
     %theta_cross = fminsearch(@thetaSquareFunc, [0, 0]);
     
     timeFunction = sqrt((r^4/mju) * (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
     
-    opt = optimset('TolFun', 1e-6);
+    opt = optimset('TolFun', 1e-18, 'TolX', 1e-18);
 
     %TOF solution
-    d_optimized_tof = fzero(@transferTimeOptimization, d_guess, opt);
+    d_optimized_tof = fzero(@transferTimeOptimization, d_solution, opt);
     
 
     %Plot results of TOF solved trajectory
@@ -204,47 +222,43 @@ if optimizeDV == 0
     
     plot(x, y, "Color", [1 0.1 0.1]);
     
-    title("TOF optimized trajectory")
+    title(sprintf("TOF optimized trajectory\nTarget time: %s\nAchieved time: %s", secToTime(tf), secToTime(tf+timeResult)));
     legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbits");
     axis equal
 end
 
 %% Delta V optimization and result plotting
 if optimizeDV == 1
-    d_fuelOptimal_guess = real(d_guess);
     
+    global interDeltaResult deltaResult theta2_opt r2_opt tof_optimal;
+
+    %Initialize best values
+    deltaResult = Inf;
+    interDeltaResult = Inf;
+
     opt = optimset('TolFun',1e1);
-    d_fuelOptimal = fminsearch(@deltaVOptimization, d_fuelOptimal_guess, opt);
-    
-    jerkFunction_n = subs(thrustFunction/thetaDotFunction, d, d_fuelOptimal);
-    thrustFunction_n = subs(thrustFunction, d, d_fuelOptimal);
-    theta_vec = linspace(theta_0, theta_f, integralApproximationSteps);
-    jerk = zeros(2, integralApproximationSteps);
-    thrust = zeros(2, integralApproximationSteps);
-    for i = 1:integralApproximationSteps
-        jerk(:,i) = [theta_vec(i); double(subs(jerkFunction_n, theta, theta_vec(i)))];
-        thrust(:,i) = [theta_vec(i); double(subs(thrustFunction_n, theta, theta_vec(i)))];
-    end
-    
-    deltaV = trapz(jerk(1, :), abs(jerk(2,:)));
-    
+    tf_fuelOptimal = fminsearch(@optimalDVSolver, tf_guess, opt);
+
+    thrustFunction_n = subs(thrustFunction, d, d_solution);
+    thrustFunction_nn = @(angle) double(subs(thrustFunction_n, theta, angle));
+
+    theta_vec = linspace(theta_0, theta_f, intApprox);
+    thrustCurve = [theta_vec; thrustFunction_nn(theta_vec)];    
+
+    %Getting the latest result from the optimization function
+
+    % Plot results of dV optimized trajectory
     figure;
-    plot(thrust(1, :), thrust(2, :));
+    plot(thrustCurve(1, :), thrustCurve(2, :));
     
-    
-    timeFunction_n = subs(timeFunction, d, d_fuelOptimal);
-    timeFunction_nn = @(angle) double(subs(timeFunction_n, theta, angle));
-    dV_TOF = integral(timeFunction_nn, theta_0, theta_f);
+    %timeFunction_n = subs(timeFunction, d, d_fuelOptimal);
+    %timeFunction_nn = @(angle) double(subs(timeFunction_n, theta, angle));
+    %dV_TOF = integral(timeFunction_nn, theta_0, theta_f);
     
     title("Thrust curve")
     xlabel("theta");
     ylabel("thurst [N]");
-    
-    nu = linspace(0, 2*pi, 1000);
-    orbit1 = [cos(nu+omega1) * p1 ./ (1+e1*cos(nu)); sin(nu+omega1) * p1 ./ (1+e1*cos(nu))];
-    orbit2 = [cos(nu+omega2) * p2 ./ (1+e2*cos(nu)); sin(nu+omega2) * p2 ./ (1+e2*cos(nu))];
-    
-    % Plot results of dV optimized trajectory
+
     figure;
     hold on;
     
@@ -252,7 +266,7 @@ if optimizeDV == 1
     plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
     
     plot(cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
-    plot(cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+    plot(cos(theta2_opt) * r2_opt, sin(theta2_opt) * r2_opt,'or', 'MarkerSize',5,'MarkerFaceColor','r')
     plot(cos(omega2 + nu2_i) * r2_i, sin(omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')
     
     bodyScale = max(a1,a2) * 0.075;
@@ -264,10 +278,10 @@ if optimizeDV == 1
     c_n = c;
     
     theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, 1000)));
-    e_n = double(subs(e, d, d_fuelOptimal));
-    f_n = double(subs(f, d, d_fuelOptimal));
-    g_n = double(subs(g, d, d_fuelOptimal));
-    d_n = double(subs(d, d, d_fuelOptimal));
+    e_n = double(subs(e, d, d_solution));
+    f_n = double(subs(f, d, d_solution));
+    g_n = double(subs(g, d, d_solution));
+    d_n = double(subs(d, d, d_solution));
     
     r_es = 1 ./ (a_n + b_n*theta_n + c_n*theta_n.^2 + d_n*theta_n.^3 + e_n*theta_n.^4 + f_n*theta_n.^5 + g_n*theta_n.^6);
     x = cos(theta_n+theta1) .* r_es;
@@ -276,7 +290,22 @@ if optimizeDV == 1
     plot(x, y, "Color", [1 0.1 0.1]);
     
     
-    title("deltaV optimized trajectory")
+    title(sprintf("deltaV optimized trajectory\n%.0f m/s in %s ", deltaResult, secToTime(tof_optimal)))
     legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbits");
     axis equal
+end
+
+%% Second to time conversion
+function [timestring] = secToTime(seconds)
+    years = floor(seconds / (365.25 * 86400));
+    seconds = seconds - years * (365.25 * 86400);
+    days = floor(seconds / 86400);
+    seconds = seconds - days * 86400;
+    hours = floor(seconds / 3600);
+    seconds = seconds - hours * 3600;
+    mins = floor(seconds / 60);
+    seconds = seconds - mins * 60;
+    secs = floor(seconds);
+
+    timestring = sprintf("%.0f y %.0f d %.0f h %.0f m %.0f s", years, days, hours, mins, secs);
 end
