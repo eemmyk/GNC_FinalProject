@@ -84,7 +84,7 @@ efgSolution_sym = (1/(2*theta_f_^6))*efgMatrix1*efgMatrix2;
 % Finding the transfer time calculated by the constants
 %..........................................................................
 
-dValue = fzero(@dOptimiser, 0);
+dValue = fzero(@dOptimiser, 1e-12);
 
 function dOptimised = dOptimiser(dGuess)
     earthRadius = 6.371e6; % m
@@ -100,7 +100,7 @@ function dOptimised = dOptimiser(dGuess)
     orbitalPeriod_inner = 2*pi*sqrt((semiMajor_inner^3)/mu);
     r1 = semiMajor_inner;
     e1 = 0.2;
-    theta_dot1 = sqrt((semiMajor_inner^3)/mu);
+    theta_dot1 = 2*pi / orbitalPeriod_inner;
     
     % Outer Orbit
     
@@ -108,7 +108,7 @@ function dOptimised = dOptimiser(dGuess)
     orbitalPeriod_outer = 2*pi*sqrt((semiMajor_outer^3)/mu);
     r2 = semiMajor_outer;
     e2 = 0.3;
-    theta_dot2 = sqrt((semiMajor_outer^3)/mu);
+    theta_dot2 = 2*pi / orbitalPeriod_outer;
     
     % Transfer Path
     

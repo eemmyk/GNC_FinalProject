@@ -29,8 +29,9 @@ a_final = 10 * (0.01 + 0.9 * rand()) * 150*10^9;
 %Number of rotations around central body
 N = randi(2) - 1;
 
-%Solve TOF or optimize deltaV
-optimizeDV = 1; % 1 --> optimize DV, 0--> solve exact TOF
+%Solve TOF, optimize deltaV or both
+optimizeDV = 1;
+optimizeTOF = 1;
 
 % 1 + 2N hohmann transfer orbits in time
 TOF_estimation = 0.5*(1+N)*pi*sqrt((a_initial+a_final)^3/(8*mju));
@@ -38,15 +39,17 @@ TOF_estimation = 0.5*(1+N)*pi*sqrt((a_initial+a_final)^3/(8*mju));
 %tf = 86400 * 365.25 * 0.5;
 %ratio = tf/TOF_estimation;
 
-if optimizeDV == 0
+if optimizeTOF == 1
     tf = TOF_estimation;
 else
     tf = 0;
 end
+
 %Used for dV optimization
-tf_guess = TOF_estimation;
+tf_guess = 0.001 * TOF_estimation;
 
 intApprox = 10;
+plotAccuracy = 1000;
 
 %%Doesn't change, but here not to be a hardcoded value
 theta_0 = 0;
@@ -60,7 +63,7 @@ currentTime = rand() * 2*pi*sqrt(a_final ^3 / mju);
 nu_0 = rand() * 2 * pi;
 
 %% Calculating the orbital parameters
-global theta2;
+global theta2 omega1 omega2 e1 e2;
 
 %initial orbit parameters
 a1 = a_initial;
@@ -180,7 +183,7 @@ global timeResult
 
 %Initialize best values
 timeResult = Inf;
-if optimizeDV == 0
+if optimizeTOF == 1
     %theta_cross = fminsearch(@thetaSquareFunc, [0, 0]);
     
     timeFunction = sqrt((r^4/mju) * (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
@@ -190,7 +193,19 @@ if optimizeDV == 0
     %TOF solution
     d_optimized_tof = fzero(@transferTimeOptimization, d_solution, opt);
     
+    theta_vec = linspace(theta_0, theta_f, intApprox);
+    
+    jerkFunction_n = subs(thrustFunction/thetaDotFunction, d, d_optimized_tof);
+    jerkFunction_nn = @(angle) double(subs(jerkFunction_n, theta, angle));
+    
+    thrustFunction_n = subs(thrustFunction, d, d_solution);
+    thrustFunction_nn = @(angle) double(subs(thrustFunction_n, theta, angle));
 
+    jerk = [theta_vec; jerkFunction_nn(theta_vec)];    
+    thrustCurve_tof = [theta_vec; thrustFunction_nn(theta_vec)];    
+
+    deltaV_tof = trapz(jerk(1, :), abs(jerk(2,:)));
+    
     %Plot results of TOF solved trajectory
     figure;
     hold on;
@@ -206,23 +221,33 @@ if optimizeDV == 0
     
     rectangle('Position',[-0.5*bodyScale, -0.5*bodyScale, bodyScale, bodyScale],'Curvature',[1 1], 'FaceColor',"yellow")
     
+    efg_Mat_1 = [30*theta_f^2  -10*theta_f^3  theta_f^4;
+            -48*theta_f     18*theta_f^2 -2*theta_f^3; 
+             20            -8*theta_f     theta_f^2];
+
+    efg_Mat_2 = [1/r2 - (a + b*theta_f + c*theta_f^2 + d*theta_f^3);
+            -tan(gamma2)/r2 - (b + 2*c*theta_f + 3*d*theta_f^2); 
+            mju/(r2^4*theta2_dot^2) - (1/r2 + 2*c + 6*d*theta_f)];
+
+    efg = 1/(2*theta_f^6) * efg_Mat_1 * efg_Mat_2;
+
     a_n = a;
     b_n = b;
     c_n = c;
-    
-    theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, 1000)));
-    e_n = double(subs(e, d, d_optimized_tof));
-    f_n = double(subs(f, d, d_optimized_tof));
-    g_n = double(subs(g, d, d_optimized_tof));
+    e_n = double(subs(efg(1), d, d_optimized_tof));
+    f_n = double(subs(efg(2), d, d_optimized_tof));
+    g_n = double(subs(efg(3), d, d_optimized_tof));
     d_n = double(subs(d, d, d_optimized_tof));
+
+    theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, plotAccuracy)));
     
     r_es = 1 ./ (a_n + b_n*theta_n + c_n*theta_n.^2 + d_n*theta_n.^3 + e_n*theta_n.^4 + f_n*theta_n.^5 + g_n*theta_n.^6);
     x = cos(theta_n+theta1) .* r_es;
     y = sin(theta_n+theta1) .* r_es;
     
-    plot(x, y, "Color", [1 0.1 0.1]);
+    plot(x, y, "Color", [0.2 0.7 0.2]);
     
-    title(sprintf("TOF optimized trajectory\nTarget time: %s\nAchieved time: %s", secToTime(tf), secToTime(tf+timeResult)));
+    title(sprintf("TOF optimized trajectory\nTarget time: %s\nAchieved time: %s\nRequired deltaV: %.0f", secToTime(tf), secToTime(tf+timeResult), deltaV_tof));
     legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbits");
     axis equal
 end
@@ -231,34 +256,27 @@ end
 if optimizeDV == 1
     
     global interDeltaResult deltaResult theta2_opt r2_opt tof_optimal;
+    global gamma2_opt theta2_dot_opt P2_opt;
 
     %Initialize best values
     deltaResult = Inf;
     interDeltaResult = Inf;
 
     opt = optimset('TolFun',1e1);
+    %tf_fuelOptimal = fmincon(@optimalDVSolver, tf_guess, [], [], [], [], 0, [], [], opt);
+
     tf_fuelOptimal = fminsearch(@optimalDVSolver, tf_guess, opt);
 
     thrustFunction_n = subs(thrustFunction, d, d_solution);
     thrustFunction_nn = @(angle) double(subs(thrustFunction_n, theta, angle));
 
     theta_vec = linspace(theta_0, theta_f, intApprox);
-    thrustCurve = [theta_vec; thrustFunction_nn(theta_vec)];    
+    thrustCurve_dV = [theta_vec; thrustFunction_nn(theta_vec)];    
 
-    %Getting the latest result from the optimization function
-
-    % Plot results of dV optimized trajectory
-    figure;
-    plot(thrustCurve(1, :), thrustCurve(2, :));
-    
     %timeFunction_n = subs(timeFunction, d, d_fuelOptimal);
     %timeFunction_nn = @(angle) double(subs(timeFunction_n, theta, angle));
     %dV_TOF = integral(timeFunction_nn, theta_0, theta_f);
     
-    title("Thrust curve")
-    xlabel("theta");
-    ylabel("thurst [N]");
-
     figure;
     hold on;
     
@@ -273,27 +291,60 @@ if optimizeDV == 1
     
     rectangle('Position',[-0.5*bodyScale, -0.5*bodyScale, bodyScale, bodyScale],'Curvature',[1 1], 'FaceColor',"yellow")
     
+    efg_Mat_1 = [30*theta_f^2  -10*theta_f^3  theta_f^4;
+            -48*theta_f     18*theta_f^2 -2*theta_f^3; 
+             20            -8*theta_f     theta_f^2];
+
+    efg_Mat_2 = [1/r2_opt - (a + b*theta_f + c*theta_f^2 + d*theta_f^3);
+            -tan(gamma2_opt)/r2_opt - (b + 2*c*theta_f + 3*d*theta_f^2); 
+            mju/(r2_opt^4*theta2_dot_opt^2) - (1/r2_opt + 2*c + 6*d*theta_f)];
+
+    efg = 1/(2*theta_f^6) * efg_Mat_1 * efg_Mat_2;
+    
     a_n = a;
     b_n = b;
     c_n = c;
+    e_n = double(subs(efg(1), d, d_optimized_tof));
+    f_n = double(subs(efg(2), d, d_optimized_tof));
+    g_n = double(subs(efg(3), d, d_optimized_tof));
+    d_n = double(subs(d, d, d_optimized_tof));
     
-    theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, 1000)));
-    e_n = double(subs(e, d, d_solution));
-    f_n = double(subs(f, d, d_solution));
-    g_n = double(subs(g, d, d_solution));
-    d_n = double(subs(d, d, d_solution));
-    
+    theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, plotAccuracy)));
     r_es = 1 ./ (a_n + b_n*theta_n + c_n*theta_n.^2 + d_n*theta_n.^3 + e_n*theta_n.^4 + f_n*theta_n.^5 + g_n*theta_n.^6);
     x = cos(theta_n+theta1) .* r_es;
     y = sin(theta_n+theta1) .* r_es;
     
-    plot(x, y, "Color", [1 0.1 0.1]);
+    plot(x, y, "Color", [0.2 0.7 0.2]);
     
-    
-    title(sprintf("deltaV optimized trajectory\n%.0f m/s in %s ", deltaResult, secToTime(tof_optimal)))
+    r_n = 1 / (a_n + b_n*theta + c_n*theta^2 + d_n*theta^3 + e_n*theta^4 + f_n*theta^5 + g_n*theta^6);
+    timeFunction_opt = sqrt((r_n^4/mju) * (1/r_n + 2*c_n + 6*d_n*theta + 12*e_n*theta^2 + 20*f_n*theta^3 + 30*g_n*theta^4));
+
+    timeFunction_opt_nn = @(angle) double(subs(timeFunction_opt, theta, angle));
+
+    dv_optimized_tof = trapz(theta_n, timeFunction_opt_nn(theta_n));
+
+    title(sprintf("deltaV optimized trajectory\n%.0f m/s in %s ", deltaResult, secToTime(dv_optimized_tof)));
     legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbits");
     axis equal
 end
+
+%% Plotting thrust curves
+figure;
+hold on;
+if optimizeDV == 1
+    % Plot results of dV optimized trajectory
+    plot(thrustCurve_dV(1, :), thrustCurve_dV(2, :));
+end
+if optimizeTOF == 1
+    % Plot results of dV optimized trajectory
+    plot(thrustCurve_tof(1, :), thrustCurve_dV(2, :));
+end
+  
+title(sprintf("Comparision of thrust curves for TOF solution and dV optimization"));
+legend("deltaV Optimized trajectory", "TOF solution trajectory");  
+xlabel("theta");
+ylabel("thurst [N]");
+
 
 %% Second to time conversion
 function [timestring] = secToTime(seconds)
