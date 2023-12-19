@@ -22,7 +22,7 @@ semiMajor_inner = orbitalAltitude_inner + earthRadius;
 orbitalPeriod_inner = 2*pi*sqrt((semiMajor_inner^3)/mu);
 r1 = semiMajor_inner;
 e1 = 0.2;
-theta_dot1 = sqrt((semiMajor_inner^3)/mu);
+theta_dot1 = 1/sqrt((semiMajor_inner^3)/mu);
 
 % Outer Orbit
 
@@ -30,7 +30,7 @@ semiMajor_outer = orbitalAltitude_outer + earthRadius;
 orbitalPeriod_outer = 2*pi*sqrt((semiMajor_outer^3)/mu);
 r2 = semiMajor_outer;
 e2 = 0.3;
-theta_dot2 = sqrt((semiMajor_outer^3)/mu);
+theta_dot2 = 1/sqrt((semiMajor_outer^3)/mu);
 
 % Transfer Path
 
@@ -38,7 +38,7 @@ N = 1; % number of transfer loops
 theta_0 = 0; % r1 angle
 theta_tilde = pi/2; % angle between r1 and r2
 theta_f = 2*pi * N + theta_tilde;
-theta = linspace(theta_0, theta_f, 1e2);
+theta = linspace(theta_0, theta_f, 1e4);
 
 transferTime = 23*60*60; % seconds
 
@@ -48,6 +48,12 @@ transferTime = 23*60*60; % seconds
 
 gamma1 = pi/20;
 gamma2 = -pi/20;
+
+%..........................................................................
+% Finding the transfer time calculated by the constants
+%..........................................................................
+
+d = fminsearch(@dOptimiser, 1e-12);
 
 %..........................................................................
 % Coefficients Definitions
@@ -71,20 +77,30 @@ efgMatrix2 = [(1/r2_) - (a_ + b_*theta_f_ + c_*theta_f_^2 + d_*theta_f_^3);
               (mu_/((r2_^4)*theta_dot_^2)) - ((1/r2_) + 2*c_ + 6*d_*theta_f_)];
 efgSolution_sym = (1/(2*theta_f_^6))*efgMatrix1*efgMatrix2;
 
-% efgSolution = subs(efgSolution_sym, [theta_f_, theta_dot_, r2_, a_, b_, c_, d_, gamma2_, mu_], ...
-%                    [theta_f, theta_dot, r2, a, b, c, d, gamma2, mu]);
-% 
-% efgSolution = double(efgSolution);
-% 
-% e = efgSolution(1);
-% f = efgSolution(2);
-% g = efgSolution(3);
+efgSolution = subs(efgSolution_sym, [theta_f_, theta_dot_, r2_, a_, b_, c_, d_, gamma2_, mu_], ...
+                   [theta_f, theta_dot2, r2, a, b, c, d, gamma2, mu]);
+
+efgSolution = double(efgSolution);
+
+e = efgSolution(1);
+f = efgSolution(2);
+g = efgSolution(3);
 
 %..........................................................................
-% Finding the transfer time calculated by the constants
+% Plotting Section
 %..........................................................................
 
-dValue = fzero(@dOptimiser, 0);
+r = 1 ./ (a + b*theta + c*theta.^2 + d*theta.^3 + e*theta.^4 + f*theta.^5 + g*theta.^6);
+
+x = r.*cos(theta);
+y = r.*sin(theta);
+
+plot(x, y)
+axis square
+
+%..........................................................................
+% Functions Below
+%..........................................................................
 
 function dOptimised = dOptimiser(dGuess)
     earthRadius = 6.371e6; % m
@@ -100,7 +116,7 @@ function dOptimised = dOptimiser(dGuess)
     orbitalPeriod_inner = 2*pi*sqrt((semiMajor_inner^3)/mu);
     r1 = semiMajor_inner;
     e1 = 0.2;
-    theta_dot1 = sqrt((semiMajor_inner^3)/mu);
+    theta_dot1 = 1/sqrt((semiMajor_inner^3)/mu);
     
     % Outer Orbit
     
@@ -108,7 +124,7 @@ function dOptimised = dOptimiser(dGuess)
     orbitalPeriod_outer = 2*pi*sqrt((semiMajor_outer^3)/mu);
     r2 = semiMajor_outer;
     e2 = 0.3;
-    theta_dot2 = sqrt((semiMajor_outer^3)/mu);
+    theta_dot2 = 1/sqrt((semiMajor_outer^3)/mu);
     
     % Transfer Path
     
@@ -146,21 +162,11 @@ function dOptimised = dOptimiser(dGuess)
               + f*thetaInt.^5 + g*thetaInt.^6))) + 2*c + 6*dGuess*thetaInt + 12*e*thetaInt.^2 ...
                   + 20*f*thetaInt.^3 + 30*g*thetaInt.^4)));
     tf_integralValue = integral(integrateTransferTime, 0, theta_f);
-    dOptimised = transferTime - tf_integralValue;
+    dOptimised = abs(transferTime - tf_integralValue);
 end
 
 
 
 
-%..........................................................................
-% Plotting Section
-%..........................................................................
 
-% r = 1 ./ (a + b*theta + c*theta.^2 + d*theta.^3 + e*theta.^4 + f*theta.^5 + g*theta.^6);
-% 
-% x = r.*cos(theta);
-% y = r.*sin(theta);
-% 
-% plot(x, y)
-% axis equal
 
