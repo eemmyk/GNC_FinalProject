@@ -69,3 +69,32 @@ nu2_i = mod(nuSolutions_i + 2*pi, 2*pi)
 % nu2 = nuSolutions_n > 0
 % 
 % % M = 2*pi*(t)
+
+% The radius of the orbit can be represented as:
+% r(theta) 1/(a + b*theta + c*theta.^2 + d*theta.^3 + e*theta.^4 + f*theta.^5)
+
+%theta = theta_0 = 0 yields:
+%r1 = 1/a
+
+%theta = theta_f yields:
+%r2 = 1/(a + b*theta_f + c*theta_f^2 + d*theta_f^3 + e*theta_f^4 + f*theta_f^5);
+
+% The time derivative of the radius equation yields
+% r_dot = -r.^2 * (b + 2*c*theta + 3*d*theta.^2 + 4*e*theta.^3 + 5*f*theta.^4)*theta_dot
+% From this we can get the flight-path angle gamma may be found
+% tan(gamma) = r_dot / (r * theta_dot) = -r * (b + 2*c*theta + 3*d*theta.^2 + 4*e*theta.^3 + 5*f*theta.^4)
+
+
+%The first and final flight path angles gamma1 and gamma2 can be solved from this equation:
+%tan(gamma1) = -r1 * b
+%tan(gamma2) = -r2 * (b + 2*c*theta + 3*d*theta.^2 + 4*e*theta.^3 + 5*f*theta.^4)
+
+%Additionally the polynomial must satisfy the equations of motion
+%r_dot_dot = r*theta_dot^2 + mju/r^2 = Ta * sin(alpha)
+%1 / r d/dt (r^2*theta_dot) = Ta * cos(alpha)
+
+%Ta is the thrust acceleration and alpha is the thrust angle
+
+%r*theta_dot_dot + 2*r*tan(gamma) = Ta * cos(alpha)
+
+%A LOT OF STUFF HERE:
