@@ -32,7 +32,7 @@ transferTime = 23*60*60; % seconds
 % The "I don't get how these are supposed to be defined" section
 %..........................................................................
 
-theta_dot = (2*pi)/orbitalPeriod; % rads/s
+theta_dot = theta_f/orbitalPeriod; % rads/s
 gamma1 = pi/20;
 gamma2 = -pi/20;
 d = 1e+10;
@@ -49,7 +49,7 @@ c = (1/2*r1)*((mu/((r1^3)*theta_dot^2)) - 1);
 
 % Next, e, f, and g are found through use of the syms package
 
-syms theta_f_ theta_dot_ r2_ a_ b_ c_ d_ gamma2_ mu_
+syms theta_f_ theta_dot_ r2_ a_ b_ c_ d_ e_ f_ g_ gamma2_ mu_ r_ theta_ tf_
 
 efgMatrix1 = [30*theta_f_^2, -10*theta_f_^3, theta_f_^4;
               -48*theta_f_, 18*theta_f_^2, -2*theta_f_^3;
@@ -69,23 +69,26 @@ f = efgSolution(2);
 g = efgSolution(3);
 
 %..........................................................................
+% Finding the transfer time calculated by the constants
+%..........................................................................
+
+rFunc = 1 ./ (a_ + b_*theta_ + c_*theta_.^2 + d_*theta_.^3 + e_*theta_.^4 ...
+              + f_*theta_.^5 + g_*theta_.^6);
+
+tfFunction = sqrt(((rFunc^4)/mu_)*((1/rFunc) + 2*c_ + 6*d_*theta_ + 12*e_*theta_^2 ...
+                  + 20*f_*theta_^3 + 30*g_*theta_^4));
+
+t_f_ = int(tfFunction, theta_, [0, tf_]);
+
+%..........................................................................
 % Plotting Section
 %..........................................................................
 
-r = 1 ./ (a + b*theta + c*theta.^2 + d*theta.^3 + e*theta.^4 + f*theta.^5 + g*theta.^6);
-
-x = r.*cos(theta);
-y = r.*sin(theta);
-
-plot(x, y)
-axis equal
-
-% Note to self:
-% Where I left off, I was about to put in the integral which autocalculates
-% the constant 'd'. I got confused because the integral requires all the
-% other constants, but e f and g are dependent on d. This is a tad
-% complicated but I think the point is to specify a loop where we calculate
-% for each loop of d and after each integral, check if the difference
-% between the two values is smallest. Also, it's possible that theta_dot
-% might be easily calculatable from the specified transfer time.
+% r = 1 ./ (a + b*theta + c*theta.^2 + d*theta.^3 + e*theta.^4 + f*theta.^5 + g*theta.^6);
+% 
+% x = r.*cos(theta);
+% y = r.*sin(theta);
+% 
+% plot(x, y)
+% axis equal
 
