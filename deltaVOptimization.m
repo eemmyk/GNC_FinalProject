@@ -25,7 +25,7 @@ function [deltaV_o] = deltaVOptimization(d_in)
     deltaV_o = trapz(jerk(1, :), abs(jerk(2,:)));
     
     %Save best result into a global variable
-    global interDeltaResult jerkVec;
+    global interDeltaResult;
     if deltaV_o < interDeltaResult
         interDeltaResult = deltaV_o;
         %fprintf("Guessed d: %e, Solution dV: %.0f\n", d_in, deltaV_o);

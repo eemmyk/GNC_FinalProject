@@ -1,13 +1,11 @@
 function [deltaV_o] = optimalDVSolver(tof_in)
     % Calculating the orbital parameters
     %initial orbit parameters
-    global a_initial a_final nu_0 currentTime mju N theta_0 intApprox;
+    global a_initial a_final nu_0 currentTime mju N;
+    global theta1 theta2 omega1 omega2 e1 e2 theta_f;
 
     a1 = a_initial;
-    e1 = 0.4;
-    %Argument of perigee
-    omega1 = pi/4;
-    
+
     %initial maneuver angle
     nu1 = omega1 + nu_0;
     %In reference coords
@@ -21,9 +19,6 @@ function [deltaV_o] = optimalDVSolver(tof_in)
     %Some are known, while others are calculated from desired tof and initial
     %conditions
     a2 = a_final;
-    e2 = 0.7;
-    %Argument of perigee
-    omega2 = -pi/2;
     %Time of last perigee pass for object 2
     Tp2 = 0;
     
@@ -99,7 +94,7 @@ function [deltaV_o] = optimalDVSolver(tof_in)
     r = 1 / (a + b*theta + c*theta^2 + d*theta^3 + e*theta^4 + f*theta^5 + g*theta^6);
     gamma = atan(-r * (b + 2*c*theta + 3*d*theta^2 + 4*e*theta^3 + 5*f*theta^4 + 6*g*theta^5));
     
-    global timeFunction thrustFunction thetaDotFunction;
+    global thrustFunction thetaDotFunction;
         
     thetaDotFunction = sqrt((mju/r^4) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
     thrustFunction = -mju / (2 * r^3 * cos(gamma)) * (6*d + 24*e*theta + 60*f*theta^2 + 120*g*theta^3 - tan(gamma)/r) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4)^2;
@@ -136,14 +131,17 @@ function [deltaV_o] = optimalDVSolver(tof_in)
     deltaV_o = interDeltaResult; %trapz(jerk(1, :), abs(jerk(2,:)));
 
     %Save best results as globals
-    global deltaResult theta2_opt r2_opt tof_optimal;
+    global deltaResult theta2_opt r2_opt tof_optimal theta2_dot_opt gamma2_opt P2_opt;
 
     if deltaV_o < deltaResult
         deltaResult = deltaV_o;
         theta2_opt = theta2;
+        theta2_dot_opt = theta2_dot;
+        gamma2_opt = gamma2;
         d_solution = d_fuelOptimal;
         tof_optimal = tof_in;
         r2_opt = r2;
+        P2_opt = P2;
 
         %fprintf("Optimal dV: %.0f m/s for transfer time: %.0f s\n", deltaV_o, tof_in)
     end
