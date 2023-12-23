@@ -1,5 +1,6 @@
 function [t_error] = transferTimeOptimization(d_in)
-    global theta_f theta_0 tf timeFunction  intApprox;
+    global theta_f theta_0 tf timeFunction  intApprox N tof_current d_solution;
+    
     syms d theta;
 
     timeFunction_n = subs(timeFunction, d, d_in);
@@ -18,10 +19,17 @@ function [t_error] = transferTimeOptimization(d_in)
     %solutions are not possible with only retrograde/prograde thrust
     %time_t = abs(trapz(timeCurve(1, :), timeCurve(2,:)));
     
-    %time_t = real(trapz(timeCurve(1, :), timeCurve(2,:)));
-    time_t = trapz(timeCurve(1, :), timeCurve(2,:));
-
-    t_error = time_t - tf;
+%     if ~isreal(timeCurve)
+%         N = mod(N + 1, 3);
+%         d_solution = 1e-9;
+%         updateParameters()
+        time_t = real(trapz(timeCurve(1, :), timeCurve(2,:)));
+        t_error = time_t - tof_current;
+%     else
+%         %time_t = real(trapz(timeCurve(1, :), timeCurve(2,:)));
+%         time_t = trapz(timeCurve(1, :), timeCurve(2,:));
+%         t_error = time_t - tof_current;
+%     end
 
     %Save best result into a global variable
     global timeResult;
