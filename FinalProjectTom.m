@@ -1,6 +1,14 @@
 clc
 clear
 
+global theta_f_ theta_dot_ r2_ a_ b_ c_ d_ e_ f_ g_ gamma2_ mu_ r_ theta_ tf_
+global earthRadius orbitalAltitude_inner orbitalAltitude_outer G M_earth mu
+global semiMajor_inner orbitalPeriod_inner r1 e1 theta_dot1
+global semiMajor_outer orbitalPeriod_outer r2 e2 theta_dot2
+global N theta_0 theta_tilde theta_f theta transferTime
+global a b c e f g gamma1 gamma2
+global efgMatrix1 efgMatrix2 efgSolution_sym
+
 %..........................................................................
 % Constants Section
 %..........................................................................
@@ -16,22 +24,6 @@ mu = G*M_earth;
 % Orbital Parameters
 %..........................................................................
 
-% Inner Orbit
-
-semiMajor_inner = orbitalAltitude_inner + earthRadius;
-orbitalPeriod_inner = 2*pi*sqrt((semiMajor_inner^3)/mu);
-r1 = semiMajor_inner;
-e1 = 0.2;
-theta_dot1 = 1/sqrt((semiMajor_inner^3)/mu);
-
-% Outer Orbit
-
-semiMajor_outer = orbitalAltitude_outer + earthRadius;
-orbitalPeriod_outer = 2*pi*sqrt((semiMajor_outer^3)/mu);
-r2 = semiMajor_outer;
-e2 = 0.3;
-theta_dot2 = 1/sqrt((semiMajor_outer^3)/mu);
-
 % Transfer Path
 
 N = 1; % number of transfer loops
@@ -41,6 +33,24 @@ theta_f = 2*pi * N + theta_tilde;
 theta = linspace(theta_0, theta_f, 1e4);
 
 transferTime = 23*60*60; % seconds
+
+% Inner Orbit
+
+semiMajor_inner = orbitalAltitude_inner + earthRadius;
+orbitalPeriod_inner = 2*pi*sqrt((semiMajor_inner^3)/mu);
+r1 = semiMajor_inner;
+e1 = 0.2;
+r1_orbit = (semiMajor_inner*(1 - e1^2))./(1 + e1*cos(theta));
+theta_dot1 = 1/sqrt((semiMajor_inner^3)/mu);
+
+% Outer Orbit
+
+semiMajor_outer = orbitalAltitude_outer + earthRadius;
+orbitalPeriod_outer = 2*pi*sqrt((semiMajor_outer^3)/mu);
+r2 = semiMajor_outer;
+e2 = 0.1;
+r2_orbit = (semiMajor_outer*(1 - e2^2))./(1 + e2*cos(theta));
+theta_dot2 = 1/sqrt((semiMajor_outer^3)/mu);
 
 %..........................................................................
 % The "I don't get how these are supposed to be defined" section
@@ -95,64 +105,34 @@ r = 1 ./ (a + b*theta + c*theta.^2 + d*theta.^3 + e*theta.^4 + f*theta.^5 + g*th
 x = r.*cos(theta);
 y = r.*sin(theta);
 
-plot(x, y)
-axis square
+hold on
+plot(x, y, 'LineStyle', '--', 'DisplayName', 'Trajectory', 'Color', 'k')
+plot(0, 0, 'Marker', 'o', 'MarkerFaceColor', 'b', 'DisplayName', 'Earth', 'MarkerEdgeColor', 'b', 'LineStyle', 'none')
+
+plot(cos(theta).*r1_orbit, sin(theta).*r1_orbit)
+
+plot(cos(theta).*r2_orbit, sin(theta).*r2_orbit)
+
+hold off
+xlabel('Distance From Earth (m)')
+ylabel('Distance From Earth (m)')
+legend
+axis equal
 
 %..........................................................................
 % Functions Below
 %..........................................................................
 
 function dOptimised = dOptimiser(dGuess)
-    earthRadius = 6.371e6; % m
-    orbitalAltitude_inner = 2e6; % m
-    orbitalAltitude_outer = 42.164e6; % m
-    G = 6.6743e-11; % gravitational parameter Nm^2/kg^2
-    M_earth = 5.972e+24; % mass of Earth, kg
-    mu = G*M_earth;
-    
-    % Inner Orbit
-    
-    semiMajor_inner = orbitalAltitude_inner + earthRadius;
-    orbitalPeriod_inner = 2*pi*sqrt((semiMajor_inner^3)/mu);
-    r1 = semiMajor_inner;
-    e1 = 0.2;
-    theta_dot1 = 1/sqrt((semiMajor_inner^3)/mu);
-    
-    % Outer Orbit
-    
-    semiMajor_outer = orbitalAltitude_outer + earthRadius;
-    orbitalPeriod_outer = 2*pi*sqrt((semiMajor_outer^3)/mu);
-    r2 = semiMajor_outer;
-    e2 = 0.3;
-    theta_dot2 = 1/sqrt((semiMajor_outer^3)/mu);
-    
-    % Transfer Path
-    
-    N = 1; % number of transfer loops
-    theta_0 = 0; % r1 angle
-    theta_tilde = pi/2; % angle between r1 and r2
-    theta_f = 2*pi * N + theta_tilde;
-    theta = linspace(theta_0, theta_f, 1e2);
-    
-    transferTime = 23*60*60; % seconds
+    global theta_f_ theta_dot_ r2_ a_ b_ c_ d_ e_ f_ g_ gamma2_ mu_ r_ theta_ tf_
+    global earthRadius orbitalAltitude_inner orbitalAltitude_outer G M_earth mu
+    global semiMajor_inner orbitalPeriod_inner r1 e1 theta_dot1
+    global semiMajor_outer orbitalPeriod_outer r2 e2 theta_dot2
+    global N theta_0 theta_tilde theta_f theta transferTime
+    global a b c e f g gamma1 gamma2
+    global efgMatrix1 efgMatrix2 efgSolution_sym
 
-    gamma1 = pi/20;
-    gamma2 = -pi/20;
-    a = 1/r1;
-    b = -tan(gamma1)/r1;
-    c = (1/(2*r1))*((mu/((r1^3)*theta_dot1^2)) - 1);
-    % Definitions since MATLAB hates global variables
-    syms theta_f_ theta_dot_ r2_ a_ b_ c_ d_ e_ f_ g_ gamma2_ mu_ r_ theta_ tf_
-    symbolicInputs = [theta_f_, theta_dot_, r2_, a_, b_, c_, d_, gamma2_, mu_];
-    
-    efgMatrix1 = [30*theta_f_^2, -10*theta_f_^3, theta_f_^4;
-                  -48*theta_f_, 18*theta_f_^2, -2*theta_f_^3;
-                  20, -8*theta_f_, theta_f_^2];
-    efgMatrix2 = [(1/r2_) - (a_ + b_*theta_f_ + c_*theta_f_^2 + d_*theta_f_^3);
-                  -(tan(gamma2_)/r2_) - (b_ + 2*c_*theta_f_ + 3*d_*theta_f_^2);
-                  (mu_/((r2_^4)*theta_dot_^2)) - ((1/r2_) + 2*c_ + 6*d_*theta_f_)];
-    efgSolution_sym = (1/(2*theta_f_^6))*efgMatrix1*efgMatrix2;
-    efgSolution = subs(efgSolution_sym, symbolicInputs, [theta_f, theta_dot2, r2, a, b, c, dGuess, gamma2, mu]);
+    efgSolution = subs(efgSolution_sym, [theta_f_, theta_dot_, r2_, a_, b_, c_, d_, gamma2_, mu_], [theta_f, theta_dot2, r2, a, b, c, dGuess, gamma2, mu]);
     efgSolution = double(efgSolution);
     e = efgSolution(1);
     f = efgSolution(2);
