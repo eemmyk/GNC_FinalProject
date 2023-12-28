@@ -61,7 +61,7 @@ function [deltaV_o] = optimalDVSolver(tof_in)
     %Save best results as globals
     global deltaResult theta2_opt r2_opt tof_optimal theta2_dot_opt gamma2_opt P2_opt;
     global theta1_opt r1_opt theta1_dot_opt gamma1_opt P1_opt;
-    global nu1_i_opt nu2_i_opt r1_i_opt r2_i_opt;
+    global nu1_i_opt nu2_i_opt r1_i_opt r2_i_opt d_fuelOptimal;
 
     if deltaV_o < deltaResult
         deltaResult = deltaV_o;
@@ -71,7 +71,7 @@ function [deltaV_o] = optimalDVSolver(tof_in)
         theta1_dot_opt = theta1_dot;
         gamma2_opt = gamma2;
         gamma1_opt = gamma1;
-        %d_solution = d_fuelOptimal;
+        d_fuelOptimal = d_solution;
         tof_optimal = tof_in;
         r2_opt = r2;
         r1_opt = r1;

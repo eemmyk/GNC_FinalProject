@@ -1,22 +1,27 @@
-function [] = updateParameters()
+    function [] = updateParameters()
     % Calculating the orbital parameters
     %initial orbit parameters
     global a_initial a_final currentTime mju N tof_current;
     global theta1 theta2 theta_f omega1 omega2 e1 e2 theta2_dot;
     global gamma1 r1 P1 gamma2 r2 P2 theta1_dot;
     global nu1_i nu2_i r1_i r2_i;
+    global Tp1 Tp2 TOF_estimation;
 
+
+    TOF_estimation = (1.5+2*N)*pi*sqrt((a_initial+a_final)^3/(8*mju));
+    tof_current = TOF_estimation;
 
 
     a1 = a_initial;
     %calulating new point for object 1 as well
     %Time of last perigee pass for object 1
-    Tp1 = 0;
+    %Tp1 = 0;
     
     %Trying this one instead
     n1 = sqrt(mju/a1^3);
     P1 = 2*pi/n1;
-    T1_i = mod(currentTime, P1) - Tp1;
+    T1_i = mod(currentTime - Tp1, P1);
+    %T1_i = currentTime - Tp1;
     
     % nT = E - e*sin(E)
     % E = 2 * atan(tan((nu-pi)/2)/sqrt((1+e2)/(1-e2)));
@@ -51,19 +56,19 @@ function [] = updateParameters()
     r1_i = p1 / (1+e1*cos(nu1_i));
     theta1_dot = sqrt(mju/a1^3) * a1^2/r1^2 * sqrt(1-e1^2);
     
-
     %Target orbit parameters
     %Some are known, while others are calculated from desired tof and initial
     %conditions
     a2 = a_final;
     %Time of last perigee pass for object 2
-    Tp2 = 0;
+    %Tp2 = 0;
     
     %Trying this one instead
     n2 = sqrt(mju/a2^3);
     P2 = 2*pi/n2;
-    T2_i = mod(currentTime, P2) - Tp2;
-    
+    T2_i = mod(currentTime - Tp2, P2);
+    %T2_i = currentTime - Tp2;
+
     syms nu_time
     
     E = 2*atan(tan((nu_time-pi)/2)/sqrt((1+e2)/(1-e2)));
@@ -78,8 +83,9 @@ function [] = updateParameters()
     %reaches orbit 2. At currentTime + tof_current
     
     finalTime = currentTime + tof_current;
-    T = mod(finalTime, P2) - Tp2;
-    
+    T = mod(finalTime - Tp2, P2);
+    %T = finalTime - Tp2;
+
     % nT = E - e*sin(E)
     % E = 2 * atan(tan((nu-pi)/2)/sqrt((1+e2)/(1-e2)));
     
@@ -129,12 +135,60 @@ function [] = updateParameters()
     r = 1 / (a + b*theta + c*theta^2 + d*theta^3 + e*theta^4 + f*theta^5 + g*theta^6);
     gamma = atan(-r * (b + 2*c*theta + 3*d*theta^2 + 4*e*theta^3 + 5*f*theta^4 + 6*g*theta^5));
     
-    global thrustFunction thetaDotFunction thetaDotSquareFunction;
+    global thrustFunction thetaDotFunction thetaDotSquareFunction timeFunction;
 
     thetaDotFunction = sqrt((mju/r^4) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
     thrustFunction = -mju / (2 * r^3 * cos(gamma)) * (6*d + 24*e*theta + 60*f*theta^2 + 120*g*theta^3 - tan(gamma)/r) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4)^2;
     
+    timeFunction = sqrt((r^4/mju) * (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
+
     thetaDotSquareFunction = (mju/r^4) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4);
+
+
+    %% Check if TOF is a solution 
+
+    global theta_0 d_solution
+    %solution = fmincon(@Tds_min, [(theta_0 + theta_f) * 0.5, d_solution], [], [], [], [], [], [], []);
+%     solution = fmincon(@transferTimeOptimization, d_solution, [], [], [], [], [], [], []);
+% 
+%     value = transferTimeOptimization(solution);
+%     
+%     maximumTimeError = 1;
+%     
+%     global tf
+
+%     if value > maximumTimeError
+%         N = N + 1;
+%         TOF_estimation = (1+N)*pi*sqrt((a_initial+a_final)^3/(8*mju));
+%         tf = TOF_estimation;
+%         tof_current = TOF_estimation;
+%         
+%         updateParameters();
+%     end
+
 
 end
 
+function out_o = Tds_min(inputVector)
+    %global thetaDotSquareFunction
+    global timeFunction tof_current;
+    syms theta d;
+
+    theta_zero = inputVector(1);
+    d_zero = inputVector(2);
+
+    %out_o = abs(double(subs(subs(thetaDotSquareFunction, d, d_zero), theta, theta_zero)));
+    out_o = abs(double(subs(subs(timeFunction, d, d_zero), theta, theta_zero)) - tof_current);
+
+    fprintf("The minimum Error found: %e\n", out_o);
+   
+end
+% 
+% function minError_o = Te_min(inputVector);
+%     global timeFunction
+% 
+%     syms theta d;
+% 
+% 
+% end
+% 

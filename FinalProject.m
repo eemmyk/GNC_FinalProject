@@ -9,6 +9,7 @@ close all;
 % Any of the orbital parameters
 % limits for d
 % And stuff
+
 %% Declaring globals
 
 global tf theta_f theta_0 intApprox a_initial a_final;
@@ -20,21 +21,22 @@ global theta2 omega1 omega2 e1 e2 theta1;
 global timeFunction thrustFunction thetaDotFunction thetaDotSquareFunction;
 global d_solution timeResult costResult dateOptimal tof_optimal;
 %global optimizeTrueTOF;
+global Tp1 Tp2 TOF_estimation d_fuelOptimal;
 
 %% Estimation values and set parameters
 
 %Gravitational parameter
-%mju = 3.986004418*10^14; %Earth
-mju = 1.32712440018*10^20; %Sun
+mju = 3.986004418*10^14; %Earth
+%mju = 1.32712440018*10^20; %Sun
 
 %First orbit semimajor axis
-%a_initial= 6800*1000;%500 * 10^9;
-a_initial = 150*10^9; %(0.1 + 0.9 * rand()) * 150*10^9;
+a_initial= 6800*1000;%500 * 10^9;
+%a_initial = 150*10^9; %(0.1 + 0.9 * rand()) * 150*10^9;
 %Second orbit semimajor axis
-%a_final = 42164*1000;
-a_final = 225*10^9;%(0.1 + 0.9 * rand()) * 150*10^9;
+a_final = 42164*1000;
+%a_final = 225*10^9;%(0.1 + 0.9 * rand()) * 150*10^9;
 %Number of rotations around central body
-N = 1; %randi(2) - 1;
+N = 0; %randi(2) - 1;
 
 %Solve TOF, optimize deltaV and/or optimize transfer date
 optimizeTOF = 1;
@@ -43,16 +45,16 @@ optimizeDV = 1;
 optimizeDATE = 0;
 
 % 1 + 2N hohmann transfer orbits in time
-TOF_estimation = (0.75+N)*pi*sqrt((a_initial+a_final)^3/(8*mju));
+TOF_estimation = (1.5+2*N)*pi*sqrt((a_initial+a_final)^3/(8*mju));
 
 %tf = 86400 * 365.25 * 0.5;
 %ratio = tf/TOF_estimation;
 
-tf = TOF_estimation;
+%tf = TOF_estimation;
 tof_current = TOF_estimation;
 
 %Used for dV optimization
-tf_guess = 0.1 * TOF_estimation;
+%tf_guess = TOF_estimation;
 %tf_guess = TOF_estimation;
 
 intApprox = 10;
@@ -84,7 +86,8 @@ Tp1 = 0;
 %Trying this one instead
 n1 = sqrt(mju/a1^3);
 P1 = 2*pi/n1;
-T1_i = mod(currentTime, P1) - Tp1;
+T1_i = mod(currentTime - Tp1, P1);
+%T1_i = currentTime - Tp1;
     
 % nT = E - e*sin(E)
 % E = 2 * atan(tan((nu-pi)/2)/sqrt((1+e2)/(1-e2)));
@@ -117,12 +120,13 @@ e2 = 0;%rand()^2;
 %Argument of perigee
 omega2 = 0;%rand()*2*pi;
 %Time of last perigee pass for object 2
-Tp2 = 0;
+Tp2 = -10000;
 
 %Trying this one instead
 n2 = sqrt(mju/a2^3);
 P2 = 2*pi/n2;
-T = mod(currentTime, P2) - Tp2;
+T = mod(currentTime - Tp2, P2);
+%T = currentTime - Tp2;
 
 % nT = E - e*sin(E)
 % E = 2 * atan(tan((nu-pi)/2)/sqrt((1+e2)/(1-e2)));
@@ -139,8 +143,9 @@ nu2_i = mod(nuSolutions_i + 2*pi, 2*pi);
 %Now we can continue by calculating the true anomaly when the spacecraft
 %reaches orbit 2. At currentTime + tf
 
-finalTime = currentTime + tf;
-T = mod(finalTime, P2) - Tp2;
+finalTime = currentTime + tof_current;
+T = mod(finalTime - Tp2, P2);
+%T = finalTime - Tp2;
 
 % nT = E - e*sin(E)
 % E = 2 * atan(tan((nu-pi)/2)/sqrt((1+e2)/(1-e2)));
@@ -206,12 +211,34 @@ thetaDotSquareFunction = (mju/r^4) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*
 d_solution = 1e-12;
 
 %% Check if TOF is solvable:
-solution = fmincon(@Tds_min, [(theta_0 + theta_f) * 0.5, d_solution], [], [], [], [], [], [], []);
 
-value = Tds_min(solution);
+safeTransferAngle = pi;
 
-%d_solution = solution(2);
+if theta_f < safeTransferAngle
+    N = N+1;
+    updateParameters();
+end
 
+
+% solution = fmincon(@Tds_min, [(theta_0 + theta_f) * 0.5, d_solution], [], [], [], [], [], [], []);
+% 
+% value = Tds_min(solution);
+
+% solution = fmincon(@transferTimeOptimization, d_solution, [], [], [], [], [], [], []);
+% 
+% value = transferTimeOptimization(solution);
+% 
+% maximumTimeError = 1;
+
+% if value > 1
+%     N = N + 1;
+%     TOF_estimation = (1+N)*pi*sqrt((a_initial+a_final)^3/(8*mju));
+%     tf = TOF_estimation;
+%     tof_current = TOF_estimation;
+%     tf_guess = 0.1 * TOF_estimation;
+%     
+%     updateParameters();
+% end
 %% TOF optimization + result plotting
 if optimizeTOF == 1
     %theta_cross = fminsearch(@thetaSquareFunc, [0, 0]);
@@ -219,14 +246,17 @@ if optimizeTOF == 1
     %Initialize best values
     timeResult = Inf;
 
+    currentTime = initialTime;
+    %tof_current = TOF_estimation;
+    
     opt = optimset('TolFun', 1e-18, 'TolX', 1e-18);
 
     %TOF solution
-    d_optimized_tof = fzero(@transferTimeOptimization, d_solution, opt);
+    d_solution = fzero(@transferTimeOptimization, d_solution, opt);
     
-    theta_vec = linspace(theta_0, theta_f, intApprox);
+    theta_vec = linspace(theta_0, theta_f, plotAccuracy);
     
-    jerkFunction_n = subs(thrustFunction/thetaDotFunction, d, d_optimized_tof);
+    jerkFunction_n = subs(thrustFunction/thetaDotFunction, d, d_solution);
     jerkFunction_nn = @(angle) double(subs(jerkFunction_n, theta, angle));
     
     thrustFunction_n = subs(thrustFunction, d, d_solution);
@@ -266,10 +296,10 @@ if optimizeTOF == 1
     a_n = a;
     b_n = b;
     c_n = c;
-    e_n = double(subs(efg(1), d, d_optimized_tof));
-    f_n = double(subs(efg(2), d, d_optimized_tof));
-    g_n = double(subs(efg(3), d, d_optimized_tof));
-    d_n = double(subs(d, d, d_optimized_tof));
+    e_n = double(subs(efg(1), d, d_solution));
+    f_n = double(subs(efg(2), d, d_solution));
+    g_n = double(subs(efg(3), d, d_solution));
+    d_n = double(subs(d, d, d_solution));
 
     theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, plotAccuracy)));
     
@@ -279,7 +309,7 @@ if optimizeTOF == 1
     
     plot(x, y, "Color", [0.2 0.7 0.2]);
     
-    title(sprintf("TOF optimized trajectory for fixed starting point\nTarget TOF: %s\nAchieved TOF: %s\nRequired deltaV: %.0f m/s", secToTime(tf), secToTime(tf+timeResult), deltaV_tof));
+    title(sprintf("TOF optimized trajectory for fixed starting point\nTarget TOF: %s\nAchieved TOF: %s\nRequired deltaV: %.0f m/s", secToTime(tof_current), secToTime(tof_current+timeResult), deltaV_tof));
     legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbits");
     axis equal
 end
@@ -292,6 +322,7 @@ if optimizeTrueTOF == 1
     %interDeltaResult = Inf;
 
     d_solution = solution(2);
+    currentTime = initialTime;
     
     %Reset number of orbits
     %N = 1;
@@ -306,7 +337,7 @@ if optimizeTrueTOF == 1
     thrustFunction_n = subs(thrustFunction, d, d_solution);
     thrustFunction_nn = @(angle) double(subs(thrustFunction_n, theta, angle));
 
-    theta_vec = linspace(theta_0, theta_f, intApprox);
+    theta_vec = linspace(theta_0, theta_f, plotAccuracy);
     
     jerk = [theta_vec; jerkFunction_nn(theta_vec)];
     thrustCurve_dV = [theta_vec; thrustFunction_nn(theta_vec)]; 
@@ -352,10 +383,10 @@ if optimizeTrueTOF == 1
     a_n = a;
     b_n = b;
     c_n = c;
-    e_n = double(subs(efg(1), d, d_optimized_tof));
-    f_n = double(subs(efg(2), d, d_optimized_tof));
-    g_n = double(subs(efg(3), d, d_optimized_tof));
-    d_n = double(subs(d, d, d_optimized_tof));
+    e_n = double(subs(efg(1), d, d_solution));
+    f_n = double(subs(efg(2), d, d_solution));
+    g_n = double(subs(efg(3), d, d_solution));
+    d_n = double(subs(d, d, d_solution));
     
     theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, plotAccuracy)));
     r_es = 1 ./ (a_n + b_n*theta_n + c_n*theta_n.^2 + d_n*theta_n.^3 + e_n*theta_n.^4 + f_n*theta_n.^5 + g_n*theta_n.^6);
@@ -388,19 +419,19 @@ if optimizeDV == 1
 
     %Reset current Time
     currentTime = initialTime;
-    tof_current = TOF_estimation;
+    tof_guess = 2 * TOF_estimation;
 
     opt = optimset('TolFun',1e2);
     %tf_fuelOptimal = fmincon(@optimalDVSolver, 0, [], [], [], [], 0, [], [], opt);
 
-    tf_fuelOptimal = fminsearch(@optimalDVSolver, tf_guess, opt);
+    tf_fuelOptimal = fminsearch(@optimalDVSolver, tof_guess, opt);
 
-    jerkFunction_n = subs(thrustFunction/thetaDotFunction, d, d_solution);
+    jerkFunction_n = subs(thrustFunction/thetaDotFunction, d, d_fuelOptimal);
     jerkFunction_nn = @(angle) double(subs(jerkFunction_n, theta, angle));
-    thrustFunction_n = subs(thrustFunction, d, d_solution);
+    thrustFunction_n = subs(thrustFunction, d, d_fuelOptimal);
     thrustFunction_nn = @(angle) double(subs(thrustFunction_n, theta, angle));
 
-    theta_vec = linspace(theta_0, theta_f, intApprox);
+    theta_vec = linspace(theta_0, theta_f, plotAccuracy);
     
     jerk = [theta_vec; jerkFunction_nn(theta_vec)];
     thrustCurve_dV = [theta_vec; thrustFunction_nn(theta_vec)]; 
@@ -446,10 +477,10 @@ if optimizeDV == 1
     a_n = a;
     b_n = b;
     c_n = c;
-    e_n = double(subs(efg(1), d, d_optimized_tof));
-    f_n = double(subs(efg(2), d, d_optimized_tof));
-    g_n = double(subs(efg(3), d, d_optimized_tof));
-    d_n = double(subs(d, d, d_optimized_tof));
+    e_n = double(subs(efg(1), d, d_fuelOptimal));
+    f_n = double(subs(efg(2), d, d_fuelOptimal));
+    g_n = double(subs(efg(3), d, d_fuelOptimal));
+    d_n = double(subs(d, d, d_fuelOptimal));
     
     theta_n = double(subs(theta, theta, linspace(theta_0, theta_f, plotAccuracy)));
     r_es = 1 ./ (a_n + b_n*theta_n + c_n*theta_n.^2 + d_n*theta_n.^3 + e_n*theta_n.^4 + f_n*theta_n.^5 + g_n*theta_n.^6);
@@ -465,7 +496,8 @@ if optimizeDV == 1
 
     dv_optimized_tof = trapz(theta_n, timeFunction_opt_nn(theta_n));
     
-    title(sprintf("deltaV optimized trajectory\nAchieved TOF: %s\n%.0f m/s", secToTime(dv_optimized_tof), deltaV_opt));
+    %title(sprintf("deltaV optimized trajectory\nAchieved TOF: %s\n%.0f m/s", secToTime(dv_optimized_tof), deltaV_opt));
+    title(sprintf("deltaV optimized trajectory\nAchieved TOF: %s : %s\n%.0f : %.0f m/s", secToTime(dv_optimized_tof), secToTime(tof_optimal), deltaV_opt, deltaResult));
     legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbits");
     axis equal
 end
@@ -624,12 +656,14 @@ function [timestring] = secToTime(seconds)
 end
 
 function out_o = Tds_min(inputVector)
-    global thetaDotSquareFunction
+    %global thetaDotSquareFunction
+    global timeFunction tof_current;
     syms theta d;
 
     theta_zero = inputVector(1);
     d_zero = inputVector(2);
 
-    out_o = abs(double(subs(subs(thetaDotSquareFunction, d, d_zero), theta, theta_zero)));
+    %out_o = abs(double(subs(subs(thetaDotSquareFunction, d, d_zero), theta, theta_zero)));
+    out_o = abs(double(subs(subs(timeFunction, d, d_zero), theta, theta_zero)) - tof_current);
    
 end
