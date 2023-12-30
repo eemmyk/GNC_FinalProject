@@ -8,7 +8,7 @@ function [cost_o] = transferDateOptimization(inputVec)
 
     timeResult = Inf;
 
-    updateParameters()
+    updateParameters(0)
 
     opt = optimset('TolFun', 1e-9, 'TolX', 1e-9);
     d_solution = fzero(@transferTimeOptimization, d_solution, opt);
@@ -25,7 +25,7 @@ function [cost_o] = transferDateOptimization(inputVec)
 %     time_t = real(trapz(timeCurve(1, :), timeCurve(2,:)));
 %     t_error = time_t - tof_current;
 
-    global thrustFunction thetaDotFunction;
+    global thrustFunction thetaDotFunction thetaDotSquareFunction timeFunction radiusFunction;
 
     syms d theta;
 
@@ -39,7 +39,7 @@ function [cost_o] = transferDateOptimization(inputVec)
     %Cost functions
     %w1 = 50; %TOF error cost
     %w2 = 0.000026; %DeltaV cost
-    %cost_o = w1*t_error^2 + w2*deltaV_o^2;
+    %cost_o = w1*timeResult^2 + w2*deltaV_o^2;
 
     cost_o = deltaV_o;
 
@@ -49,19 +49,23 @@ function [cost_o] = transferDateOptimization(inputVec)
 
     %Save best results as globals
     global deltaResult theta2_opt r2_opt tof_optimal theta2_dot_opt gamma2_opt P2_opt;
-    global theta1_opt r1_opt theta1_dot_opt gamma1_opt P1_opt;
-    global nu1_i_opt nu2_i_opt r1_i_opt r2_i_opt dateOptimal;
+    global theta1_opt r1_opt theta1_dot_opt gamma1_opt P1_opt theta_f_opt;
+    global nu1_i_opt nu2_i_opt r1_i_opt r2_i_opt dateOptimal d_opt;
+
+    global thrustFunction_opt thetaDotFunction_opt thetaDotSquareFunction_opt;
+    global radiusFunction_opt timeFunction_opt;
 
     if cost_o < costResult
         costResult = cost_o;
         deltaResult = deltaV_o;
         theta2_opt = theta2;
         theta1_opt = theta1;
+        theta_f_opt = theta_f;
         theta2_dot_opt = theta2_dot;
         theta1_dot_opt = theta1_dot;
         gamma2_opt = gamma2;
         gamma1_opt = gamma1;
-        %d_solution = d_fuelOptimal;
+        d_opt = d_solution;
         tof_optimal = tof_current;
         dateOptimal = currentTime;
         r2_opt = r2;
@@ -73,8 +77,20 @@ function [cost_o] = transferDateOptimization(inputVec)
         r1_i_opt = r1_i;
         r2_i_opt = r2_i;
 
-        fprintf("Optimal dV: %.0f m/s for transfer date: %.0f s\n", deltaV_o, currentTime)
+        thrustFunction_opt =  thrustFunction;
+        thetaDotFunction_opt = thetaDotFunction; 
+        thetaDotSquareFunction_opt = thetaDotSquareFunction; 
+        timeFunction_opt = timeFunction;
+        radiusFunction_opt = radiusFunction;
+
+        %fprintf("Optimal dV: %.0f m/s -- transfer date: %.0f s -- time of flight: %.0f s\n", deltaV_o, inputVec(1), inputVec(2))
     end
+
+    plot3(currentTime, tof_current, deltaV_o);
+    pause(0.001)
+    
+    fprintf("Optimal dV: %.0f m/s -- transfer date: %.0f s -- time of flight: %.0f s\n", deltaV_o, inputVec(1), inputVec(2))
+   
     %fprintf("Optimal dV: %.0f m/s for transfer date: %.0f s\n", deltaV_o, currentTime)
     %printf("Total cost: %e -- Date shifted: %e -- Time of Flight: %e\n", cost_o, currentTime, tof_current)
     

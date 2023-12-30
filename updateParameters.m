@@ -1,16 +1,21 @@
-    function [] = updateParameters()
+function [] = updateParameters(updateTOF)
     % Calculating the orbital parameters
     %initial orbit parameters
-    global a_initial a_final currentTime mju N tof_current;
+    global a_initial a_final currentTime mju N tof_current tf;
     global theta1 theta2 theta_f omega1 omega2 e1 e2 theta2_dot;
     global gamma1 r1 P1 gamma2 r2 P2 theta1_dot;
     global nu1_i nu2_i r1_i r2_i;
     global Tp1 Tp2 TOF_estimation;
 
+    if updateTOF
+        TOF_estimation = (1+2*N)*pi*sqrt((a_initial+a_final)^3/(8*mju));
 
-    TOF_estimation = (1.5+2*N)*pi*sqrt((a_initial+a_final)^3/(8*mju));
-    tof_current = TOF_estimation;
+        tf = TOF_estimation;
+        tof_current = TOF_estimation;
+    end
 
+    %tf = 86400 * 365.25 * 0.5;
+    %ratio = tf/TOF_estimation;
 
     a1 = a_initial;
     %calulating new point for object 1 as well
@@ -56,6 +61,7 @@
     r1_i = p1 / (1+e1*cos(nu1_i));
     theta1_dot = sqrt(mju/a1^3) * a1^2/r1^2 * sqrt(1-e1^2);
     
+
     %Target orbit parameters
     %Some are known, while others are calculated from desired tof and initial
     %conditions
@@ -78,7 +84,6 @@
     
     nu2_i = mod(nuSolutions_i + 2*pi, 2*pi);
 
-
     %Now we can continue by calculating the true anomaly when the spacecraft
     %reaches orbit 2. At currentTime + tof_current
     
@@ -100,6 +105,7 @@
     %In reference coords
     theta2 = nu2 - omega2;
     theta_tilde = mod(theta2 - theta1 + 2*pi, 2*pi);
+    %theta_tilde = theta2 - theta1;
     
     gamma2 = asin(e2 * sin(nu2) / sqrt(1+2*e2*cos(nu2) + e2^2));
     p2 = a2 * (1-e2^2);
@@ -110,7 +116,7 @@
     %The total transfer angle is represented by:
     
     theta_f = 2.*pi.*N + theta_tilde;
-    
+
     % Solving the coefficients
     syms d theta;
 
@@ -135,7 +141,7 @@
     r = 1 / (a + b*theta + c*theta^2 + d*theta^3 + e*theta^4 + f*theta^5 + g*theta^6);
     gamma = atan(-r * (b + 2*c*theta + 3*d*theta^2 + 4*e*theta^3 + 5*f*theta^4 + 6*g*theta^5));
     
-    global thrustFunction thetaDotFunction thetaDotSquareFunction timeFunction;
+    global thrustFunction thetaDotFunction thetaDotSquareFunction timeFunction radiusFunction;
 
     thetaDotFunction = sqrt((mju/r^4) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
     thrustFunction = -mju / (2 * r^3 * cos(gamma)) * (6*d + 24*e*theta + 60*f*theta^2 + 120*g*theta^3 - tan(gamma)/r) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4)^2;
@@ -144,6 +150,7 @@
 
     thetaDotSquareFunction = (mju/r^4) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4);
 
+    radiusFunction = 1 / (a + b*theta + c*theta^2 + d*theta^3 + e*theta^4 + f*theta^5 + g*theta^6);
 
     %% Check if TOF is a solution 
 
@@ -165,8 +172,6 @@
 %         
 %         updateParameters();
 %     end
-
-
 end
 
 function out_o = Tds_min(inputVector)

@@ -2,7 +2,7 @@ function [t_error] = trueTofSolver(currentTime_in)
     global currentTime;
     
     currentTime = currentTime_in;
-    updateParameters()
+    updateParameters(0)
     
     %Initial guess for d coefficient:
     global d_solution theta_0 theta_f intApprox timeFunction tof_current;

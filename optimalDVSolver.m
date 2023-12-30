@@ -5,7 +5,7 @@ function [deltaV_o] = optimalDVSolver(tof_in)
 
     tof_current = tof_in;
     
-    updateParameters()
+    updateParameters(0)
     
     %Initial guess for d coefficient:
     global d_solution theta_0 theta_f intApprox;
@@ -41,7 +41,8 @@ function [deltaV_o] = optimalDVSolver(tof_in)
 
     %deltaV_o = interDeltaResult; %trapz(jerk(1, :), abs(jerk(2,:)));
 
-    global thrustFunction thetaDotFunction;
+    global thrustFunction thetaDotFunction thetaDotSquareFunction;
+    global timeFunction radiusFunction;
 
     syms d theta;
 
@@ -51,7 +52,6 @@ function [deltaV_o] = optimalDVSolver(tof_in)
     jerk = [theta_vec; jerkFunction_nn(theta_vec)];
     %thrust = [theta_vec; thrustFunction_nn(theta_vec)];
 
-    
     deltaV_o = trapz(jerk(1, :), abs(jerk(2,:)));
 
     %Get globals from updatedParameters
@@ -61,17 +61,20 @@ function [deltaV_o] = optimalDVSolver(tof_in)
     %Save best results as globals
     global deltaResult theta2_opt r2_opt tof_optimal theta2_dot_opt gamma2_opt P2_opt;
     global theta1_opt r1_opt theta1_dot_opt gamma1_opt P1_opt;
-    global nu1_i_opt nu2_i_opt r1_i_opt r2_i_opt d_fuelOptimal;
+    global nu1_i_opt nu2_i_opt r1_i_opt r2_i_opt theta_f_opt d_opt;
+    global thrustFunction_opt thetaDotFunction_opt thetaDotSquareFunction_opt;
+    global radiusFunction_opt timeFunction_opt;
 
     if deltaV_o < deltaResult
         deltaResult = deltaV_o;
         theta2_opt = theta2;
         theta1_opt = theta1;
+        theta_f_opt = theta_f;
         theta2_dot_opt = theta2_dot;
         theta1_dot_opt = theta1_dot;
         gamma2_opt = gamma2;
         gamma1_opt = gamma1;
-        d_fuelOptimal = d_solution;
+        d_opt = d_solution;
         tof_optimal = tof_in;
         r2_opt = r2;
         r1_opt = r1;
@@ -82,10 +85,18 @@ function [deltaV_o] = optimalDVSolver(tof_in)
         r1_i_opt = r1_i;
         r2_i_opt = r2_i;
 
+        thrustFunction_opt =  thrustFunction;
+        thetaDotFunction_opt = thetaDotFunction; 
+        thetaDotSquareFunction_opt = thetaDotSquareFunction; 
+        timeFunction_opt = timeFunction;
+        radiusFunction_opt = radiusFunction;
+
 
         %fprintf("Optimal dV: %.0f m/s for transfer time: %.0f s\n", deltaV_o, tof_in)
     end
     fprintf("Optimal dV: %.0f m/s for transfer time: %.0f s\n", deltaV_o, tof_in)
 
+    plot(tof_in, deltaV_o,'or', 'MarkerSize',2,'MarkerFaceColor','r')
+    pause(0.001);
 end
 
