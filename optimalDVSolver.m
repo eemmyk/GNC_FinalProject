@@ -1,14 +1,27 @@
 function [deltaV_o] = optimalDVSolver(tof_in)
     
     %fprintf("transfer time: %.0f s\n", tof_in)
-    global tof_current currentTime timeResult;
+    global tof_current N theta_f currentTime;
 
     tof_current = tof_in;
     
+    %N = 0;
+
     updateParameters(0)
+    safeTransferAngle = pi;
+
+    if theta_f < safeTransferAngle
+        %N = N+1;
+        %updateParameters(1);
+        deltaV_o = 1e24;
+        return;
+    end
     
+    %tof_current = tof_in;
+
+
     %Initial guess for d coefficient:
-    global d_solution theta_0 theta_f intApprox;
+    global d_solution theta_0 theta_f intApprox d_minimum d_maximum;
     %d_guess = d_solution;
 
     % Use function to find best dV value for given tf
@@ -17,11 +30,12 @@ function [deltaV_o] = optimalDVSolver(tof_in)
     
     %timeResult = Inf;
 
-    opt = optimset('TolFun',1e1);
+    opt = optimset('TolFun', 1e3);
     %global interDeltaResult
 
     %d_fuelOptimal = fminsearch(@deltaVOptimization, d_fuelOptimal_guess, opt);
-    d_solution = fzero(@transferTimeOptimization, d_solution, opt);
+    d_solution = fzero(@transferTimeOptimization, [d_minimum, d_maximum], opt);
+    %d_out = fminsearch(@transferTimeOptimization, d_solution);
 
     %jerkFunction_n = subs(thrustFunction/thetaDotFunction, d, d_fuelOptimal);
     %jerkFunction_nn = @(angle) double(subs(jerkFunction_n, theta, angle));
@@ -92,11 +106,12 @@ function [deltaV_o] = optimalDVSolver(tof_in)
         radiusFunction_opt = radiusFunction;
 
 
-        %fprintf("Optimal dV: %.0f m/s for transfer time: %.0f s\n", deltaV_o, tof_in)
+        fprintf("Optimal dV: %.0f m/s for transfer time: %.0f s\n", deltaV_o, tof_in)
     end
-    fprintf("Optimal dV: %.0f m/s for transfer time: %.0f s\n", deltaV_o, tof_in)
-
-    plot(tof_in, deltaV_o,'or', 'MarkerSize',2,'MarkerFaceColor','r')
+    %fprintf("Optimal dV: %.0f m/s for transfer time: %.0f s\n", deltaV_o, tof_in)
+    
+    plot3(currentTime, tof_current, deltaV_o,'-o','Color','b','MarkerSize',10,'MarkerFaceColor','#D9FFFF')
+    %plot(tof_in, deltaV_o,'or', 'MarkerSize',2,'MarkerFaceColor','r')
     pause(0.001);
 end
 

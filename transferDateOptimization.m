@@ -1,29 +1,31 @@
 function [cost_o] = transferDateOptimization(inputVec)
     
-    global currentTime tof_current d_solution theta_0 theta_f intApprox costResult timeResult;
-
+    global currentTime tof_current d_solution theta_0 theta_f intApprox;
+    global d_minimum d_maximum costResult timeResult N;
+ 
     currentTime = inputVec(1);
     tof_current = inputVec(2);
     %d_solution = inputVec(3);
 
     timeResult = Inf;
 
+    %N = 0;
+
     updateParameters(0)
+    safeTransferAngle = pi;
 
-    opt = optimset('TolFun', 1e-9, 'TolX', 1e-9);
-    d_solution = fzero(@transferTimeOptimization, d_solution, opt);
+    if theta_f < safeTransferAngle
+        %N = N+1;
+        %Return a big number
+        cost_o = 1e24;
+        return;
+    end
 
-    
-%     global timeFunction;
-%     syms d theta;
-% 
-%     timeFunction_n = subs(timeFunction, d, d_solution);
-%     timeFunction_nn = @(angle) double(subs(timeFunction_n, theta, angle));
-% 
-%     theta_vec = linspace(theta_0, theta_f, intApprox);
-%     timeCurve = [theta_vec; timeFunction_nn(theta_vec)];
-%     time_t = real(trapz(timeCurve(1, :), timeCurve(2,:)));
-%     t_error = time_t - tof_current;
+    %currentTime = inputVec(1);
+    %tof_current = inputVec(2);
+
+    opt = optimset('TolFun', 1e1);
+    d_solution = fzero(@transferTimeOptimization, [d_minimum, d_maximum], opt);
 
     global thrustFunction thetaDotFunction thetaDotSquareFunction timeFunction radiusFunction;
 
@@ -32,9 +34,8 @@ function [cost_o] = transferDateOptimization(inputVec)
     theta_vec = linspace(theta_0, theta_f, intApprox);
     jerkFunction_n = subs(thrustFunction/thetaDotFunction, d, d_solution);
     jerkFunction_nn = @(angle) double(subs(jerkFunction_n, theta, angle));
-    jerk = [theta_vec; jerkFunction_nn(theta_vec)];
     
-    deltaV_o = trapz(jerk(1, :), abs(jerk(2,:)));
+    deltaV_o = trapz(theta_vec, abs(jerkFunction_nn(theta_vec)));
 
     %Cost functions
     %w1 = 50; %TOF error cost
@@ -83,13 +84,13 @@ function [cost_o] = transferDateOptimization(inputVec)
         timeFunction_opt = timeFunction;
         radiusFunction_opt = radiusFunction;
 
-        %fprintf("Optimal dV: %.0f m/s -- transfer date: %.0f s -- time of flight: %.0f s\n", deltaV_o, inputVec(1), inputVec(2))
+        fprintf("Optimal dV: %.0f m/s -- transfer date: %.0f s -- time of flight: %.0f s\n", deltaV_o, inputVec(1), inputVec(2))
     end
 
-    plot3(currentTime, tof_current, deltaV_o);
+    plot3(currentTime, tof_current, deltaV_o,'-o','Color','b','MarkerSize',10,'MarkerFaceColor','#D9FFFF')
     pause(0.001)
     
-    fprintf("Optimal dV: %.0f m/s -- transfer date: %.0f s -- time of flight: %.0f s\n", deltaV_o, inputVec(1), inputVec(2))
+    %fprintf("Optimal dV: %.0f m/s -- transfer date: %.0f s -- time of flight: %.0f s\n", deltaV_o, inputVec(1), inputVec(2))
    
     %fprintf("Optimal dV: %.0f m/s for transfer date: %.0f s\n", deltaV_o, currentTime)
     %printf("Total cost: %e -- Date shifted: %e -- Time of Flight: %e\n", cost_o, currentTime, tof_current)

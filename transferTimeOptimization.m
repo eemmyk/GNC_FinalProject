@@ -1,5 +1,5 @@
 function [t_error] = transferTimeOptimization(d_in)
-    global theta_f theta_0 tf timeFunction  intApprox N tof_current d_solution;
+    global theta_f theta_0 timeFunction intApprox tof_current;
     
     syms d theta;
 
@@ -24,8 +24,11 @@ function [t_error] = transferTimeOptimization(d_in)
 %         d_solution = 1e-9;
 %         updateParameters()
         %%time_t = real(trapz(timeCurve(1, :), timeCurve(2,:)));
-        time_t = abs(trapz(timeCurve(1, :), timeCurve(2,:)));
+        %time_t = abs(trapz(timeCurve(1, :), timeCurve(2,:)));
+        time_t = trapz(timeCurve(1, :), timeCurve(2,:));
         t_error = time_t - tof_current;
+        %t_error = abs(time_t - tof_current);
+
 %     else
 %         %time_t = real(trapz(timeCurve(1, :), timeCurve(2,:)));
 %         time_t = trapz(timeCurve(1, :), timeCurve(2,:));
@@ -36,10 +39,10 @@ function [t_error] = transferTimeOptimization(d_in)
     global timeResult;
     if abs(t_error) < abs(timeResult)
         timeResult = t_error;
-        %fprintf("Guessed d: %e, Remaining TOF error: %.0f\n", d_in, t_error);
+        fprintf("Guessed d: %e, Remaining TOF error: %.0f\n", d_in, t_error);
     end
 
-    fprintf("Guessed d: %e, Remaining TOF error: %.0f\n", d_in, t_error);
+    %fprintf("Guessed d: %e, Remaining TOF error: %.0f\n", d_in, t_error);
     
     
 end
