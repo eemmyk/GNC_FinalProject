@@ -126,19 +126,18 @@ function [] = updateParameters(updateTOF)
     radiusMax_n = subs(1/radiusFunction - 1/rMax, theta, theta_f/2);
     radiusMax_nn = @(d_min_in) double(subs(radiusMax_n, d, d_min_in));
      
-    opt = optimset('TolFun', 1e-15, 'TolX', 1e-15);
+    opt = optimset('TolFun', 1e-18, 'TolX', 1e-18);
     d_minimum = fzero(radiusMax_nn, 0, opt);
 
     invR_Function = @(angle) double(subs(subs(1/radiusFunction, d, d_minimum), theta, angle));
-    [minPoints, minFuncValue] = fmincon(invR_Function, theta_f/2, [], [], [], [], theta_0, theta_f, [], optimset('Display', 'off'));
-    while minFuncValue < 0
+    zeroPoints = fzero(invR_Function, theta_f/2, opt);
+    while ~((theta_0 >= zeroPoints) && (zeroPoints <= theta_f))
         if d_minimum < 0
             d_minimum = d_minimum / 2;
         else
             d_minimum = d_minimum * 2;
         end
         invR_Function = @(angle) double(subs(subs(1/radiusFunction, d, d_minimum), theta, angle));
-        [minPoints, minFuncValue] = fmincon(invR_Function, theta_f/2, [], [], [], [], theta_0, theta_f, [], optimset('Display', 'off'));
     end
 
 

@@ -1,48 +1,42 @@
 function [deltaV_o] = optimalDVSolver(tof_in)
     global tof_current  theta_f currentTime plotDV_3D theta_vec;
     global d_solution d_minimum d_maximum initial_DeltaV;
-    global timeFunction timeFunction_nn;
-
-    global plotAccuracy theta1 theta2 theta_0;
-    global thrustFunction thetaDotFunction;
-    global radiusFunction thetaDotSquareFunction;
-    
+    global timeFunction;
     tof_current = tof_in;
     
 %     global N
 %     N = 0;
 
     updateParameters(0)
-%     safeTransferAngle = pi;
+    safeTransferAngle = pi;
 
 %     if theta_f < safeTransferAngle
 %         deltaV_o = 1e24; %A big number
 %         return;
 %     end
 
+    opt = optimset('TolFun', 1e3);
 
-%     timeFunction
-%     d_minimum
-%     d_maximum
-%     theta1
-%     theta2
-%     theta_f
-%     tof_current
+    global plotAccuracy theta1 theta2 theta_0;
 
-    %Check if the maximum value of d is enough for the tof
-    t_error = trapz(theta_vec, timeFunction_nn(d_maximum, theta_vec)) - tof_current;
+    timeFunction
+    d_minimum
+    d_maximum
+    theta1
+    theta2
+    theta_f
+    tof_current
+
+    d_solution = fzero(@transferTimeOptimization, [d_minimum, d_maximum], opt);
+
+    global thrustFunction thetaDotFunction;
+    global timeFunction radiusFunction thetaDotSquareFunction;
+
+    syms d theta;
+
+    jerkFunction_nn = @(d_coeff, angle) double(subs(subs(thrustFunction/thetaDotFunction, d, d_coeff), theta, angle));
     
-    if t_error < 0
-        opt = optimset('TolFun', 1e3);
-        d_solution = fzero(@transferTimeOptimization, [d_minimum, d_maximum], opt);
-
-        syms d theta;
-        jerkFunction_nn = @(d_coeff, angle) double(subs(subs(thrustFunction/thetaDotFunction, d, d_coeff), theta, angle));
-
-        deltaV_o = trapz(theta_vec, abs(jerkFunction_nn(d_solution, theta_vec)));
-    else
-        deltaV_o = 1e24; %A big number
-    end
+    deltaV_o = trapz(theta_vec, abs(jerkFunction_nn(d_solution, theta_vec)));
 
     global deltaResult 
 
@@ -96,20 +90,16 @@ function [deltaV_o] = optimalDVSolver(tof_in)
 %    
 %     plot(x, y, "Color", [0.2 0.7 0.2]);
 
-    goodnessRatio = -0.5 * ((deltaV_o - initial_DeltaV) / (deltaV_o + initial_DeltaV) - 1);
-
-    G_Multiplier = 0.5 * (1 + cos(goodnessRatio * pi));
-    R_Multiplier = 0.5 * (1 - cos(goodnessRatio * pi));
+    R_Mult = 
 
     if plotDV_3D == 1
-%         if deltaV_o > initial_DeltaV * 1.1
-%             color = [1 0 0];
-%         elseif deltaV_o > initial_DeltaV * 0.9
-%             color = [1 1 0];
-%         elseif deltaV_o < initial_DeltaV * 0.9
-%             color = [0 1 0];
-%         end
-        color = [R_Multiplier G_Multiplier 0];
+        if deltaV_o > initial_DeltaV * 1.1
+            color = [1 0 0];
+        elseif deltaV_o > initial_DeltaV * 0.9
+            color = [1 1 0];
+        elseif deltaV_o < initial_DeltaV * 0.9
+            color = [0 1 0];
+        end
         plot3(currentTime, tof_current, deltaV_o,'-o','Color','b','MarkerSize',10,'MarkerFaceColor',color)
     else
         plot(tof_in, deltaV_o,'or', 'MarkerSize',2,'MarkerFaceColor','r')

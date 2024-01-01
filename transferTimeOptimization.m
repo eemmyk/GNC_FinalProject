@@ -2,10 +2,7 @@ function [t_error] = transferTimeOptimization(d_in)
     global tof_current theta_vec;
     global timeFunction_nn
 
-    timeCurve = [theta_vec; timeFunction_nn(d_in, theta_vec)];
-
-    time_t = trapz(timeCurve(1, :), timeCurve(2,:));
-    t_error = time_t - tof_current;
+    t_error = trapz(theta_vec, timeFunction_nn(d_in, theta_vec)) - tof_current;
 
     %Save best result into a global variable
     global timeResult;
