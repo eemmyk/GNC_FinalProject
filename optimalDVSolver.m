@@ -29,10 +29,11 @@ function [deltaV_o] = optimalDVSolver(tof_in)
 %     theta_f
 %     tof_current
 
-    %Check if the maximum value of d is enough for the tof
-    t_error = trapz(theta_vec, timeFunction_nn(d_maximum, theta_vec)) - tof_current;
+    %Check if the tof is solvable within the limits of the d-coefficient
+    t_error_min = trapz(theta_vec, timeFunction_nn(d_maximum, theta_vec)) - tof_current;
+    t_error_max = trapz(theta_vec, timeFunction_nn(d_minimum, theta_vec)) - tof_current;
     
-    if t_error < 0
+    if (t_error_min < 0) ~= (t_error_max < 0)
         opt = optimset('TolFun', 1e3);
         d_solution = fzero(@transferTimeOptimization, [d_minimum, d_maximum], opt);
 
@@ -42,6 +43,7 @@ function [deltaV_o] = optimalDVSolver(tof_in)
         deltaV_o = trapz(theta_vec, abs(jerkFunction_nn(d_solution, theta_vec)));
     else
         deltaV_o = 1e24; %A big number
+        fprintf("Unfeasible Time Of Flight Detected\n")
     end
 
     global deltaResult 
@@ -95,22 +97,28 @@ function [deltaV_o] = optimalDVSolver(tof_in)
 %     y = sin(theta_plot_vec+theta1) .* radiusFunction_nn(theta_plot_vec);
 %    
 %     plot(x, y, "Color", [0.2 0.7 0.2]);
+   
+    R_Multiplier = (3*(deltaV_o/initial_DeltaV)^2 - 2*(deltaV_o/initial_DeltaV)^3);
+    G_Multiplier = 1-(3*((deltaV_o-initial_DeltaV)/initial_DeltaV)^2 - 2*((deltaV_o-initial_DeltaV)/initial_DeltaV)^3);
 
-    goodnessRatio = -0.5 * ((deltaV_o - initial_DeltaV) / (deltaV_o + initial_DeltaV) - 1);
-
-    G_Multiplier = 0.5 * (1 + cos(goodnessRatio * pi));
-    R_Multiplier = 0.5 * (1 - cos(goodnessRatio * pi));
 
     if plotDV_3D == 1
-%         if deltaV_o > initial_DeltaV * 1.1
-%             color = [1 0 0];
-%         elseif deltaV_o > initial_DeltaV * 0.9
-%             color = [1 1 0];
-%         elseif deltaV_o < initial_DeltaV * 0.9
-%             color = [0 1 0];
-%         end
-        color = [R_Multiplier G_Multiplier 0];
-        plot3(currentTime, tof_current, deltaV_o,'-o','Color','b','MarkerSize',10,'MarkerFaceColor',color)
+        if deltaV_o > 2*initial_DeltaV
+            color = [1 0 0];
+        elseif deltaV_o > initial_DeltaV
+            color = [1 G_Multiplier 0];
+        elseif deltaV_o < initial_DeltaV
+            color = [R_Multiplier 1 0];
+        end
+    %     
+    % 
+    %     G_Multiplier = 0.5 * (1 + cos(goodnessRatio * pi));
+    %     R_Multiplier = 0.5 * (1 - cos(goodnessRatio * pi));
+          
+    %     color = [R_Multiplier G_Multiplier 0];
+
+       
+        plot3(currentTime, tof_current, deltaV_o,'-o','Color','b','MarkerSize',10,'MarkerFaceColor', color)
     else
         plot(tof_in, deltaV_o,'or', 'MarkerSize',2,'MarkerFaceColor','r')
     end

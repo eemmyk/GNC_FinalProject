@@ -123,22 +123,40 @@ function [] = updateParameters(updateTOF)
 %     safe_d_multiplier = 2;%1.4;
 %     d_minimum = fzero(radiusMax_nn, 0);
 
-    radiusMax_n = subs(1/radiusFunction - 1/rMax, theta, theta_f/2);
+    radiusMax_n = subs(1e9/radiusFunction - 1e9/rMax, theta, theta_f/2);
     radiusMax_nn = @(d_min_in) double(subs(radiusMax_n, d, d_min_in));
      
-    opt = optimset('TolFun', 1e-15, 'TolX', 1e-15);
+    opt = optimset('TolFun', 1e-15, 'TolX', 1e-15, 'Display', 'off');
     d_minimum = fzero(radiusMax_nn, 0, opt);
 
-    invR_Function = @(angle) double(subs(subs(1/radiusFunction, d, d_minimum), theta, angle));
-    [minPoints, minFuncValue] = fmincon(invR_Function, theta_f/2, [], [], [], [], theta_0, theta_f, [], optimset('Display', 'off'));
+    invR_Function = @(angle) double(subs(subs(1e9/radiusFunction, d, d_minimum), theta, angle));
+    [minPoints, minFuncValue,EXITFLAG,OUTPUT,LAMBDA] = fmincon(invR_Function, theta_f/2, [], [], [], [], theta_0, theta_f, [], opt);
+    
+%     minFuncValue
+%     minPoints
+%     d_minimum
+%     EXITFLAG
+%     OUTPUT.message
+%     LAMBDA
+%     abaddu=1/radiusFunction
+    
+%     figure;
+%     plot(theta_vec, invR_Function(theta_vec))
+
     while minFuncValue < 0
         if d_minimum < 0
             d_minimum = d_minimum / 2;
         else
             d_minimum = d_minimum * 2;
         end
-        invR_Function = @(angle) double(subs(subs(1/radiusFunction, d, d_minimum), theta, angle));
-        [minPoints, minFuncValue] = fmincon(invR_Function, theta_f/2, [], [], [], [], theta_0, theta_f, [], optimset('Display', 'off'));
+        invR_Function = @(angle) double(subs(subs(1e9/radiusFunction, d, d_minimum), theta, angle));
+        [minPoints, minFuncValue,EXITFLAG,OUTPUT,LAMBDA] = fmincon(invR_Function, theta_f/2, [], [], [], [], theta_0, theta_f, [], opt);
+%         minFuncValue
+%         minPoints
+%         d_minimum
+%         EXITFLAG
+%         OUTPUT.message
+%         LAMBDA
     end
 
 

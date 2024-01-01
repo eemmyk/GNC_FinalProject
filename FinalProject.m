@@ -33,24 +33,24 @@ global plotDV_3D
 %--First Orbit Parameters--
 %Semimajor axis
 %a_initial= 6800*1000;
-a_initial = 150*10^9;
+a_initial = 100*10^9;
 %Time of last perigee pass
 Tp1 = 0;
 %Eccentricity
 e1 = 0.2;
 %Argument of perigee
-omega1 = pi/2;
+omega1 = pi/5;
 
 %--Second Orbit Parameters--
 %Semimajor axis
 %a_final = 42164*1000;
-a_final = 225*10^9;
+a_final = 500*10^9;
 %Time of last perigee pass for object 2
 Tp2 = 0;
 %Eccentricity
-e2 = 0.6;
+e2 = 0.1;
 %Argument of perigee
-omega2 = -pi/3;
+omega2 = 3/4*pi;
 
 %Gravitational parameter
 %mju = 3.986004418*10^14; %Earth
@@ -61,7 +61,7 @@ mju = 1.32712440018*10^20; %Sun
 rMin = (696340 + 100000) * 1e3; %Sun
 
 %Maximum allowed radius
-rMax = 2*max(a_initial, a_final);
+rMax = 5*max(a_initial, a_final);
 
 %Number of rotations around central body
 N = 1;
@@ -85,7 +85,7 @@ plotAccuracy = 1000;
 theta_0 = 0;
 
 % CHANGED - Target will be at random point along 2nd orbit
-initialTime = 60*86400;
+initialTime = 0;
 currentTime = initialTime;   
 transferDateGuess = 0;
 
