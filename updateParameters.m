@@ -3,10 +3,11 @@ function [] = updateParameters(updateTOF)
     %initial orbit parameters
     global a_initial a_final currentTime mju N tof_current;
     global theta1 theta2 theta_f omega1 omega2 e1 e2 theta2_dot;
-    global gamma1 r1 P1 gamma2 r2 P2 theta1_dot;
-    global nu1_i nu2_i r1_i r2_i;
+    global gamma1 r1 P1 gamma2 r2 P2 theta1_dot theta_vec;
+    global nu1_i nu2_i r1_i r2_i intApprox;
     global Tp1 Tp2 TOF_estimation;
     global d_minimum d_maximum rMin;
+    global theta_0 timeFunction_nn;
 
     if updateTOF
         TOF_estimation = (1+2*N)*pi*sqrt((a_initial+a_final)^3/(8*mju));
@@ -148,9 +149,14 @@ function [] = updateParameters(updateTOF)
     
     timeFunction = sqrt((r^4/mju) * (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
 
+    timeFunction_nn = @(d_coeff, angle) double(subs(subs(timeFunction, d, d_coeff), theta, angle));
+
     thetaDotSquareFunction = (mju/r^4) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4);
 
     radiusFunction = 1 / (a + b*theta + c*theta^2 + d*theta^3 + e*theta^4 + f*theta^5 + g*theta^6);
+
+    theta_vec = linspace(theta_0, theta_f, intApprox);
+
 
     %% Check if TOF is a solution 
 
@@ -171,7 +177,6 @@ function [] = updateParameters(updateTOF)
     %Needs to be <1
     d_maximum = fzero(radiusMin_nn, [d_minimum, 1]);
 
-    global theta_0 d_solution
     %solution = fmincon(@Tds_min, [(theta_0 + theta_f) * 0.5, d_solution], [], [], [], [], [], [], []);
 %     solution = fmincon(@transferTimeOptimization, d_solution, [], [], [], [], [], [], []);
 % 

@@ -1,39 +1,12 @@
 function [t_error] = transferTimeOptimization(d_in)
-    global theta_f theta_0 timeFunction intApprox tof_current;
-    
-    syms d theta;
+    global theta_f theta_0 timeFunction intApprox tof_current theta_vec;
+    global timeFunction_nn
+    %syms d theta;
 
-    timeFunction_n = subs(timeFunction, d, d_in);
-    timeFunction_nn = @(angle) double(subs(timeFunction_n, theta, angle));
+    timeCurve = [theta_vec; timeFunction_nn(d_in, theta_vec)];
 
-    %Transfer Time
-    theta_vec = linspace(theta_0, theta_f, intApprox);
-%     timeCurve = zeros(2, intApprox);
-%     for i = 1:intApprox
-%         timeCurve(:,i) = [theta_vec(i); timeFunction_nn(theta_vec(i))];
-%     end
-%     
-    timeCurve = [theta_vec; timeFunction_nn(theta_vec)];
-
-    %Getting rid of the imaginary numbers let's the code run, but the
-    %solutions are not possible with only retrograde/prograde thrust
-    %time_t = abs(trapz(timeCurve(1, :), timeCurve(2,:)));
-    
-%     if ~isreal(timeCurve)
-%         N = mod(N + 1, 3);
-%         d_solution = 1e-9;
-%         updateParameters()
-        %%time_t = real(trapz(timeCurve(1, :), timeCurve(2,:)));
-        %time_t = abs(trapz(timeCurve(1, :), timeCurve(2,:)));
-        time_t = trapz(timeCurve(1, :), timeCurve(2,:));
-        t_error = time_t - tof_current;
-        %t_error = abs(time_t - tof_current);
-
-%     else
-%         %time_t = real(trapz(timeCurve(1, :), timeCurve(2,:)));
-%         time_t = trapz(timeCurve(1, :), timeCurve(2,:));
-%         t_error = time_t - tof_current;
-%     end
+    time_t = trapz(timeCurve(1, :), timeCurve(2,:));
+    t_error = time_t - tof_current;
 
     %Save best result into a global variable
     global timeResult;

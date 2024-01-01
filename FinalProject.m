@@ -20,10 +20,12 @@ global nu1_i_opt nu2_i_opt r1_i_opt r2_i_opt theta_f_opt;
 global theta2 omega1 omega2 e1 e2 theta1;
 global timeFunction thrustFunction thetaDotFunction thetaDotSquareFunction radiusFunction;
 global d_solution timeResult costResult dateOptimal tof_optimal;
-global Tp1 Tp2 TOF_estimation d_opt;
+global Tp1 Tp2 TOF_estimation d_opt timeFunction_nn;
 global thrustFunction_opt thetaDotFunction_opt%; thetaDotSquareFunction_opt;
 global timeFunction_opt radiusFunction_opt;
-global d_minimum d_maximum rMin;
+global d_minimum d_maximum rMin theta_vec;
+
+global plotDV_3D
 
 
 %% Estimation values and set parameters
@@ -49,7 +51,7 @@ N = 0; %randi(2) - 1;
 
 %Solve TOF, optimize deltaV and/or optimize transfer date
 optimizeTOF = 1;
-optimizeDV = 0;
+optimizeDV = 1;
 optimizeDATE = 1;
 
 % 1 + 2N hohmann transfer orbits in time
@@ -185,6 +187,8 @@ nu = linspace(0, 2*pi, 1000);
 orbit1 = [cos(nu+omega1) * p1 ./ (1+e1*cos(nu)); sin(nu+omega1) * p1 ./ (1+e1*cos(nu))];
 orbit2 = [cos(nu+omega2) * p2 ./ (1+e2*cos(nu)); sin(nu+omega2) * p2 ./ (1+e2*cos(nu))];
 
+theta_vec = linspace(theta_0, theta_f, intApprox);
+
 %% Solving the coefficients
 syms d theta;
 
@@ -213,7 +217,9 @@ gamma = atan(-r * (b + 2*c*theta + 3*d*theta^2 + 4*e*theta^3 + 5*f*theta^4 + 6*g
 
 thetaDotFunction = sqrt((mju/r^4) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
 thrustFunction = -mju / (2 * r^3 * cos(gamma)) * (6*d + 24*e*theta + 60*f*theta^2 + 120*g*theta^3 - tan(gamma)/r) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4)^2;
+
 timeFunction = sqrt((r^4/mju) * (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4));
+timeFunction_nn = @(d_coeff, angle) double(subs(subs(timeFunction, d, d_coeff), theta, angle));
 
 thetaDotSquareFunction = (mju/r^4) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*f*theta^3 + 30*g*theta^4);
 
@@ -311,6 +317,7 @@ end
 %end
 %% Delta V optimization for fixed starting point + result plotting
 if optimizeDV == 1
+    plotDV_3D = 0;
     %Initialize best values
     deltaResult = Inf;
     timeResult = Inf;
@@ -331,7 +338,7 @@ if optimizeDV == 1
     figure;
     hold on;
 
-    opt = optimset('TolFun',1e2);
+    opt = optimset('TolFun',1e2, 'TolX', 1e5);
     %tf_fuelOptimal = fmincon(@optimalDVSolver, 0, [], [], [], [], 0, [], [], opt);
 
     tf_fuelOptimal = fminsearch(@optimalDVSolver, tf_guess, opt);
@@ -378,19 +385,23 @@ if optimizeDV == 1
     axis equal
 end
 %% Optimize the transfer date for deltaV + result plotting
- %Initialize best values
-        deltaResult = Inf;
-        costResult = Inf;
-        timeResult = Inf;
-        
-        %Reset current Time
-        tof_current = TOF_estimation;
+if optimizeDATE == 1
+    plotDV_3D = 1;
+
+    %Initialize best values
+    deltaResult = Inf;
+    costResult = Inf;
+    timeResult = Inf;
+    
+    %Reset current Time
+    tof_current = TOF_estimation;
     
     %     %Reset number of rotations
     %     N = 0;
-figure;
-hold on;
-if optimizeDATE == 1
+
+    figure;
+    hold on;
+
     for time = linspace(initialTime, initialTime + 3*P1, 10)
         currentTime = time;
        
@@ -404,7 +415,7 @@ if optimizeDATE == 1
 %         'ub',[initialTime + 3*P1, 10*TOF_estimation]);%, 'options', opt);
 %         x = run(gs,problem, numberOfStartPoints);
     
-    opt = optimset('TolFun',1e2);
+    opt = optimset('TolFun',1e2, 'TolX', 1e5);
     tf_fuelOptimal = fminsearch(@optimalDVSolver, tf_guess, opt);
 
     end

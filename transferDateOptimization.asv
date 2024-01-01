@@ -1,7 +1,7 @@
-function [deltaV_o] = transferDateOptimization(inputVec)
+function [cost_o] = transferDateOptimization(inputVec)
     
     global currentTime tof_current d_solution theta_0 theta_f intApprox;
-    global d_minimum d_maximum timeResult N theta_vec;
+    global d_minimum d_maximum costResult timeResult N theta_vec;
  
     currentTime = inputVec(1);
     tof_current = inputVec(2);
@@ -17,14 +17,14 @@ function [deltaV_o] = transferDateOptimization(inputVec)
     if theta_f < safeTransferAngle
         %N = N+1;
         %Return a big number
-        deltaV_o = 1e24;
+        cost_o = 1e24;
         return;
     end
 
     %currentTime = inputVec(1);
     %tof_current = inputVec(2);
 
-    opt = optimset('TolFun', 1e3);
+    opt = optimset('TolFun', 1e1);
     d_solution = fzero(@transferTimeOptimization, [d_minimum, d_maximum], opt);
 
     global thrustFunction thetaDotFunction thetaDotSquareFunction timeFunction radiusFunction;
@@ -42,21 +42,22 @@ function [deltaV_o] = transferDateOptimization(inputVec)
     %w2 = 0.000026; %DeltaV cost
     %cost_o = w1*timeResult^2 + w2*deltaV_o^2;
 
-    global deltaResult 
-    
-    if deltaV_o < deltaResult
+    cost_o = deltaV_o;
+
+    if cost_o < costResult
         %Get globals from updatedParameters
         global theta2 theta2_dot gamma2 r2 P2 theta1 theta1_dot gamma1 r1 P1
         global nu1_i nu2_i r1_i r2_i;
     
         %Save best results as globals
-        global theta2_opt r2_opt tof_optimal theta2_dot_opt gamma2_opt P2_opt;
+        global deltaResult theta2_opt r2_opt tof_optimal theta2_dot_opt gamma2_opt P2_opt;
         global theta1_opt r1_opt theta1_dot_opt gamma1_opt P1_opt theta_f_opt;
         global nu1_i_opt nu2_i_opt r1_i_opt r2_i_opt dateOptimal d_opt;
     
         global thrustFunction_opt thetaDotFunction_opt thetaDotSquareFunction_opt;
         global radiusFunction_opt timeFunction_opt;
 
+        costResult = cost_o;
         deltaResult = deltaV_o;
         theta2_opt = theta2;
         theta1_opt = theta1;
