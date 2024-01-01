@@ -1,28 +1,20 @@
 function [deltaV_o] = transferDateOptimization(inputVec)
     
-    global currentTime tof_current d_solution theta_0 theta_f intApprox;
-    global d_minimum d_maximum timeResult N theta_vec;
+    global currentTime tof_current d_solution theta_f;
+    global d_minimum d_maximum timeResult theta_vec;
  
     currentTime = inputVec(1);
     tof_current = inputVec(2);
-    %d_solution = inputVec(3);
 
     timeResult = Inf;
-
-    %N = 0;
 
     updateParameters(0)
     safeTransferAngle = pi;
 
     if theta_f < safeTransferAngle
-        %N = N+1;
-        %Return a big number
-        deltaV_o = 1e24;
+        deltaV_o = 1e24; %A big number
         return;
     end
-
-    %currentTime = inputVec(1);
-    %tof_current = inputVec(2);
 
     opt = optimset('TolFun', 1e3);
     d_solution = fzero(@transferTimeOptimization, [d_minimum, d_maximum], opt);
@@ -31,16 +23,9 @@ function [deltaV_o] = transferDateOptimization(inputVec)
 
     syms d theta;
 
-    %theta_vec = linspace(theta_0, theta_f, intApprox);
-    %jerkFunction_n = subs(thrustFunction/thetaDotFunction, d, d_solution);
     jerkFunction_nn = @(d_coeff, angle) double(subs(subs(thrustFunction/thetaDotFunction, d, d_coeff), theta, angle));
     
     deltaV_o = trapz(theta_vec, abs(jerkFunction_nn(d_solution, theta_vec)));
-
-    %Cost functions
-    %w1 = 50; %TOF error cost
-    %w2 = 0.000026; %DeltaV cost
-    %cost_o = w1*timeResult^2 + w2*deltaV_o^2;
 
     global deltaResult 
     
@@ -88,11 +73,6 @@ function [deltaV_o] = transferDateOptimization(inputVec)
 
     plot3(currentTime, tof_current, deltaV_o,'-o','Color','b','MarkerSize',10,'MarkerFaceColor','#D9FFFF')
     pause(0.001)
-    
-    %fprintf("Optimal dV: %.0f m/s -- transfer date: %.0f s -- time of flight: %.0f s\n", deltaV_o, inputVec(1), inputVec(2))
-   
-    %fprintf("Optimal dV: %.0f m/s for transfer date: %.0f s\n", deltaV_o, currentTime)
-    %printf("Total cost: %e -- Date shifted: %e -- Time of Flight: %e\n", cost_o, currentTime, tof_current)
-    
+  
 end
 

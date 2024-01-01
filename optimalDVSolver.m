@@ -1,72 +1,27 @@
 function [deltaV_o] = optimalDVSolver(tof_in)
-    
-    %fprintf("transfer time: %.0f s\n", tof_in)
-    global tof_current N theta_f currentTime plotDV_3D theta_vec;
+    global tof_current  theta_f currentTime plotDV_3D theta_vec;
+    global d_solution d_minimum d_maximum initial_DeltaV;
 
     tof_current = tof_in;
-    
-    %N = 0;
-
     updateParameters(0)
     safeTransferAngle = pi;
 
     if theta_f < safeTransferAngle
-        %N = N+1;
-        %updateParameters(1);
-        deltaV_o = 1e24;
+        deltaV_o = 1e24; %A big number
         return;
     end
-    
-    %tof_current = tof_in;
-
-
-    %Initial guess for d coefficient:
-    global d_solution theta_0 theta_f intApprox d_minimum d_maximum;
-    %d_guess = d_solution;
-
-    % Use function to find best dV value for given tf
-
-    %d_fuelOptimal_guess = d_guess;
-    
-    %timeResult = Inf;
 
     opt = optimset('TolFun', 1e3);
-    %global interDeltaResult
-
-    %d_fuelOptimal = fminsearch(@deltaVOptimization, d_fuelOptimal_guess, opt);
     d_solution = fzero(@transferTimeOptimization, [d_minimum, d_maximum], opt);
-    %d_out = fminsearch(@transferTimeOptimization, d_solution);
-
-    %jerkFunction_n = subs(thrustFunction/thetaDotFunction, d, d_fuelOptimal);
-    %jerkFunction_nn = @(angle) double(subs(jerkFunction_n, theta, angle));
-    %thrustFunction_n = subs(thrustFunction, d, d_fuelOptimal);
-    %thrustFunction_nn = @(angle) double(subs(thrustFunction_n, theta, angle));
-
-    %theta_vec = linspace(theta_0, theta_f, intApprox);
-%     jerk = zeros(2, intApprox);
-%     thrust = zeros(2, intApprox);
-%     for i = 1:intApprox
-%         jerk(:,i) = [theta_vec(i); double(subs(jerkFunction_n, theta, theta_vec(i)))];
-%         thrust(:,i) = [theta_vec(i); double(subs(thrustFunction_n, theta, theta_vec(i)))];
-%     end
-
-    %jerk = [theta_vec; jerkFunction_nn(theta_vec)];
-    %thrust = [theta_vec; thrustFunction_nn(theta_vec)];    
-
-    %deltaV_o = interDeltaResult; %trapz(jerk(1, :), abs(jerk(2,:)));
 
     global thrustFunction thetaDotFunction thetaDotSquareFunction;
     global timeFunction radiusFunction;
 
     syms d theta;
 
-    %theta_vec = linspace(theta_0, theta_f, intApprox);
-    %jerkFunction_n = subs(thrustFunction/thetaDotFunction, d, d_solution);
     jerkFunction_nn = @(d_coeff, angle) double(subs(subs(thrustFunction/thetaDotFunction, d, d_coeff), theta, angle));
-    jerk = [theta_vec; jerkFunction_nn(d_solution, theta_vec)];
-    %thrust = [theta_vec; thrustFunction_nn(theta_vec)];
-
-    deltaV_o = trapz(jerk(1, :), abs(jerk(2,:)));
+    
+    deltaV_o = trapz(theta_vec, abs(jerkFunction_nn(d_solution, theta_vec)));
 
     global deltaResult 
 
@@ -111,10 +66,16 @@ function [deltaV_o] = optimalDVSolver(tof_in)
 
         fprintf("Optimal dV: %.0f m/s for transfer time: %.0f s\n", deltaV_o, tof_in)
     end
-    %fprintf("Optimal dV: %.0f m/s for transfer time: %.0f s\n", deltaV_o, tof_in)
     
     if plotDV_3D == 1
-        plot3(currentTime, tof_current, deltaV_o,'-o','Color','b','MarkerSize',10,'MarkerFaceColor','#D9FFFF')
+        if deltaV_o > initial_DeltaV * 1.1
+            color = [1 0 0];
+        elseif deltaV_o > initial_DeltaV * 0.9
+            color = [1 1 0];
+        elseif deltaV_o < initial_DeltaV * 0.9
+            color = [0 1 0];
+        end
+        plot3(currentTime, tof_current, deltaV_o,'-o','Color','b','MarkerSize',10,'MarkerFaceColor',color)
     else
         plot(tof_in, deltaV_o,'or', 'MarkerSize',2,'MarkerFaceColor','r')
     end

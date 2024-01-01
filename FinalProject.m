@@ -23,7 +23,7 @@ global d_solution timeResult costResult dateOptimal tof_optimal;
 global Tp1 Tp2 TOF_estimation d_opt timeFunction_nn;
 global thrustFunction_opt thetaDotFunction_opt%; thetaDotSquareFunction_opt;
 global timeFunction_opt radiusFunction_opt;
-global d_minimum d_maximum rMin theta_vec;
+global d_minimum d_maximum rMin theta_vec initial_DeltaV;
 
 global plotDV_3D
 
@@ -62,7 +62,7 @@ tof_current = TOF_estimation;
 %Used for dV optimization
 tf_guess = TOF_estimation;
 
-intApprox = 20;
+intApprox = 25;
 plotAccuracy = 1000;
 
 %%Doesn't change, but here not to be a hardcoded value
@@ -74,7 +74,7 @@ theta_0 = 0;
 %randomized variables if wanting to use them
 %for timeGuess = linspace(0, 3*P1, 1)
 % CHANGED - Target will be at random point along 2nd orbit
-initialTime = 0;%timeGuess;
+initialTime = 60*86400;%timeGuess;
 currentTime = initialTime; %rand() * 2*pi*sqrt(a_final ^3 / mju);   
 transferDateGuess = 0;
 
@@ -225,10 +225,6 @@ thetaDotSquareFunction = (mju/r^4) / (1/r + 2*c + 6*d*theta + 12*e*theta^2 + 20*
 
 radiusFunction = 1 / (a + b*theta + c*theta^2 + d*theta^3 + e*theta^4 + f*theta^5 + g*theta^6);
 
-%Initial guess for d coefficient:
-
-%d_solution = 1e-12;
-
 %% Check if TOF is solvable:
 safeTransferAngle = pi;
 
@@ -303,7 +299,8 @@ if optimizeTOF == 1
     %thetaDotCurve_tof = [theta_vec; thrustFunction_nn(theta_vec) ./ jerkFunction_nn(theta_vec)];
 
     deltaV_tof = trapz(theta_vec, abs(jerkFunction_nn(theta_vec)));
-    
+    initial_DeltaV = deltaV_tof;
+
     x = cos(theta_vec+theta1) .* radiusFunction_nn(theta_vec);
     y = sin(theta_vec+theta1) .* radiusFunction_nn(theta_vec);
     
@@ -323,16 +320,10 @@ if optimizeDV == 1
     timeResult = Inf;
     %interDeltaResult = Inf;
     
-    %Reset number of orbits
-    %N = 1;
-
     %Reset current Time
     currentTime = initialTime;
     tof_current = TOF_estimation;
     tf_guess = TOF_estimation;
-
-%     %Reset number of rotations
-%     N = 0;
 
     %Trying out process plotting:
     figure;
@@ -357,6 +348,7 @@ if optimizeDV == 1
     thrustCurve_dV = [theta_vec; thrustFunction_nn(theta_vec)]; 
     
     deltaV_opt = trapz(theta_vec, abs(jerkFunction_nn(theta_vec)));
+    initial_DeltaV = deltaV_opt;
 
     time_t = trapz(theta_vec, timeFunction_nn(theta_vec));
     
@@ -395,14 +387,11 @@ if optimizeDATE == 1
     
     %Reset current Time
     tof_current = TOF_estimation;
-    
-    %     %Reset number of rotations
-    %     N = 0;
 
     figure;
     hold on;
 
-    for time = linspace(initialTime, initialTime + 3*P1, 10)
+    for time = linspace(initialTime, initialTime + 3*P1, 20)
         currentTime = time;
        
         %Try plotting optimization
@@ -415,16 +404,9 @@ if optimizeDATE == 1
 %         'ub',[initialTime + 3*P1, 10*TOF_estimation]);%, 'options', opt);
 %         x = run(gs,problem, numberOfStartPoints);
     
-    opt = optimset('TolFun',1e2, 'TolX', 1e5);
-    tf_fuelOptimal = fminsearch(@optimalDVSolver, tf_guess, opt);
-
+        opt = optimset('TolFun',1e2, 'TolX', 1e5);
+        tf_fuelOptimal = fminsearch(@optimalDVSolver, tf_guess, opt);
     end
-    %opt = optimset('DiffMinChange', 1e5);
-    %tf_fuelOptimal = fmincon(@transferDateOptimization, [initialTime, TOF_estimation], [], [], [], [], [initialTime, 0.1*TOF_estimation], [initialTime + 3*P1, 10*TOF_estimation], [], opt);
-
-    %date_fuelOptimal = fminsearch(@transferDateOptimization, [currentTime, tof_current], opt);
-
-    %date_fuelOptimal = fminsearch(@transferDateOptimization, currentTime);%, opt);
 
     jerkFunction_n = subs(thrustFunction_opt/thetaDotFunction_opt, d, d_opt);
     jerkFunction_nn = @(angle) double(subs(jerkFunction_n, theta, angle));
@@ -485,23 +467,6 @@ legend("deltaV Optimized trajectory", "TOF solution trajectory");
 xlabel("theta");
 ylabel("thurst [N]");
 
-% figure;
-% hold on;
-% if optimizeDV == 1
-%     % Plot results of dV optimized trajectory
-%     plot(thetaDotCurve_dv(1, :), thetaDotCurve_dv(2, :));
-%     d_v_1 = trapz(thetaDotCurve_dv(1, :), abs(thetaDotCurve_dv(2, :)))
-% end
-% if optimizeTOF == 1
-%     % Plot results of tof optimized trajectory
-%     plot(thetaDotCurve_tof(1, :), thetaDotCurve_tof(2, :));
-%     d_v_2 = trapz(thetaDotCurve_tof(1, :), abs(thetaDotCurve_tof(2, :)))
-% end
-% title(sprintf("Comparision of theta_dot curves for TOF solution and dV optimization"));
-% legend("deltaV Optimized trajectory", "TOF solution trajectory");  
-% xlabel("theta");
-% ylabel("theta_dot [rad/s]");
-
 %% Second to time conversion
 function [timestring] = secToTime(seconds)
     years = floor(seconds / (365.25 * 86400));
@@ -515,17 +480,4 @@ function [timestring] = secToTime(seconds)
     secs = floor(seconds);
 
     timestring = sprintf("%.0f y %.0f d %.0f h %.0f m %.0f s", years, days, hours, mins, secs);
-end
-
-function out_o = Tds_min(inputVector)
-    %global thetaDotSquareFunction
-    global timeFunction tof_current;
-    syms theta d;
-
-    theta_zero = inputVector(1);
-    d_zero = inputVector(2);
-
-    %out_o = abs(double(subs(subs(thetaDotSquareFunction, d, d_zero), theta, theta_zero)));
-    out_o = abs(double(subs(subs(timeFunction, d, d_zero), theta, theta_zero)) - tof_current);
-   
 end
