@@ -1,8 +1,6 @@
 function [t_error] = transferTimeSolution(d_in)
     global tof_current theta_vec;
-    %global timeFunction_nn
     
-    %time_t = trapz(theta_vec, fTimeFunction(d_in, theta_vec));
     time_t = trapz(theta_vec, fTimeFunction(d_in, theta_vec));
     
     %Some solutions are still imaginary for some values of d.
@@ -16,7 +14,7 @@ function [t_error] = transferTimeSolution(d_in)
     global timeResult;
     if abs(t_error) < abs(timeResult)
         timeResult = t_error;
-        fprintf("Guessed d: %e, Remaining TOF error: %.0f\n", d_in, t_error);
+        %fprintf("Guessed d: %e, Remaining TOF error: %.0f\n", d_in, t_error);
     end    
 end
 

@@ -1,30 +1,14 @@
-function [deltaV_o] = optimalDVSolver(tof_in)
+function [deltaV_o] = transferDateOptimization(inputVec)
+
     global tof_current  theta_f currentTime plotDV_3D theta_vec;
     global d_solution d_minimum d_maximum initial_DeltaV timeResult;
     
-    tof_current = tof_in;
     timeResult = Inf;
-    
-%     global N
-%     N = 0;
+
+    currentTime = inputVec(1);
+    tof_current = inputVec(2);
 
     updateParameters(0);
-
-%     safeTransferAngle = pi;
-
-%     if theta_f < safeTransferAngle
-%         deltaV_o = 1e24; %A big number
-%         return;
-%     end
-
-
-%     timeFunction
-%     d_minimum
-%     d_maximum
-%     theta1
-%     theta2
-%     theta_f
-%     tof_current
 
     %Check if the tof is solvable within the limits of the d-coefficient
     t_error_min = trapz(theta_vec, fTimeFunction(d_maximum, theta_vec)) - tof_current;
@@ -51,7 +35,7 @@ function [deltaV_o] = optimalDVSolver(tof_in)
         global nu1_i nu2_i r1_i r2_i;
         
         %Save best results as globals
-        global theta2_opt r2_opt tof_optimal;
+        global theta2_opt r2_opt;
         global theta1_opt r1_opt;
         global nu1_i_opt nu2_i_opt r1_i_opt r2_i_opt theta_f_opt d_opt;
         global radiusFunction_opt dateOptimal;
@@ -62,7 +46,6 @@ function [deltaV_o] = optimalDVSolver(tof_in)
         theta1_opt = theta1;
         theta_f_opt = theta_f;
         d_opt = d_solution;
-        tof_optimal = tof_in;
         r2_opt = r2;
         r1_opt = r1;
         nu1_i_opt = nu1_i;
@@ -70,12 +53,11 @@ function [deltaV_o] = optimalDVSolver(tof_in)
         r1_i_opt = r1_i;
         r2_i_opt = r2_i;
 
-
         radiusFunction_opt = radiusFunction;
 
         dateOptimal = currentTime;
 
-        fprintf("Optimal dV: %.0f m/s for transfer time: %.0f s\n", deltaV_o, tof_in)
+        fprintf("Optimal dV: %.0f m/s for transfer date: %.0f s and time: %.0f s\n", deltaV_o, currentTime, tof_current)
     end
 
     R_Multiplier = (3*(deltaV_o/initial_DeltaV)^2 - 2*(deltaV_o/initial_DeltaV)^3);

@@ -3,8 +3,11 @@ function [deltaV_o] = optimalDVSolver(tof_in)
     global d_solution d_minimum d_maximum initial_DeltaV timeResult;
     
     tof_current = tof_in;
+
     timeResult = Inf;
     
+    if meme
+
 %     global N
 %     N = 0;
 
@@ -46,7 +49,8 @@ function [deltaV_o] = optimalDVSolver(tof_in)
 
     if deltaV_o < deltaResult
         %Get globals from updatedParameters
-        global radiusFunction;
+        global thrustFunction thetaDotFunction;
+        global radiusFunction thetaDotSquareFunction;
         global theta2 r2 theta1 r1
         global nu1_i nu2_i r1_i r2_i;
         
@@ -54,6 +58,7 @@ function [deltaV_o] = optimalDVSolver(tof_in)
         global theta2_opt r2_opt tof_optimal;
         global theta1_opt r1_opt;
         global nu1_i_opt nu2_i_opt r1_i_opt r2_i_opt theta_f_opt d_opt;
+        global thrustFunction_opt thetaDotFunction_opt thetaDotSquareFunction_opt;
         global radiusFunction_opt dateOptimal;
 
 
@@ -70,7 +75,9 @@ function [deltaV_o] = optimalDVSolver(tof_in)
         r1_i_opt = r1_i;
         r2_i_opt = r2_i;
 
-
+        thrustFunction_opt =  thrustFunction;
+        thetaDotFunction_opt = thetaDotFunction; 
+        thetaDotSquareFunction_opt = thetaDotSquareFunction; 
         radiusFunction_opt = radiusFunction;
 
         dateOptimal = currentTime;
@@ -101,5 +108,7 @@ function [deltaV_o] = optimalDVSolver(tof_in)
         plot(tof_current, plotValue,'o','Color','k','MarkerSize',10,'MarkerFaceColor', color)
     end
     pause(0.001);
+
+    memeCounter = 1;
 end
 
