@@ -3,7 +3,6 @@ function [deltaV_o] = optimalDVSolver(tof_in)
     global d_solution d_minimum d_maximum initial_DeltaV;
     global timeFunction timeFunction_nn;
 
-    global plotAccuracy theta1 theta2 theta_0;
     global thrustFunction thetaDotFunction timeResult;
     global radiusFunction thetaDotSquareFunction;
     
@@ -14,7 +13,8 @@ function [deltaV_o] = optimalDVSolver(tof_in)
 %     global N
 %     N = 0;
 
-    updateParameters(0)
+    updateParameters(0);
+
 %     safeTransferAngle = pi;
 
 %     if theta_f < safeTransferAngle
@@ -32,20 +32,17 @@ function [deltaV_o] = optimalDVSolver(tof_in)
 %     tof_current
 
     %Check if the tof is solvable within the limits of the d-coefficient
-    t_error_min = trapz(theta_vec, timeFunction_nn(d_maximum, theta_vec)) - tof_current;
-    t_error_max = trapz(theta_vec, timeFunction_nn(d_minimum, theta_vec)) - tof_current;
+    t_error_min = trapz(theta_vec, fTimeFunction(d_maximum, theta_vec)) - tof_current;
+    t_error_max = trapz(theta_vec, fTimeFunction(d_minimum, theta_vec)) - tof_current;
     
     if (t_error_min < 0) ~= (t_error_max < 0)
-        opt = optimset('TolFun', 1e3);
+        opt = optimset('TolFun', 1e2);
         d_solution = fzero(@transferTimeOptimization, [d_minimum, d_maximum], opt);
-
-        syms d theta;
-        jerkFunction_nn = @(d_coeff, angle) double(subs(subs(thrustFunction/thetaDotFunction, d, d_coeff), theta, angle));
-
-        deltaV_o = trapz(theta_vec, abs(jerkFunction_nn(d_solution, theta_vec)));
+        
+        deltaV_o = trapz(theta_vec, abs(fJerkFunction(d_solution, theta_vec)));
     else
         deltaV_o = 1e24; %A big number
-        fprintf("Unfeasible Time Of Flight Detected\n")
+        %fprintf("Unfeasible Time Of Flight Detected\n")
     end
 
     global deltaResult 
@@ -94,20 +91,19 @@ function [deltaV_o] = optimalDVSolver(tof_in)
 
     R_Multiplier = (3*(deltaV_o/initial_DeltaV)^2 - 2*(deltaV_o/initial_DeltaV)^3);
     G_Multiplier = 1-(3*((deltaV_o-initial_DeltaV)/initial_DeltaV)^2 - 2*((deltaV_o-initial_DeltaV)/initial_DeltaV)^3);
-
+    
+    if deltaV_o > 2*initial_DeltaV
+        color = [1 0 0];
+    elseif deltaV_o > initial_DeltaV
+        color = [1 G_Multiplier 0];
+    elseif deltaV_o < initial_DeltaV
+        color = [R_Multiplier 1 0];
+    end
 
     if plotDV_3D == 1
-        if deltaV_o > 2*initial_DeltaV
-            color = [1 0 0];
-        elseif deltaV_o > initial_DeltaV
-            color = [1 G_Multiplier 0];
-        elseif deltaV_o < initial_DeltaV
-            color = [R_Multiplier 1 0];
-        end
-
-        plot3(currentTime, tof_current, deltaV_o,'-o','Color','b','MarkerSize',10,'MarkerFaceColor', color)
+        plot3(currentTime, tof_current, deltaV_o,'o','Color','k','MarkerSize',10,'MarkerFaceColor', color)
     else
-        plot(tof_in, deltaV_o,'or', 'MarkerSize',2,'MarkerFaceColor','r')
+        plot(tof_current, deltaV_o,'o','Color','k','MarkerSize',5,'MarkerFaceColor', color)
     end
     pause(0.001);
 end

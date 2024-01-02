@@ -1,9 +1,11 @@
-function [t_error] = transferTimeSolution(d_in)
+function [t_error] = transferTimeOptimization(d_in)
     global tof_current theta_vec;
     %global timeFunction_nn
+    global mju r1 r2 gamma1 gamma2 theta_f theta1_dot theta2_dot
+
     
-    %time_t = trapz(theta_vec, fTimeFunction(d_in, theta_vec));
-    time_t = trapz(theta_vec, fTimeFunction(d_in, theta_vec));
+    %time_t = trapz(theta_vec, timeFunction_nn(d_in, theta_vec));
+    time_t = trapz(theta_vec, fTimeFunction(mju, r1, r2, gamma1, gamma2, theta_f, theta1_dot, theta2_dot, d_in, theta_vec));
     
     %Some solutions are still imaginary for some values of d.
     %So far values always converge into real numbers after a while.
