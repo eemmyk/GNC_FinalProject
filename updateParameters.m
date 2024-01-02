@@ -126,7 +126,7 @@ function [] = updateParameters(updateTOF)
     radiusMax_n = subs(1e9/radiusFunction - 1e9/rMax, theta, theta_f/2);
     radiusMax_nn = @(d_min_in) double(subs(radiusMax_n, d, d_min_in));
      
-    opt = optimset('TolFun', 1e-15, 'TolX', 1e-15, 'Display', 'off');
+    opt = optimset('TolFun', 1e-15, 'TolX', 1e-15, 'Display', 'iter');
     d_minimum = fzero(radiusMax_nn, 0, opt);
 
     invR_Function = @(angle) double(subs(subs(1e9/radiusFunction, d, d_minimum), theta, angle));
@@ -142,6 +142,9 @@ function [] = updateParameters(updateTOF)
     
 %     figure;
 %     plot(theta_vec, invR_Function(theta_vec))
+
+%ADD CHECK FOR ZERO BEING A WRONG ANSWER
+
 
     while minFuncValue < 0
         if d_minimum < 0

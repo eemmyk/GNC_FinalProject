@@ -4,10 +4,12 @@ function [deltaV_o] = optimalDVSolver(tof_in)
     global timeFunction timeFunction_nn;
 
     global plotAccuracy theta1 theta2 theta_0;
-    global thrustFunction thetaDotFunction;
+    global thrustFunction thetaDotFunction timeResult;
     global radiusFunction thetaDotSquareFunction;
     
     tof_current = tof_in;
+
+    timeResult = Inf;
     
 %     global N
 %     N = 0;
@@ -58,7 +60,7 @@ function [deltaV_o] = optimalDVSolver(tof_in)
         global theta1_opt r1_opt theta1_dot_opt gamma1_opt P1_opt;
         global nu1_i_opt nu2_i_opt r1_i_opt r2_i_opt theta_f_opt d_opt;
         global thrustFunction_opt thetaDotFunction_opt thetaDotSquareFunction_opt;
-        global radiusFunction_opt timeFunction_opt;
+        global radiusFunction_opt timeFunction_opt dateOptimal;
 
         deltaResult = deltaV_o;
         theta2_opt = theta2;
@@ -85,19 +87,11 @@ function [deltaV_o] = optimalDVSolver(tof_in)
         timeFunction_opt = timeFunction;
         radiusFunction_opt = radiusFunction;
 
+        dateOptimal = currentTime;
 
         fprintf("Optimal dV: %.0f m/s for transfer time: %.0f s\n", deltaV_o, tof_in)
     end
 
-%     radiusFunction_n = subs(radiusFunction, d, d_solution);
-%     radiusFunction_nn = @(angle) double(subs(radiusFunction_n, theta, angle));
-%     theta_plot_vec = linspace(theta_0, theta_f, plotAccuracy);
-% 
-%     x = cos(theta_plot_vec+theta1) .* radiusFunction_nn(theta_plot_vec);
-%     y = sin(theta_plot_vec+theta1) .* radiusFunction_nn(theta_plot_vec);
-%    
-%     plot(x, y, "Color", [0.2 0.7 0.2]);
-   
     R_Multiplier = (3*(deltaV_o/initial_DeltaV)^2 - 2*(deltaV_o/initial_DeltaV)^3);
     G_Multiplier = 1-(3*((deltaV_o-initial_DeltaV)/initial_DeltaV)^2 - 2*((deltaV_o-initial_DeltaV)/initial_DeltaV)^3);
 
@@ -110,14 +104,7 @@ function [deltaV_o] = optimalDVSolver(tof_in)
         elseif deltaV_o < initial_DeltaV
             color = [R_Multiplier 1 0];
         end
-    %     
-    % 
-    %     G_Multiplier = 0.5 * (1 + cos(goodnessRatio * pi));
-    %     R_Multiplier = 0.5 * (1 - cos(goodnessRatio * pi));
-          
-    %     color = [R_Multiplier G_Multiplier 0];
 
-       
         plot3(currentTime, tof_current, deltaV_o,'-o','Color','b','MarkerSize',10,'MarkerFaceColor', color)
     else
         plot(tof_in, deltaV_o,'or', 'MarkerSize',2,'MarkerFaceColor','r')
