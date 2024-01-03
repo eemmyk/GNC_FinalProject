@@ -21,7 +21,7 @@ function [timeStep] = fTimeFunction(d, theta, useOptimal)
         theta1_dot_l = theta1_dot;
         theta2_dot_l = theta2_dot;
     end
-    
+        
     a = 1/r1_l;
     b = -tan(gamma1_l) / r1_l;
     c = 1/(2*r1_l) * (mju / (r1_l^3 * theta1_dot_l^2) - 1);
@@ -41,7 +41,7 @@ function [timeStep] = fTimeFunction(d, theta, useOptimal)
     g = efg(3);
     
     r = 1 ./ (a + b.*theta + c.*theta.^2 + d.*theta.^3 + e.*theta.^4 + f.*theta.^5 + g.*theta.^6);
-    
+
     timeStep = sqrt((r.^4./mju) .* (1./r + 2.*c + 6.*d.*theta + 12.*e.*theta.^2 + 20.*f.*theta.^3 + 30.*g.*theta.^4));
 
 end

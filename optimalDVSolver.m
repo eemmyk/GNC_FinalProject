@@ -1,8 +1,7 @@
 function [deltaV_o] = optimalDVSolver(inputVec)
-    global tof_current currentTime solveDate theta_vec;
-    global d_solution d_minimum d_maximum initial_DeltaV timeResult;
-
-    timeResult = Inf;
+    global tof_current currentTime solveDate plot3D theta_vec;
+    global d_solution d_minimum d_maximum initial_DeltaV;
+    global unfeasibleOrbit;
 
     if solveDate == 1
         currentTime = inputVec(1);
@@ -15,11 +14,11 @@ function [deltaV_o] = optimalDVSolver(inputVec)
     updateParameters(0);
 
     %Check if the tof is solvable within the limits of the d-coefficient
-    t_error_min = trapz(theta_vec, fTimeFunction(d_maximum, theta_vec, 0)) - tof_current;
+    t_error_min = trapz(theta_vec, fTimeFunction(0.9*d_maximum, theta_vec, 0)) - tof_current;
     t_error_max = trapz(theta_vec, fTimeFunction(d_minimum, theta_vec, 0)) - tof_current;
     trueSolution = 1;
 
-    if (t_error_min < 0) ~= (t_error_max < 0)
+    if ((t_error_min < 0) ~= (t_error_max < 0))% && (unfeasibleOrbit == 0)
         opt = optimset('TolFun', 1e2);
         d_solution = fzero(@transferTimeSolution, [d_minimum, d_maximum], opt);
 
@@ -66,16 +65,16 @@ function [deltaV_o] = optimalDVSolver(inputVec)
 
         dateOptimal = currentTime;
 
-        if solveDate == 1
-            fprintf("Optimal dV: %.0f m/s for transfer date: %.0f s and time: %.0f s\n", deltaV_o, currentTime, tof_current)
-        else
-            fprintf("Optimal dV: %.0f m/s for transfer time: %.0f s\n", deltaV_o, tof_current)
-        end
+%         if solveDate == 1
+%             fprintf("Optimal dV: %.0f m/s for transfer date: %.0f s and time: %.0f s\n", deltaV_o, currentTime, tof_current)
+%         else
+%             fprintf("Optimal dV: %.0f m/s for transfer time: %.0f s\n", deltaV_o, tof_current)
+%         end
     end
 
     R_Multiplier = (3*(deltaV_o/initial_DeltaV)^2 - 2*(deltaV_o/initial_DeltaV)^3);
     G_Multiplier = 1-(3*((deltaV_o-initial_DeltaV)/initial_DeltaV)^2 - 2*((deltaV_o-initial_DeltaV)/initial_DeltaV)^3);
-    
+
     if deltaV_o > 2*initial_DeltaV
         color = [1 0 0];
     elseif deltaV_o > initial_DeltaV
@@ -90,17 +89,21 @@ function [deltaV_o] = optimalDVSolver(inputVec)
 %         color = [0, 0, 0];
 %     end
 %     
-    plot3(currentTime, tof_current, deltaV_o*trueSolution,'o','Color','k','MarkerSize',10,'MarkerFaceColor', color.*trueSolution)
-    
+
+    if plot3D == 1
+        plot3(currentTime, tof_current, deltaV_o*trueSolution,'o','Color','k','MarkerSize',10,'MarkerFaceColor', color.*trueSolution)
+    else
+        plot(tof_current, deltaV_o*trueSolution,'o','Color','k','MarkerSize',10,'MarkerFaceColor', color.*trueSolution)
+    end
 
 %     plotValue = deltaV_o;
 % 
-%     if deltaV_o > 4*initial_DeltaV
-%         plotValue = 4*initial_DeltaV;
+%     if deltaV_o > 20*initial_DeltaV
+%         plotValue = 20*initial_DeltaV;
 %     end
 % 
 %     global contourMap contIndX contIndY contIndLim
-%     contourMap(contIndX, contIndY) = plotValue;
+%     contourMap(contIndX, contIndY) = log(plotValue);
 % 
 %     contIndY = contIndY + 1;
 %     if contIndY > contIndLim

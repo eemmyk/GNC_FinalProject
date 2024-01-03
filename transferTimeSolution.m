@@ -10,11 +10,11 @@ function [t_error] = transferTimeSolution(d_in)
     else
         t_error = sign(real(time_t - tof_current))*1e24; %Arbitary large value with same sign
     end
-    %Save best result into a global variable
-    global timeResult;
-    if abs(t_error) < abs(timeResult)
-        timeResult = t_error;
-        %fprintf("Guessed d: %e, Remaining TOF error: %.0f\n", d_in, t_error);
-    end    
+%     %Save best result into a global variable
+%     global timeResult;
+%     if abs(t_error) < abs(timeResult)
+%         timeResult = t_error;
+%         %fprintf("Guessed d: %e, Remaining TOF error: %.0f\n", d_in, t_error);
+%     end    
 end
 
