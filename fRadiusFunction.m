@@ -1,4 +1,4 @@
-function [thrustCurve] = fThrustFunction(d, theta, useOptimal)
+function [radiusVec] = fRadiusFunction(d, theta, useOptimal)
     global mju
 
     if useOptimal == 1
@@ -40,8 +40,6 @@ function [thrustCurve] = fThrustFunction(d, theta, useOptimal)
     f = efg(2);
     g = efg(3);
     
-    r = 1 ./ (a + b.*theta + c.*theta.^2 + d.*theta.^3 + e.*theta.^4 + f.*theta.^5 + g.*theta.^6);
-    gamma = atan(-r .* (b + 2.*c.*theta + 3.*d.*theta.^2 + 4.*e.*theta.^3 + 5.*f.*theta.^4 + 6.*g.*theta.^5));
-    thrustCurve = -mju ./ (2 .* r.^3 .* cos(gamma)) .* (6.*d + 24.*e.*theta + 60.*f.*theta.^2 + 120.*g.*theta.^3 - tan(gamma)./r) ./ (1./r + 2.*c + 6.*d.*theta + 12.*e.*theta.^2 + 20.*f.*theta.^3 + 30.*g.*theta.^4).^2;
+    radiusVec = 1 ./ (a + b.*theta + c.*theta.^2 + d.*theta.^3 + e.*theta.^4 + f.*theta.^5 + g.*theta.^6);
 end
 

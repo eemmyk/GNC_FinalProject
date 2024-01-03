@@ -15,18 +15,19 @@ close all;
 global theta_f theta_0 intApprox a_initial a_final;
 global currentTime previousTime mju N tof_current;
 global deltaResult theta2_opt r2_opt theta1_opt r1_opt;
-global nu1_i_opt nu2_i_opt r1_i_opt r2_i_opt theta_f_opt;
+global nu2_i_opt r2_i_opt theta_f_opt;
 global theta2 omega1 omega2 e1 e2 theta1 r1 r2;
-global radiusFunction;
 global d_solution timeResult dateOptimal ;
 global Tp1 Tp2 TOF_estimation d_opt;
-global radiusFunction_opt plotAccuracy;
+global plotAccuracy;
 global d_minimum d_maximum rMin rMax initial_DeltaV;
 global nu2_i r2_i;
 global n1 P1 n2 P2 p1 p2
 
 
-global plotDV_3D
+global solveDate 
+
+% global contourMap contIndX contIndY contIndLim
 
 %% Estimation values and set parameters
 
@@ -37,7 +38,7 @@ a_initial = 150*10^9;
 %Time of last perigee pass
 Tp1 = 0;
 %Eccentricity
-e1 = 0.2;
+e1 = 0.5;
 %Argument of perigee
 omega1 = -pi/3;
 
@@ -48,7 +49,7 @@ a_final = 225*10^9;
 %Time of last perigee pass for object 2
 Tp2 = 0;
 %Eccentricity
-e2 = 0.3;
+e2 = 0.6;
 %Argument of perigee
 omega2 = -pi/2;
 
@@ -61,7 +62,7 @@ mju = 1.32712440018*10^20; %Sun
 rMin = (696340 + 100000) * 1e3; %Sun
 
 %Maximum allowed radius
-rMax = 5*max(a_initial, a_final);
+rMax = 10*max(a_initial, a_final);
 
 %Number of rotations around central body
 N = 0;
@@ -95,7 +96,12 @@ P1 = 2*pi/sqrt(mju/a_initial^3);
 dateSearchSpan = 2*P1;
 
 %How many initial points the global search starts with
-gsPointCount = 24;
+gsPointCount = 48;
+
+% contourMap = zeros(gsPointCount);
+% contIndX = 1;
+% contIndY = 1;
+% contIndLim = gsPointCount;
 
 %Symbolic variables
 syms theta %Angle along the transfer orbit
@@ -113,8 +119,6 @@ p2 = a_initial * (1-e1^2);
 updateParameters(1);
 
 %Propagating the two orbits
-p1 = a_initial * (1-e1^2);
-p2 = a_final * (1-e2^2);
 nu = linspace(0, 2*pi, plotAccuracy);
 orbit1 = [cos(nu+omega1) * p1 ./ (1+e1*cos(nu)); sin(nu+omega1) * p1 ./ (1+e1*cos(nu))];
 orbit2 = [cos(nu+omega2) * p2 ./ (1+e2*cos(nu)); sin(nu+omega2) * p2 ./ (1+e2*cos(nu))];
@@ -124,10 +128,10 @@ if optimizeTOF == 1
     %Initialize best values
     timeResult = Inf;
 
-    opt = optimset('TolFun', 1e2);
+    opt = optimset('TolFun', 1e-1);
 
     %TOF solution
-    d_solution = fzero(@transferTimeOptimization, [d_minimum, d_maximum], opt);
+    d_solution = fzero(@transferTimeSolution, [d_minimum, d_maximum], opt);
 
     %Plot results of TOF solved trajectory
     figure;
@@ -144,29 +148,30 @@ if optimizeTOF == 1
     
     rectangle('Position',[-0.5*bodyScale, -0.5*bodyScale, bodyScale, bodyScale],'Curvature',[1 1], 'FaceColor',"yellow")
 
-    radiusFunction_n = subs(radiusFunction, d, d_solution);
-    radiusFunction_nn = @(angle) double(subs(radiusFunction_n, theta, angle));
-    
     theta_vec_plot = linspace(theta_0, theta_f, plotAccuracy);
 
-    thrustCurve_tof = [theta_vec_plot; fThrustFunction(d_solution, theta_vec_plot)];    
 
-    deltaV_tof = trapz(theta_vec_plot, abs(fJerkFunction(d_solution, theta_vec_plot)));
+    %Zero at the end because no optimize values exist yet
+    thrustCurve_tof = [theta_vec_plot; fThrustFunction(d_solution, theta_vec_plot, 0)];    
+
+    deltaV_tof = trapz(theta_vec_plot, abs(fJerkFunction(d_solution, theta_vec_plot, 0)));
     initial_DeltaV = deltaV_tof;
+    
+    time_t = trapz(theta_vec_plot, fTimeFunction(d_solution, theta_vec_plot, 0));
 
-    x = cos(theta_vec_plot+theta1) .* radiusFunction_nn(theta_vec_plot);
-    y = sin(theta_vec_plot+theta1) .* radiusFunction_nn(theta_vec_plot);
+    x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, 0);
+    y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, 0);
     
     plot(x, y, "Color", [0.2 0.7 0.2]);
     
-    title(sprintf("TOF solution trajectory\nTarget TOF: %s\nAchieved TOF: %s\nRequired deltaV: %.0f m/s", secToTime(TOF_estimation), secToTime(TOF_estimation+timeResult), deltaV_tof));
+    title(sprintf("TOF solution trajectory\nTarget TOF: %s\nAchieved TOF: %s\nRequired deltaV: %.0f m/s", secToTime(TOF_estimation), secToTime(time_t), deltaV_tof));
     legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbits");
     axis equal
     
 end
 %% Delta V optimization for fixed starting point + result plotting
 if optimizeDV == 1
-    plotDV_3D = 0;
+    solveDate = 0;
     %Initialize best values
     deltaResult = Inf;
     timeResult = Inf;
@@ -182,17 +187,14 @@ if optimizeDV == 1
     opt = optimset('TolFun',1e2, 'TolX', 1e5);
     tf_fuelOptimal = fminsearch(@optimalDVSolver, TOF_estimation, opt);
 
-    radiusFunction_n = subs(radiusFunction_opt, d, d_opt);
-    radiusFunction_nn = @(angle) double(subs(radiusFunction_n, theta, angle));
-    
     theta_vec_plot = linspace(theta_0, theta_f_opt, plotAccuracy);
     
-    thrustCurve_dV = [theta_vec_plot; fThrustFunction(d_opt, theta_vec_plot)]; 
+    thrustCurve_dV = [theta_vec_plot; fThrustFunction(d_opt, theta_vec_plot, 1)]; 
     
-    deltaV_opt = trapz(theta_vec_plot, abs(fJerkFunction(d_opt, theta_vec_plot)));
+    deltaV_opt = trapz(theta_vec_plot, abs(fJerkFunction(d_opt, theta_vec_plot, 1)));
     initial_DeltaV = deltaV_opt;
 
-    time_t = trapz(theta_vec_plot, fTimeFunction(d_opt, theta_vec_plot));
+    time_t = trapz(theta_vec_plot, fTimeFunction(d_opt, theta_vec_plot, 1));
     
     figure;
     hold on;
@@ -202,15 +204,15 @@ if optimizeDV == 1
     
     plot(cos(theta1_opt) * r1_opt, sin(theta1_opt) * r1_opt,'or', 'MarkerSize',5,'MarkerFaceColor','g')
     plot(cos(theta2_opt) * r2_opt, sin(theta2_opt) * r2_opt,'or', 'MarkerSize',5,'MarkerFaceColor','r')
-    plot(cos(omega1 + nu1_i_opt) * r1_i_opt, sin(omega1 + nu1_i_opt) * r1_i_opt,'or', 'MarkerSize',5,'MarkerFaceColor','c')
+    %plot(cos(omega1 + nu1_i_opt) * r1_i_opt, sin(omega1 + nu1_i_opt) * r1_i_opt,'or', 'MarkerSize',5,'MarkerFaceColor','c')
     plot(cos(omega2 + nu2_i_opt) * r2_i_opt, sin(omega2 + nu2_i_opt) * r2_i_opt,'or', 'MarkerSize',5,'MarkerFaceColor','k')
     
     bodyScale = max(a_initial, a_final) * 0.075;
     
     rectangle('Position',[-0.5*bodyScale, -0.5*bodyScale, bodyScale, bodyScale],'Curvature',[1 1], 'FaceColor',"yellow")
     
-    x = cos(theta_vec_plot+theta1_opt) .* radiusFunction_nn(theta_vec_plot);
-    y = sin(theta_vec_plot+theta1_opt) .* radiusFunction_nn(theta_vec_plot);
+    x = cos(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_plot, 1);
+    y = sin(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_plot, 1);
    
     plot(x, y, "Color", [0.2 0.7 0.2]);
 
@@ -220,7 +222,7 @@ if optimizeDV == 1
 end
 %% Optimize the transfer date for deltaV + result plotting
 if optimizeDATE == 1
-    plotDV_3D = 1;
+    solveDate = 1;
 
     %Initialize best values
     deltaResult = Inf;
@@ -232,39 +234,53 @@ if optimizeDATE == 1
     figure;
     hold on;
 
-    gs = MultiStart;
-    numberOfStartPoints = 64;
-    opt = optimset('TolFun',1e2, 'TolX', 1e2);
-    problem = createOptimProblem('fmincon','x0',[initialTime, TOF_estimation],...
-    'objective',@transferDateOptimization,'lb',[initialTime, 0.1*TOF_estimation], ...
-    'ub',[initialTime + 3*P1, 10*TOF_estimation], 'options', opt);
-    x = run(gs,problem, numberOfStartPoints);
-    
+%     gs = MultiStart;
+%     numberOfStartPoints = gsPointCount^2;
+%     opt = optimset('TolFun',1e2, 'TolX', 1e4);
+%     problem = createOptimProblem('fmincon','x0',[initialTime, TOF_estimation],...
+%     'objective',@optimalDVSolver,'lb',[initialTime, 0.1*TOF_estimation], ...
+%     'ub',[initialTime + dateSearchSpan, 10*TOF_estimation], 'options', opt);
+%     x = run(gs,problem, numberOfStartPoints);
+%     
+
+    for time = linspace(initialTime, initialTime + dateSearchSpan, gsPointCount)
+        %Try plotting optimization
+        solveDate = 0;
+        currentTime = time;
+
+        opt = optimset('TolFun',1e2, 'TolX', 1e4);
+        tf_fuelOptimal = fminsearch(@optimalDVSolver, tof_current, opt);
+
+        %tof_current = tof_optimal;
+    end
+
 
 %     for time = linspace(initialTime, initialTime + dateSearchSpan, gsPointCount)
+%         for tof = linspace(0.1*TOF_estimation, 10*TOF_estimation, gsPointCount)
 %         %Try plotting optimization
-%         
+%         solveDate = 1;
 %         currentTime = time;
+%         tof_current = tof;
 % 
 %         opt = optimset('TolFun',1e2, 'TolX', 1e4);
-%         tf_fuelOptimal = fminsearch(@optimalDVSolver, tof_current, opt);
+%         deltaV = optimalDVSolver([currentTime, tof_current]);
 % 
-%         %tof_current = tof_optimal;
+%         end
 %     end
+
+%     contourf(contourMap, 100);
 
     title(sprintf("DeltaV Map For Different Launch Dates and Time of Flights"));
     xlabel("Time past initial Time [s]");
     ylabel("Time of Flight [s]")
-
-    radiusFunction_n = subs(radiusFunction_opt, d, d_opt);
-    radiusFunction_nn = @(angle) double(subs(radiusFunction_n, theta, angle));
-
+    
     theta_vec_plot = linspace(theta_0, theta_f_opt, plotAccuracy);
     
-    thrustCurve_date = [theta_vec_plot; fThrustFunction(d_opt, theta_vec_plot)]; 
+    thrustCurve_date = [theta_vec_plot; fThrustFunction(d_opt, theta_vec_plot, 1)]; 
 
-    deltaV_opt = trapz(theta_vec_plot, abs(fJerkFunction(d_opt, theta_vec_plot)));
-    time_t = trapz(theta_vec_plot, fTimeFunction(d_opt, theta_vec_plot));
+    deltaV_opt = trapz(theta_vec_plot, abs(fJerkFunction(d_opt, theta_vec_plot, 1)));
+
+    time_t = trapz(theta_vec_plot, fTimeFunction(d_opt, theta_vec_plot, 1));
 
     figure;
     hold on;
@@ -274,15 +290,15 @@ if optimizeDATE == 1
     
     plot(cos(theta1_opt) * r1_opt, sin(theta1_opt) * r1_opt,'or', 'MarkerSize',5,'MarkerFaceColor','g')
     plot(cos(theta2_opt) * r2_opt, sin(theta2_opt) * r2_opt,'or', 'MarkerSize',5,'MarkerFaceColor','r')
-    plot(cos(omega1 + nu1_i_opt) * r1_i_opt, sin(omega1 + nu1_i_opt) * r1_i_opt,'or', 'MarkerSize',5,'MarkerFaceColor','c')
+    %plot(cos(omega1 + nu1_i_opt) * r1_i_opt, sin(omega1 + nu1_i_opt) * r1_i_opt,'or', 'MarkerSize',5,'MarkerFaceColor','c')
     plot(cos(omega2 + nu2_i_opt) * r2_i_opt, sin(omega2 + nu2_i_opt) * r2_i_opt,'or', 'MarkerSize',5,'MarkerFaceColor','k')
     
     bodyScale = max(a_initial, a_final) * 0.075;
     
     rectangle('Position',[-0.5*bodyScale, -0.5*bodyScale, bodyScale, bodyScale],'Curvature',[1 1], 'FaceColor',"yellow")
     
-    x = cos(theta_vec_plot+theta1_opt) .* radiusFunction_nn(theta_vec_plot);
-    y = sin(theta_vec_plot+theta1_opt) .* radiusFunction_nn(theta_vec_plot);
+    x = cos(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_plot, 1);
+    y = sin(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_plot, 1);
    
     plot(x, y, "Color", [0.2 0.7 0.2]);
 
