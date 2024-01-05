@@ -36,20 +36,6 @@ function [deltaV_o] = optimalDVSolver(inputVec)
         trueSolution = 0;
     end
 
-
-% 
-%     trueSolution = 1; 
-% 
-%     try
-%         %d_solution = fzero(@transferTimeSolution, 0, opt_tof_fzero);
-%         d_solution = fminsearch(@transferTimeSolution, 0, opt_tof_fzero);
-%         deltaV_o = trapz(theta_vec, abs(fJerkFunction(d_solution, theta_vec, 0)));
-%     catch
-%         deltaV_o = 1e24;
-%         trueSolution = 0;
-%     end
-% 
-
     global deltaResult 
 
     if deltaV_o < deltaResult
@@ -65,7 +51,7 @@ function [deltaV_o] = optimalDVSolver(inputVec)
         global gamma1_opt gamma2_opt
         global nu1_i_opt nu2_i_opt r1_i_opt r2_i_opt theta_f_opt d_opt;
         global theta1_dot_opt theta2_dot_opt;
-        global dateOptimal tof_optimal;
+        global dateOptimal;
 
 
         deltaResult = deltaV_o;
@@ -85,7 +71,6 @@ function [deltaV_o] = optimalDVSolver(inputVec)
         r2_i_opt = r2_i;
 
         dateOptimal = currentTime;
-        tof_optimal = tof_current;
         
     end
 
@@ -101,11 +86,8 @@ function [deltaV_o] = optimalDVSolver(inputVec)
     end
 
     if plotTransferWindow == 1
-%         newVec =  [currentTime; tof_current; deltaV_o*trueSolution; color'.*trueSolution];
-%         tw_graph(tw_graph_ind,:) = newVec;
-%         tw_graph_ind = tw_graph_ind + 1;
-        plot3(currentTime, tof_current, deltaV_o*trueSolution,'o','Color','k','MarkerSize',6,'MarkerFaceColor', color.*trueSolution)
-        %pause(0);
+        tw_graph(tw_graph_ind,:) = [currentTime; tof_current; deltaV_o*trueSolution; color.*trueSolution];
+        tw_graph_ind = tw_graph_ind
     end
 
 %     plotValue = deltaV_o;

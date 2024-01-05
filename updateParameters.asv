@@ -22,8 +22,7 @@ function [] = updateParameters(updateTOF)
         r1 = a_initial;
         r2 = a_final;
         
-        %fmincon(@fSolveTofFunction, pi, [], [], [], [], safeTransferAngle, 2*pi + safeTransferAngle, [], opt_tf_angle);
-        fminbnd(@fSolveTofFunction, safeTransferAngle, 2*pi + safeTransferAngle, opt_tf_angle);
+        fmincon(@fSolveTofFunction, pi, [], [], [], [], safeTransferAngle, 2*pi + safeTransferAngle, [], opt_tf_angle);
 
 %         bestAngle = 0;
 %         minimumError = Inf;
@@ -268,7 +267,7 @@ function [] = updateParameters(updateTOF)
 %     %end
     %d_maximum
 
-    tof_min = trapz(theta_vec_acc, fTimeFunction(d_maximum, theta_vec_acc, 0));
+    tof_min = trapz(theta_vec, fTimeFunction(d_maximum, theta_vec, 0));
 
 %     if ~isreal(tof_min)
 %         opt_fmincon = optimset('TolFun', 1e-3, 'TolX', 1e-4, 'Display', 'off');
@@ -283,13 +282,12 @@ function [] = updateParameters(updateTOF)
             else
                 d_maximum = d_maximum / dAdjustment - 1e-18;
             end
-            tof_min = trapz(theta_vec_acc, fTimeFunction(d_maximum, theta_vec_acc, 0));
+            tof_min = trapz(theta_vec, fTimeFunction(d_maximum, theta_vec, 0));
             %[~, minFuncValue] = fmincon(@(angle) fTimeMinReal(angle, d_maximum), theta_f/2, [], [], [], [], theta_0, theta_f, [], opt_fmincon);
         end
 %     end
-%     d_maximum
-%     tof_min = trapz(theta_vec, fTimeFunction(d_maximum, theta_vec, 0))
-%     tof_min2 = trapz(theta_vec_acc, fTimeFunction(d_maximum, theta_vec_acc, 0))
+    %d_maximum
+    %tof_min = trapz(theta_vec, fTimeFunction(d_maximum, theta_vec, 0))
 
 end
 
