@@ -54,34 +54,36 @@ a_initial = 150*10^9;
 %Period of the orbit
 P1 = 2*pi/sqrt(mju/a_initial^3);
 %Time of last perigee pass
-Tp1 = 0;
+Tp1 = P1*0.75;
 %Eccentricity
 e1 = 0.3;
 %Argument of perigee
-omega1 = -pi*1.5;
+omega1 = pi/3;
 
 %--Second Orbit Parameters--
 %Semimajor axis
-%a_final = 42164*1000;
-a_final = 350*10^9;
+%a_final = 384748*1000;
+a_final = 225*10^9;
 %Period of the orbit
 P2 = 2*pi/sqrt(mju/a_final^3);
 %Time of last perigee pass for object 2
-Tp2 = 0;
+Tp2 = P2*0.2;
 %Eccentricity
-e2 = 0.6;
+e2 = 0.25;
 %Argument of perigee
-omega2 = 0.2*pi;
+omega2 = -pi/5;
 
+%Number of rotations around central body
+N = 0;
 %Limits for TOF in relation to first guess
 TofLimLow = 0.3;
-TofLimHigh = 3;
+TofLimHigh = 5;
 
 %--Adjustment Parameters--
 %How much the calculated TOF is increased
 TOF_corrMult = 1.5;
 %How much d-coefficients are changed to find new solutions
-dAdjustment = 1.1;
+dAdjustment = 1.2;
 
 
 %Minimum angle travelled around the central body
@@ -89,9 +91,6 @@ safeTransferAngle = pi;
 
 %Maximum allowed radius
 rMax = 10*max(a_initial, a_final);
-
-%Number of rotations around central body
-N = 0;
 
 %Spacecraft mass [16U CubeSat]
 m = 32; %kg
@@ -109,26 +108,30 @@ plotAccuracy = 1000;
 theta_0 = 0;
 
 % CHANGED - Target will be at random point along 2nd orbit
-initialTime = 45e6;
+initialTime = 0;
 currentTime = initialTime;
 %Impossible time to trigger parameter generation on first run
 %if previousTime ~= currentTime
 previousTime = -1;
 
 %How far into the future optimal date is searched.
-dateSearchSpan = 2*min(P1, P2);
+
+%Testing out lcm to always find interesting values
+years1 = ceil(P1/(365*86400));
+years2 = ceil(P2/(365*86400));
+dateSearchSpan = lcm(years1, years2) * 365 * 86400;
 
 %How many initial points the global search starts with
 %Linear for option 1
 %Linear for option 2
 %Squared (16/9 ratio) for option 3
-gsPointCount = 16;
+gsPointCount = 64;
 
 %Which approach to global search is taken
 %Option 1: Global search
 %Option 2: TOF search with date vector
 %Option 3: TOF and date vectors
-transferWindowSearchOption = 2;
+transferWindowSearchOption = 3;
 
 
 % contourMap = zeros(gsPointCount);
@@ -265,17 +268,20 @@ if optimizeTOF == 1
 %     infiniteCount
 %     unNumericCount
 %     title(sprintf("Minimum possible TOF: %s\nMaximum possible TOF: %s", secToTime(minTof), secToTime(maxTof)));
-
-    %TOF solution
-    d_solution = fzero(@transferTimeSolution, [d_minimum, d_maximum], opt_tof_fzero_acc);
-
+    
+    try
+        %TOF solution
+        d_solution = fzero(@transferTimeSolution, [d_minimum, d_maximum], opt_tof_fzero_acc);
+    catch
+        fprintf("Inital Time of Flight guess not achievable\n")
+        d_solution = (d_minimum + d_maximum)/2;
+    end
     theta_vec_plot = linspace(theta_0, theta_f, plotAccuracy);
 
     %Zero at the end because no optimize values exist yet
     thrustCurve_tof = [theta_vec_plot; fThrustFunction(d_solution, theta_vec_plot, 0)];    
 
     deltaV_tof = trapz(theta_vec_plot, abs(fJerkFunction(d_solution, theta_vec_plot, 0)));
-
     initial_DeltaV = deltaV_tof;
     
     time_t = trapz(theta_vec_plot, fTimeFunction(d_solution, theta_vec_plot, 0));
@@ -320,7 +326,8 @@ if optimizeDV == 1
     thrustCurve_dV = [theta_vec_plot; fThrustFunction(d_opt, theta_vec_plot, 1)]; 
     
     deltaV_opt = trapz(theta_vec_plot, abs(fJerkFunction(d_opt, theta_vec_plot, 1)));
-
+    initial_DeltaV = deltaV_opt;
+    
     time_t = trapz(theta_vec_plot, fTimeFunction(d_opt, theta_vec_plot, 1));
     
     figure;
@@ -401,10 +408,10 @@ if optimizeDATE == 1
         end
     end
 
-
     %All searches are complimented by a final search for the local minimum 
     %close to the best found solution
     solveDate = 1;
+    plotTransferWindow = 0;
     tf_fuelOptimal = fminsearch(@optimalDVSolver, [dateOptimal, tof_optimal], opt_dv_fminsearch);
     fprintf("Optimization Completed! ---- Finalized %cV Found: <strong>%.0f m/s</strong> \n", 916, deltaResult);
 
@@ -414,7 +421,22 @@ if optimizeDATE == 1
     title(sprintf("DeltaV Map For Different Launch Dates and Time of Flights"));
     xlabel("Time past initial Time [s]");
     ylabel("Time of Flight [s]")
-    
+
+%     figure;
+%     hold on;
+% 
+%     %-- Testing second window plotting --
+%     for time = linspace(0.9*dateOptimal, 1.1*dateOptimal, gsPointCount)
+%         fprintf("Optimizing: <strong>%.1f %%</strong> ---- Best %cV Found: <strong>%.0f m/s</strong> \n", 100 * (time - 0.9*dateOptimal)/(1.1*dateOptimal), 916, deltaResult);
+%         for tof = linspace(0.9*tof_optimal, 1.1*tof_optimal, floor(gsPointCount * (9/16)))
+% 
+%             currentTime = time;
+%             tof_current = tof;
+%     
+%             deltaV = optimalDVSolver([currentTime, tof_current]);
+%         end
+%     end
+
     theta_vec_plot = linspace(theta_0, theta_f_opt, plotAccuracy);
     
     thrustCurve_date = [theta_vec_plot; fThrustFunction(d_opt, theta_vec_plot, 1)]; 

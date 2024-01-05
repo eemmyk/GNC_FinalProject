@@ -239,9 +239,9 @@ function [] = updateParameters(updateTOF)
              %Move a relative amount towards larger values and an arbitary
              %small step to cross zero properly
             if d_minimum < 0
-                d_minimum = d_minimum / dAdjustment + 1e-18;
+                d_minimum = d_minimum / dAdjustment + 1e-15;
             else
-                d_minimum = d_minimum * dAdjustment + 1e-18;
+                d_minimum = d_minimum * dAdjustment + 1e-15;
             end
             %No real solutions exist for orbit
             if d_minimum > 1
@@ -279,9 +279,9 @@ function [] = updateParameters(updateTOF)
             %Move a relative amount towards larger values and an arbitary
             %small step to cross zero properly
             if d_maximum < 0
-                d_maximum = d_maximum * dAdjustment - 1e-18;
+                d_maximum = d_maximum * dAdjustment - 1e-15;
             else
-                d_maximum = d_maximum / dAdjustment - 1e-18;
+                d_maximum = d_maximum / dAdjustment - 1e-15;
             end
             tof_min = trapz(theta_vec_acc, fTimeFunction(d_maximum, theta_vec_acc, 0));
             %[~, minFuncValue] = fmincon(@(angle) fTimeMinReal(angle, d_maximum), theta_f/2, [], [], [], [], theta_0, theta_f, [], opt_fmincon);
