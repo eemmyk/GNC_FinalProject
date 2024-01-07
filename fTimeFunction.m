@@ -1,6 +1,5 @@
 function [timeStep] = fTimeFunction(d, theta, paramVector)
-%     global mju;
- 
+
     mju = paramVector(1);
     gamma1 = paramVector(2);
     gamma2 = paramVector(3);
@@ -9,29 +8,6 @@ function [timeStep] = fTimeFunction(d, theta, paramVector)
     theta2_dot = paramVector(6);
     r1 = paramVector(7);
     r2 = paramVector(8);
-
-%     if useOptimal == 1
-%         global gamma1_opt gamma2_opt theta_f_opt 
-%         global theta1_dot_opt theta2_dot_opt r1_opt r2_opt;
-%         r1_l = r1_opt;
-%         r2_l = r2_opt;
-%         gamma1_l = gamma1_opt;
-%         gamma2_l = gamma2_opt;
-%         theta_f_l = theta_f_opt;
-%         theta1_dot_l = theta1_dot_opt;
-%         theta2_dot_l = theta2_dot_opt;
-%     else
-%         global gamma1 gamma2 theta_f theta1_dot theta2_dot r1 r2;
-%         r1_l = r1;
-%         r2_l = r2;
-%         gamma1_l = gamma1;
-%         gamma2_l = gamma2;
-%         theta_f_l = theta_f;
-%         theta1_dot_l = theta1_dot;
-%         theta2_dot_l = theta2_dot;
-%     end
-    
-%     syms gamma1 gamma2 theta_f theta1_dot theta2_dot r1 r2 mju d theta;
 
     a = 1/r1;
     b = -tan(gamma1) / r1;
@@ -52,14 +28,6 @@ function [timeStep] = fTimeFunction(d, theta, paramVector)
     g = efg(3);
     
     r = 1 ./ (a + b.*theta + c.*theta.^2 + d.*theta.^3 + e.*theta.^4 + f.*theta.^5 + g.*theta.^6);
-%     timeTroublePart = (1./r + 2.*c + 6.*d.*theta + 12.*e.*theta.^2 + 20.*f.*theta.^3 + 30.*g.*theta.^4);
-% 
-%     timeTroubleDiff = diff(timeTroublePart);
-% 
-%     timeTroubleZero = solve(timeTroubleDiff == 0, theta);
-% 
-%     timeTroubleRoot = vpa(timeTroubleZero)
-% 
 
     timeStep = sqrt((r.^4./mju) .* (1./r + 2.*c + 6.*d.*theta + 12.*e.*theta.^2 + 20.*f.*theta.^3 + 30.*g.*theta.^4));
 end

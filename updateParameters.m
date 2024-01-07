@@ -56,7 +56,7 @@ function [] = updateParameters(updateTOF)
             nu2_i = 0;
         end
     else
-        gamma1 = paramVector(1);
+        gamma1 = paramVector(2);
         theta1_dot = paramVector(5);
         r1 = paramVector(7);
         theta1 = paramVector(9);
@@ -92,15 +92,29 @@ function [] = updateParameters(updateTOF)
     theta_vec_acc = linspace(theta_0, theta_f, plotAccuracy);
 
     paramVector = [mju, gamma1, gamma2, theta_f, theta1_dot, theta2_dot, r1, r2, theta1, theta2, nu2_i, r2_i];
+    
+%     gamma1
+%     gamma2
+%     theta_f
+%     theta1_dot
+%     theta2_dot
+%     r1
+%     r2
+%     theta1
+%     theta2
+%     nu2_i
+%     r2_i
 
     %% Check if TOF is a solution 
 
     unfeasibleOrbit = 0;
 
     %Check what the minimum d coefficient is
-    maxRadHandle = @(d_in) fMaxRadiusFunction(d_in, paramVector, rMax, a_initial);
-
-    d_minimum = fzero(maxRadHandle, 0, opt_d_lim_fzero);
+%     maxRadHandle = @(d_in) fMaxRadiusFunction(d_in, paramVector, rMax, a_initial);
+% 
+%     d_minimum = fzero(maxRadHandle, 0, opt_d_lim_fzero);
+    
+    d_minimum = fFindRadiusFunction(paramVector, rMax);
 
 %     tof_max = trapz(theta_vec, fTimeFunction(d_minimum, theta_vec, 0));
     minFuncValue = min(fTimeMinReal(theta_vec, d_minimum, paramVector, a_initial));
@@ -131,12 +145,12 @@ function [] = updateParameters(updateTOF)
         end
 %     end
 %     %try
-      %d_maximum = fzero(@fMinRadiusFunction, [d_minimum, 1], opt_d_lim_fzero);
-      d_maximum = fMinRadiusFunction(paramVector, rMin);
+      %d_maximum = fzero(@fFindRadiusFunction, [d_minimum, 1], opt_d_lim_fzero);
+      d_maximum = fFindRadiusFunction(paramVector, rMin);
 %     %catch    
 %         figure;
 %         vectorD = linspace(d_minimum, d_minimum/1000, 1000);
-%         plot(fMinRadiusFunction(vectorD));
+%         plot(fFindRadiusFunction(vectorD));
 %         
 %         figure
 %         plot(fInvRadiusZeroFunction(theta_f/2, vectorD));
@@ -145,7 +159,7 @@ function [] = updateParameters(updateTOF)
 %     %end
     %d_maximum
 
-    tof_min = trapz(theta_vec_acc, fTimeMinReal(d_maximum, theta_vec_acc, paramVector, a_initial));
+    tof_min = trapz(theta_vec, fTimeMinReal(d_maximum, theta_vec, paramVector, a_initial));
 
 %     if ~isreal(tof_min)
 %         opt_fmincon = optimset('TolFun', 1e-3, 'TolX', 1e-4, 'Display', 'off');
@@ -160,7 +174,7 @@ function [] = updateParameters(updateTOF)
             else
                 d_maximum = d_maximum / dAdjustment - 1e-15;
             end
-            tof_min = trapz(theta_vec_acc, fTimeMinReal(d_maximum, theta_vec_acc, paramVector, a_initial));
+            tof_min = trapz(theta_vec, fTimeMinReal(d_maximum, theta_vec, paramVector, a_initial));
             %[~, minFuncValue] = fmincon(@(angle) fTimeMinReal(angle,
             %d_maximum), theta_f/2, [], [], [], [], theta_0, theta_f, [], opt_fmincon);
             
@@ -210,7 +224,7 @@ end
 % end
 
 %% Function for finding the d-coefficient where orbit reaches minimum r
-function [d_sol] = fMinRadiusFunction(paramVector, rMin)
+function [d_sol] = fFindRadiusFunction(paramVector, rTarget)
     %global mju r1 r2 gamma1 gamma2 theta_f theta1_dot theta2_dot
     %global rMin
     
@@ -244,7 +258,7 @@ function [d_sol] = fMinRadiusFunction(paramVector, rMin)
 %     r_error = 1./(a + b.*(theta_f/2) + c.*(theta_f/2).^2 + d.*(theta_f/2).^3 + e.*(theta_f/2).^4 + f.*(theta_f/2).^5 + g.*(theta_f/2).^6) - rMin;
 
 
-d_sol = (64*(1/rMin - 1/r1 + (theta_f^6*(((5*(mju/(r1^3*theta1_dot^2) - 1)*theta_f^2)/r1 - (10*tan(gamma1)*theta_f)/r1 + 10/r1 - 10/r2)/theta_f^6 - ((4*tan(gamma2))/r2 - (4*tan(gamma1))/r1 + (4*theta_f*(mju/(r1^3*theta1_dot^2) - 1))/r1)/theta_f^5 + ((mju/(r1^3*theta1_dot^2) - 1)/r1 + 1/r2 - mju/(r2^4*theta2_dot^2))/(2*theta_f^4)))/64 + (theta_f^4*(((15*(mju/(r1^3*theta1_dot^2) - 1)*theta_f^2)/(2*r1) - (15*tan(gamma1)*theta_f)/r1 + 15/r1 - 15/r2)/theta_f^4 - ((5*tan(gamma2))/r2 - (5*tan(gamma1))/r1 + (5*theta_f*(mju/(r1^3*theta1_dot^2) - 1))/r1)/theta_f^3 + ((mju/(r1^3*theta1_dot^2) - 1)/r1 + 1/r2 - mju/(r2^4*theta2_dot^2))/(2*theta_f^2)))/16 - (theta_f^5*(((12*(mju/(r1^3*theta1_dot^2) - 1)*theta_f^2)/r1 - (24*tan(gamma1)*theta_f)/r1 + 24/r1 - 24/r2)/theta_f^5 - ((9*tan(gamma2))/r2 - (9*tan(gamma1))/r1 + (9*theta_f*(mju/(r1^3*theta1_dot^2) - 1))/r1)/theta_f^4 + ((mju/(r1^3*theta1_dot^2) - 1)/r1 + 1/r2 - mju/(r2^4*theta2_dot^2))/theta_f^3))/32 + (theta_f*tan(gamma1))/(2*r1) - (theta_f^2*(mju/(r1^3*theta1_dot^2) - 1))/(8*r1)))/theta_f^3;
+d_sol = (64*(1/rTarget - 1/r1 + (theta_f^6*(((5*(mju/(r1^3*theta1_dot^2) - 1)*theta_f^2)/r1 - (10*tan(gamma1)*theta_f)/r1 + 10/r1 - 10/r2)/theta_f^6 - ((4*tan(gamma2))/r2 - (4*tan(gamma1))/r1 + (4*theta_f*(mju/(r1^3*theta1_dot^2) - 1))/r1)/theta_f^5 + ((mju/(r1^3*theta1_dot^2) - 1)/r1 + 1/r2 - mju/(r2^4*theta2_dot^2))/(2*theta_f^4)))/64 + (theta_f^4*(((15*(mju/(r1^3*theta1_dot^2) - 1)*theta_f^2)/(2*r1) - (15*tan(gamma1)*theta_f)/r1 + 15/r1 - 15/r2)/theta_f^4 - ((5*tan(gamma2))/r2 - (5*tan(gamma1))/r1 + (5*theta_f*(mju/(r1^3*theta1_dot^2) - 1))/r1)/theta_f^3 + ((mju/(r1^3*theta1_dot^2) - 1)/r1 + 1/r2 - mju/(r2^4*theta2_dot^2))/(2*theta_f^2)))/16 - (theta_f^5*(((12*(mju/(r1^3*theta1_dot^2) - 1)*theta_f^2)/r1 - (24*tan(gamma1)*theta_f)/r1 + 24/r1 - 24/r2)/theta_f^5 - ((9*tan(gamma2))/r2 - (9*tan(gamma1))/r1 + (9*theta_f*(mju/(r1^3*theta1_dot^2) - 1))/r1)/theta_f^4 + ((mju/(r1^3*theta1_dot^2) - 1)/r1 + 1/r2 - mju/(r2^4*theta2_dot^2))/theta_f^3))/32 + (theta_f*tan(gamma1))/(2*r1) - (theta_f^2*(mju/(r1^3*theta1_dot^2) - 1))/(8*r1)))/theta_f^3;
  
 end
 %% Function for finding the initial d-coefficient form furthest allowed point 
@@ -327,6 +341,16 @@ function [timeImgPart] = fTimeMinReal(theta, d, paramVector, a_initial)
     r = 1 ./ (a + b.*theta + c.*theta.^2 + d.*theta.^3 + e.*theta.^4 + f.*theta.^5 + g.*theta.^6);
 
     timeImgPart = a_initial*(1./r + 2.*c + 6.*d.*theta + 12.*e.*theta.^2 + 20.*f.*theta.^3 + 30.*g.*theta.^4);
+
+    %     timeTroublePart = (1./r + 2.*c + 6.*d.*theta + 12.*e.*theta.^2 + 20.*f.*theta.^3 + 30.*g.*theta.^4);
+    % 
+    %     timeTroubleDiff = diff(timeTroublePart);
+    % 
+    %     timeTroubleZero = solve(timeTroubleDiff == 0, theta);
+    % 
+    %     timeTroubleRoot = vpa(timeTroubleZero)
+    % 
+
 
 end
 

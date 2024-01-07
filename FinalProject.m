@@ -55,37 +55,41 @@ global paramVector paramVector_opt;
 %mju = 3.986004418*10^14; %Earth
 mju = 1.32712440018*10^20; %Sun
 
+%How large is the central body
+%bodyRadius = 6371 * 1e3; %[km] Earth
+bodyRadius = 696340 * 1e3; %[km] Sun
+
 %Minimum allowed radius
-%rMin = (6371 + 250) * 1e3; %Earth
-rMin = (696340 + 100000) * 1e3; %Sun
+%rMin = bodyRadius + 250 * 1e3; %[km] Earth
+rMin = bodyRadius + 100000 * 1e3; %[km] Sun
 
 %% Estimation values and set parameters
 
 %--First Orbit Parameters--
 %Semimajor axis
 %a_initial= 6800*1000;
-a_initial = 50*10^9;
+a_initial = 250*10^9;
 %Period of the orbit
 P1 = 2*pi/sqrt(mju/a_initial^3);
 %Time of last perigee pass
-Tp1 = P1*0.2;
+Tp1 = P1*0.5;
 %Eccentricity
-e1 = 0.1;
+e1 = 0.0;
 %Argument of perigee
-omega1 = -pi/3;
+omega1 = -pi/4;
 
 %--Second Orbit Parameters--
 %Semimajor axis
 %a_final = 384748*1000;
-a_final = 550*10^9;
+a_final = 150*10^9;
 %Period of the orbit
 P2 = 2*pi/sqrt(mju/a_final^3);
 %Time of last perigee pass for object 2
-Tp2 = 0;
+Tp2 = P2*0.1;
 %Eccentricity
-e2 = 0.7;
+e2 = 0.1;
 %Argument of perigee
-omega2 = pi/2;
+omega2 = pi;
 
 %Number of rotations around central body
 N = 0;
@@ -140,7 +144,7 @@ dateSearchSpan = lcm(years1, years2) * 365 * 86400;
 %Linear for option 1
 %Linear for option 2
 %Squared (16/9 ratio) for option 3
-gsPointCount = 256;
+gsPointCount = 512;
 
 %Which approach to global search is taken
 %Option 1: Global search
@@ -157,7 +161,7 @@ transferWindowSearchOption = 2;
 %% Define some optimization options here for speeeeeeeeed!
 opt_tof_fzero = optimset('TolFun', 1e2, 'Display', 'off');
 opt_tof_fzero_acc = optimset('TolFun', 1e-1);
-opt_nu_fzero = optimset('TolFun', 1e-2);
+opt_nu_fzero = optimset('TolFun', 1e-1, 'TolX', 1e-1, 'Display', 'off');
 opt_tf_angle = optimset('TolFun', 1e-3, 'Display', 'off');
 opt_d_lim_fzero = optimset('TolFun', 1e2, 'TolX', 1e-15, 'Display', 'off');
 opt_dv_fminsearch = optimset('TolFun',1e2, 'TolX', min(P1, P2)/1000);
@@ -217,10 +221,8 @@ if optimizeTOF == 1
     plot(cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
     plot(cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
     plot(cos(omega2 + nu2_i) * r2_i, sin(omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')
-    
-    bodyScale = max(a_initial, a_final) * 0.075;
-    
-    rectangle('Position',[-0.5*bodyScale, -0.5*bodyScale, bodyScale, bodyScale],'Curvature',[1 1], 'FaceColor',"yellow")
+        
+    rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
     
     x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, paramVector);
     y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, paramVector);
@@ -272,7 +274,7 @@ if optimizeDV == 1
     
     bodyScale = max(a_initial, a_final) * 0.075;
     
-    rectangle('Position',[-0.5*bodyScale, -0.5*bodyScale, bodyScale, bodyScale],'Curvature',[1 1], 'FaceColor',"yellow")
+    rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
     
     x = cos(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_plot, paramVector_opt);
     y = sin(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_plot, paramVector_opt);
@@ -285,7 +287,6 @@ if optimizeDV == 1
 end
 %% Optimize the transfer date for deltaV + result plotting
 if optimizeDATE == 1
-    solveDate = 1;
     plotTransferWindow = 0;
 %     tw_graph_ind = 1;
 %     tw_graph = zeros(gsPointCount*gsPointCount,6);
@@ -318,15 +319,14 @@ if optimizeDATE == 1
             %Try plotting optimization
             solveDate = 0;
             currentTime = time;
-
-            tf_fuelOptimal = fminsearch(@optimalDVSolver, tof_current, opt_dv_fminsearch);
-    
+            tf_fuelOptimal = fminsearch(@optimalDVSolver, TOF_estimation, opt_dv_fminsearch);
             %tof_current = tof_optimal;
         end
     end
 
     %-- Solve transfer window using a set grid of dates and TOFs --
     if transferWindowSearchOption == 3
+        solveDate = 1;
         for time = linspace(initialTime, initialTime + dateSearchSpan, gsPointCount)
             fprintf("Optimizing: <strong>%.1f %%</strong> ---- Best %cV Found: <strong>%.0f m/s</strong> \n", 100 * (time - initialTime)/(dateSearchSpan), 916, deltaResult);
             for tof = linspace(TofLimLow*TOF_estimation, TofLimHigh*TOF_estimation, floor(gsPointCount * (9/16)))
@@ -380,10 +380,8 @@ if optimizeDATE == 1
     plot(cos(theta1_opt) * r1_opt, sin(theta1_opt) * r1_opt,'or', 'MarkerSize',5,'MarkerFaceColor','g')
     plot(cos(theta2_opt) * r2_opt, sin(theta2_opt) * r2_opt,'or', 'MarkerSize',5,'MarkerFaceColor','r')
     plot(cos(omega2 + nu2_i_opt) * r2_i_opt, sin(omega2 + nu2_i_opt) * r2_i_opt,'or', 'MarkerSize',5,'MarkerFaceColor','k')
-    
-    bodyScale = max(a_initial, a_final) * 0.075;
-    
-    rectangle('Position',[-0.5*bodyScale, -0.5*bodyScale, bodyScale, bodyScale],'Curvature',[1 1], 'FaceColor',"yellow")
+        
+    rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
     
     x = cos(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_plot, paramVector_opt);
     y = sin(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_plot, paramVector_opt);
