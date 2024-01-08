@@ -3,7 +3,8 @@ function [deltaV_o] = optimalDVSolver(inputVec)
     global d_solution d_minimum d_maximum initial_DeltaV;
     global opt_tof_fzero;
     global deltaResult 
-    global N;
+    %global N;
+    global tfWindowPixelsX tfWindowPixelsY;
 
     %global tw_graph_ind tw_graph unfeasibleOrbit;
 
@@ -25,7 +26,7 @@ function [deltaV_o] = optimalDVSolver(inputVec)
 %     t_error_min = trapz(theta_vec, fTimeFunction(d_maximum, theta_vec, paramVector)) - tof_current;
 %     t_error_max = trapz(theta_vec, fTimeFunction(d_minimum, theta_vec, paramVector)) - tof_current;
 
-    trueSolution = 1;
+    %trueSolution = 0;
     
     %Block Impossible orbits that escape to infinite, pass throught the
     %planet or require lateral thrust (maybe on the last one)
@@ -49,10 +50,12 @@ function [deltaV_o] = optimalDVSolver(inputVec)
             d_solution = fzero(tfTimeHandle, [d_minimum, d_maximum], opt_tof_fzero);
     
             deltaV_o = trapz(theta_vec, abs(fJerkFunction(d_solution, theta_vec, paramVector)));
-            %trueSolution = 1;
+            trueSolution = 1;
         catch
             %N = N+1;
             %updateParameters(0);
+%             t_error_min = trapz(theta_vec, fTimeFunction(d_maximum, theta_vec, paramVector)) - tof_current
+%             t_error_max = trapz(theta_vec, fTimeFunction(d_minimum, theta_vec, paramVector)) - tof_current
             deltaV_o = 1e24; %A big number
             trueSolution = 0;
         end
@@ -86,7 +89,9 @@ function [deltaV_o] = optimalDVSolver(inputVec)
     end
 
     if plotTransferWindow == 1
-        plot3(currentTime, tof_current, deltaV_o*trueSolution,'o','Color','k','MarkerSize',6,'MarkerFaceColor', color.*trueSolution)
+        %plot3(currentTime, tof_current, deltaV_o*trueSolution,'o','Color','k','MarkerSize',6,'MarkerFaceColor', color.*trueSolution)
+        rectangle('Position',[currentTime-0.5*tfWindowPixelsX, tof_current-0.5*tfWindowPixelsY, tfWindowPixelsX, tfWindowPixelsY], ...
+                  'FaceColor', color.*trueSolution, 'EdgeColor',color.*trueSolution)
         %pause(0);
     end
 

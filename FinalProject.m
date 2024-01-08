@@ -1,5 +1,5 @@
 %% Shape-Based Approach to Low-Thrust Rendezvous Trajectory Design
-clear all;
+clear;
 close all;
 
 %Things to change to test stuff out:
@@ -24,13 +24,15 @@ global n1 P1 n2 P2 p1 p2
 
 global safeTransferAngle TOF_corrMult dAdjustment;
 
-global solveDate plotTransferWindow %tw_graph_ind tw_graph
+global solveDate plotTransferWindow
 
 global opt_nu_fzero opt_tf_angle opt_d_lim_fzero opt_tof_fzero;
 
 global theta_vec
 
 global paramVector paramVector_opt;
+
+global tfWindowPixelsX tfWindowPixelsY;
 
 % global contourMap contIndX contIndY contIndLim
 
@@ -68,15 +70,15 @@ rMin = bodyRadius + 100000 * 1e3; %[km] Sun
 %--First Orbit Parameters--
 %Semimajor axis
 %a_initial= 6800*1000;
-a_initial = 250*10^9;
+a_initial = 225*10^9;
 %Period of the orbit
 P1 = 2*pi/sqrt(mju/a_initial^3);
 %Time of last perigee pass
-Tp1 = P1*0.5;
+Tp1 = 0;
 %Eccentricity
-e1 = 0.0;
+e1 = 0;
 %Argument of perigee
-omega1 = -pi/4;
+omega1 = 0;
 
 %--Second Orbit Parameters--
 %Semimajor axis
@@ -84,14 +86,14 @@ omega1 = -pi/4;
 a_final = 150*10^9;
 %Period of the orbit
 P2 = 2*pi/sqrt(mju/a_final^3);
-%Time of last perigee pass for object 2
-Tp2 = P2*0.1;
+%Time of last perigee pass
+Tp2 = 0;
 %Eccentricity
-e2 = 0.1;
+e2 = 0;
 %Argument of perigee
-omega2 = pi;
+omega2 = 0;
 
-%Number of rotations around central body
+%Number of additional rotations around central body
 N = 0;
   
 %Limits for TOF in relation to first guess
@@ -105,7 +107,7 @@ TOF_corrMult = 1;
 dAdjustment = 1.2;
 
 %Minimum angle travelled around the central body
-safeTransferAngle = pi;
+safeTransferAngle = 0;%pi/2;
 
 %Maximum allowed radius
 rMax = 10*max(a_initial, a_final);
@@ -143,15 +145,17 @@ dateSearchSpan = lcm(years1, years2) * 365 * 86400;
 %How many initial points the global search starts with
 %Linear for option 1
 %Linear for option 2
-%Squared (16/9 ratio) for option 3
-gsPointCount = 512;
+%Squared for option 3
+gsPointCount = 64;
 
 %Which approach to global search is taken
 %Option 1: Global search
 %Option 2: TOF search with date vector
 %Option 3: TOF and date vectors
-transferWindowSearchOption = 2;
+transferWindowSearchOption = 3;
 
+%Set up the initial deltaV value for plotting
+initial_DeltaV = 1e24; %A big number
 
 % contourMap = zeros(gsPointCount);
 % contIndX = 1;
@@ -176,6 +180,10 @@ p2 = a_final * (1-e2^2);
 
 updateParameters(1);
 
+%How large are the pixels in the transfer window plot
+tfWindowPixelsX = ceil(dateSearchSpan / (gsPointCount-1));
+tfWindowPixelsY = ceil((TofLimHigh - TofLimLow) * TOF_estimation / (gsPointCount-1));
+
 theta_f = paramVector(4);
 r1 = paramVector(7);
 r2 = paramVector(8);
@@ -188,8 +196,6 @@ r2_i = paramVector(12);
 nu = linspace(0, 2*pi, plotAccuracy);
 orbit1 = [cos(nu+omega1) * p1 ./ (1+e1*cos(nu)); sin(nu+omega1) * p1 ./ (1+e1*cos(nu))];
 orbit2 = [cos(nu+omega2) * p2 ./ (1+e2*cos(nu)); sin(nu+omega2) * p2 ./ (1+e2*cos(nu))];
-
-
 
 %% TOF optimization + result plotting
 if optimizeTOF == 1    
@@ -259,7 +265,7 @@ if optimizeDV == 1
     
     deltaV_opt = trapz(theta_vec_plot, abs(fJerkFunction(d_opt, theta_vec_plot, paramVector_opt)));
     initial_DeltaV = deltaV_opt;
-    
+
     time_t = trapz(theta_vec_plot, fTimeFunction(d_opt, theta_vec_plot, paramVector_opt));
     
     figure;
@@ -287,7 +293,7 @@ if optimizeDV == 1
 end
 %% Optimize the transfer date for deltaV + result plotting
 if optimizeDATE == 1
-    plotTransferWindow = 0;
+    plotTransferWindow = 1;
 %     tw_graph_ind = 1;
 %     tw_graph = zeros(gsPointCount*gsPointCount,6);
 
@@ -319,26 +325,26 @@ if optimizeDATE == 1
             %Try plotting optimization
             solveDate = 0;
             currentTime = time;
-            tf_fuelOptimal = fminsearch(@optimalDVSolver, TOF_estimation, opt_dv_fminsearch);
+            fminsearch(@optimalDVSolver, TOF_estimation, opt_dv_fminsearch);
             %tof_current = tof_optimal;
         end
     end
-
     %-- Solve transfer window using a set grid of dates and TOFs --
     if transferWindowSearchOption == 3
         solveDate = 1;
         for time = linspace(initialTime, initialTime + dateSearchSpan, gsPointCount)
             fprintf("Optimizing: <strong>%.1f %%</strong> ---- Best %cV Found: <strong>%.0f m/s</strong> \n", 100 * (time - initialTime)/(dateSearchSpan), 916, deltaResult);
-            for tof = linspace(TofLimLow*TOF_estimation, TofLimHigh*TOF_estimation, floor(gsPointCount * (9/16)))
+            for tof = linspace(TofLimLow*TOF_estimation, TofLimHigh*TOF_estimation, gsPointCount)
     
                 currentTime = time;
                 tof_current = tof;
         
-                deltaV = optimalDVSolver([currentTime, tof_current]);
+                optimalDVSolver([currentTime, tof_current]);
             end
         end
     end
-
+    pause(0)
+    
     %All searches are complimented by a final search for the local minimum 
     %close to the best found solution
     solveDate = 1;

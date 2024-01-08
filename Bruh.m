@@ -38,7 +38,7 @@ nuSolver_i = n2*T==pi+E-e2*sin(E);
 nuSolutions_i = vpasolve(nuSolver_i, nu2_i);
 nuSolutions_i = double(nuSolutions_i);
 
-nu2_i = mod(nuSolutions_i + 2*pi, 2*pi)
+nu2_i = mod(nuSolutions_i + 2*pi, 2*pi);
 
 %%
 %Solve nu at tf based on kelper's equations:

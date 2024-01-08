@@ -1,26 +1,4 @@
 function [thrustCurve] = fThrustFunction(d, theta, paramVector)
-%     global mju
-% 
-%     if useOptimal == 1
-%         global gamma1_opt gamma2_opt theta_f_opt 
-%         global theta1_dot_opt theta2_dot_opt r1_opt r2_opt;
-%         r1_l = r1_opt;
-%         r2_l = r2_opt;
-%         gamma1_l = gamma1_opt;
-%         gamma2_l = gamma2_opt;
-%         theta_f_l = theta_f_opt;
-%         theta1_dot_l = theta1_dot_opt;
-%         theta2_dot_l = theta2_dot_opt;
-%     else
-%         global gamma1 gamma2 theta_f theta1_dot theta2_dot r1 r2;
-%         r1_l = r1;
-%         r2_l = r2;
-%         gamma1_l = gamma1;
-%         gamma2_l = gamma2;
-%         theta_f_l = theta_f;
-%         theta1_dot_l = theta1_dot;
-%         theta2_dot_l = theta2_dot;
-%     end
 
     mju = paramVector(1);
     gamma1 = paramVector(2);

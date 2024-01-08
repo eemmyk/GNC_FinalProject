@@ -75,13 +75,8 @@ function [] = updateParameters(updateTOF)
     end
 
     theta2 = nu2 + omega2;
-    %theta_tilde = mod(theta2 - theta1 + 2*pi, 2*pi);
+    theta_tilde = mod(theta2 - theta1 + 2*pi, 2*pi);
     
-    theta_tilde = theta2 - theta1;
-    if theta_tilde < 0
-        theta_tilde = theta_tilde + 2*pi;
-    end
-
     gamma2 = asin(e2 * sin(nu2) / sqrt(1+2*e2*cos(nu2) + e2^2));
     r2 = p2 / (1+e2*cos(nu2));    
     r2_i = p2 / (1+e2*cos(nu2_i));    
@@ -89,14 +84,12 @@ function [] = updateParameters(updateTOF)
 
     theta_f = 2.*pi.*N + theta_tilde;
 
-    geometricAngle = acos(min(r1,r2)/max(r1,r2));
-
-    if theta_f < geometricAngle
+    if theta_f < safeTransferAngle
         theta_f = theta_f + 2*pi;
     end
 
     theta_vec = linspace(theta_0, theta_f, intApprox);
-    theta_vec_acc = linspace(theta_0, theta_f, intApprox);
+    theta_vec_acc = linspace(theta_0, theta_f, plotAccuracy);
 
     paramVector = [mju, gamma1, gamma2, theta_f, theta1_dot, theta2_dot, r1, r2, theta1, theta2, nu2_i, r2_i];
     
@@ -124,7 +117,7 @@ function [] = updateParameters(updateTOF)
     d_minimum = fFindRadiusFunction(paramVector, rMax);
 
 %     tof_max = trapz(theta_vec, fTimeFunction(d_minimum, theta_vec, 0));
-    %minFuncValue = min(fTimeMinReal(theta_vec_acc, d_minimum, paramVector, a_initial));
+    minFuncValue = min(fTimeMinReal(theta_vec, d_minimum, paramVector, a_initial));
     
 %     if ~isreal(tof_max)
         %Further refine the guess
@@ -132,7 +125,7 @@ function [] = updateParameters(updateTOF)
 %         [~, minFuncValue] = fmincon(@(angle) fInvRadiusZeroFunction(angle, d_minimum), theta_f/2, [], [], [], [], theta_0, theta_f, [], opt_fmincon);
     
 %         while ~isreal(tof_max)
-        while min(fTimeMinReal(theta_vec_acc, d_minimum, paramVector, a_initial)) < 0
+        while minFuncValue < 0
              %Move a relative amount towards larger values and an arbitary
              %small step to cross zero properly
             if d_minimum < 0
@@ -147,7 +140,7 @@ function [] = updateParameters(updateTOF)
                 return
             end
 %             tof_max = trapz(theta_vec, fTimeFunction(d_minimum, theta_vec, 0));
-            %minFuncValue = min(fTimeMinReal(theta_vec_acc, d_minimum, paramVector, a_initial));
+            minFuncValue = min(fTimeMinReal(theta_vec, d_minimum, paramVector, a_initial));
 %             [~, minFuncValue] = fmincon(@(angle) fInvRadiusZeroFunction(angle, d_minimum), theta_f/2, [], [], [], [], theta_0, theta_f, [], opt_fmincon);
         end
 %     end
@@ -166,13 +159,13 @@ function [] = updateParameters(updateTOF)
 %     %end
     %d_maximum
 
-    %tof_min = trapz(theta_vec_acc, fTimeMinReal(d_maximum, theta_vec_acc, paramVector, a_initial));
+    tof_min = trapz(theta_vec, fTimeMinReal(d_maximum, theta_vec, paramVector, a_initial));
 
 %     if ~isreal(tof_min)
 %         opt_fmincon = optimset('TolFun', 1e-3, 'TolX', 1e-4, 'Display', 'off');
 %         [~, minFuncValue] = fmincon(@(angle) fTimeMinReal(angle, d_maximum), theta_f/2, [], [], [], [], theta_0, theta_f, [], opt_fmincon);
     
-        while ~isreal(fTimeMinReal(d_maximum, theta_vec_acc, paramVector, a_initial))
+        while ~isreal(tof_min)
         %while minFuncValue < 0
             %Move a relative amount towards larger values and an arbitary
             %small step to cross zero properly
@@ -181,7 +174,7 @@ function [] = updateParameters(updateTOF)
             else
                 d_maximum = d_maximum / dAdjustment - 1e-15;
             end
-            %tof_min = trapz(theta_vec_acc, fTimeMinReal(d_maximum, theta_vec_acc, paramVector, a_initial));
+            tof_min = trapz(theta_vec, fTimeMinReal(d_maximum, theta_vec, paramVector, a_initial));
             %[~, minFuncValue] = fmincon(@(angle) fTimeMinReal(angle,
             %d_maximum), theta_f/2, [], [], [], [], theta_0, theta_f, [], opt_fmincon);
             
@@ -407,11 +400,7 @@ function [meetAngleError] = fSolveTofFunction(transferAngle)
     end
 
     theta2 = nu2 + omega2;
-    theta_tilde = theta2 - theta1;
-        if theta_tilde < 0
-            theta_tilde = theta_tilde + 2*pi;
-        end
-    %theta_tilde = mod(theta2 - theta1 + 2*pi, 2*pi);
+    theta_tilde = mod(theta2 - theta1 + 2*pi, 2*pi);
 %     theta_tilde_optim = theta_tilde
     
     r2 = p2 / (1+e2*cos(nu2));    
