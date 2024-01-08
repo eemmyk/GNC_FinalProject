@@ -54,8 +54,8 @@ function [deltaV_o] = optimalDVSolver(inputVec)
         catch
             %N = N+1;
             %updateParameters(0);
-%             t_error_min = trapz(theta_vec, fTimeFunction(d_maximum, theta_vec, paramVector)) - tof_current
-%             t_error_max = trapz(theta_vec, fTimeFunction(d_minimum, theta_vec, paramVector)) - tof_current
+            t_error_min = trapz(theta_vec, fTimeFunction(d_maximum, theta_vec, paramVector)) - tof_current
+            t_error_max = trapz(theta_vec, fTimeFunction(d_minimum, theta_vec, paramVector)) - tof_current
             deltaV_o = 1e24; %A big number
             trueSolution = 0;
         end

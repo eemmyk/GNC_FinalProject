@@ -78,7 +78,7 @@ function [] = updateParameters(updateTOF)
     %theta_tilde = mod(theta2 - theta1 + 2*pi, 2*pi);
     
     theta_tilde = theta2 - theta1;
-    if theta_tilde < 0
+    if theta_tilde <= 0
         theta_tilde = theta_tilde + 2*pi;
     end
 
@@ -120,8 +120,23 @@ function [] = updateParameters(updateTOF)
 %     maxRadHandle = @(d_in) fMaxRadiusFunction(d_in, paramVector, rMax, a_initial);
 % 
 %     d_minimum = fzero(maxRadHandle, 0, opt_d_lim_fzero);
-    
-    d_minimum = fFindRadiusFunction(paramVector, rMax);
+
+    %Limit the maximum distance geometrically
+    if theta_f < pi
+
+        objectDistance = sqrt(r1^2 + r2^2 - 2*r1*r2*cos(theta_f));
+      
+        alpha1 = acos((2*r1^2 - 2*r1*r2*cos(theta_f)) / (2*r1*objectDistance));
+
+        objectToMax2 = sin(pi-alpha1) * objectDistance / sin(2*pi - theta_f);
+
+        geometricMaxRadius = sqrt(objectToMax2^2 + r2^2);
+        geometricMaxRadius = min(geometricMaxRadius, rMax);
+    else
+        geometricMaxRadius = rMax;
+    end
+
+    d_minimum = fFindRadiusFunction(paramVector, geometricMaxRadius);
 
 %     tof_max = trapz(theta_vec, fTimeFunction(d_minimum, theta_vec, 0));
     %minFuncValue = min(fTimeMinReal(theta_vec_acc, d_minimum, paramVector, a_initial));
