@@ -3,13 +3,11 @@ function [deltaV_o] = optimalDVSolver(inputVec)
     global d_solution d_minimum d_maximum initial_DeltaV;
     global opt_tof_fzero;
     global deltaResult 
-    %global N;
     global tfWindowPixelsX tfWindowPixelsY;
 
     %global tw_graph_ind tw_graph unfeasibleOrbit;
 
     global paramVector
-
 
     if solveDate == 1
         currentTime = inputVec(1);
@@ -18,7 +16,6 @@ function [deltaV_o] = optimalDVSolver(inputVec)
         tof_current = inputVec;
     end
 
-    
     updateParameters(0);
 
 
@@ -54,8 +51,12 @@ function [deltaV_o] = optimalDVSolver(inputVec)
         catch
             %N = N+1;
             %updateParameters(0);
-            t_error_min = trapz(theta_vec, fTimeFunction(d_maximum, theta_vec, paramVector)) - tof_current
-            t_error_max = trapz(theta_vec, fTimeFunction(d_minimum, theta_vec, paramVector)) - tof_current
+%             t_min = fTimeFunction(d_maximum, theta_vec, paramVector)
+%             t_max = fTimeFunction(d_minimum, theta_vec, paramVector)
+%             t_error_min = trapz(theta_vec, t_min) - tof_current
+%             t_error_max = trapz(theta_vec, t_max) - tof_current
+%             ang = [max(t_min - real(t_min)), min(t_min - real(t_min))]
+%             ang2 = [max(t_max - real(t_max)), min(t_max - real(t_max))]
             deltaV_o = 1e24; %A big number
             trueSolution = 0;
         end

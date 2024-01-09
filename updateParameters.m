@@ -9,27 +9,64 @@ function [] = updateParameters(updateTOF)
     global d_minimum d_maximum rMin rMax;
     global theta_0;
     global n1 P1 n2 P2 p1 p2;
-    global previousTime unfeasibleOrbit safeTransferAngle;
+    global previousTime unfeasibleOrbit safeTransferAngleMultiplier;
     global TOF_corrMult dAdjustment;
+
+    global r1 r2 gamma1 gamma2
 
     global paramVector;
 
     global theta_vec_acc;
     
-    global opt_nu_fzero opt_tf_angle opt_d_lim_fzero;
+    global opt_nu_fzero opt_tf_angle;
 
     if updateTOF
             
         %Initial guesses for radii
         r1 = a_initial;
         r2 = a_final;
-        
-        %fmincon(@fSolveTofFunction, pi, [], [], [], [], safeTransferAngle, 2*pi + safeTransferAngle, [], opt_tf_angle);
-        fminbnd(@fSolveTofFunction, safeTransferAngle, 2*pi + safeTransferAngle, opt_tf_angle);
+        gamma1 = 0;
+        gamma2 = 0;
+
+%         figure;
+%         hold on;
+% 
+%         for i = linspace(0, P1, 100)
+% 
+%             nuHandle = @(angle) nuFromTime(angle, i, n1, e1);
+%             value = fzero(nuHandle, [0, 2*pi], opt_nu_fzero);
+% 
+%             plot(i, value,'o','Color','k','MarkerSize',6,'MarkerFaceColor', 'red');
+% 
+%         end
+%         
+% 
+%         figure;
+%         hold on;
+% 
+%         for i = linspace(0, 5*pi, 20)
+%             value = fSolveTofFunction(i);
+% 
+%             plot(i, value,'o','Color','k','MarkerSize',6,'MarkerFaceColor', 'red');
+% 
+%         end
+
+        %fmincon(@fSolveTofFunction, pi, [], [], [], [], safeTransferAngleMultiplier, 2*pi + safeTransferAngle, [], opt_tf_angle);
+        fminbnd(@fSolveTofFunction, 0, 2.5*pi, opt_tf_angle);
 
         TOF_estimation = TOF_estimation * TOF_corrMult;
         tof_current = TOF_estimation;
     end
+
+%     figure;
+%     hold on
+%     %plot(linspace(0, 2*P1, 500), mod(linspace(0, 2*P1, 500), P1))
+%     for time = linspace(0, 2*P1, 500)
+%         T_test = mod(time, P1);
+%         nuHandle = @(angle) nuFromTime(angle, T_test, n1, e1);
+%         nu_test = fzero(nuHandle, [0, 2*pi], opt_nu_fzero);
+%         plot(time, nu_test,'o','Color','k','MarkerSize',6,'MarkerFaceColor', 'red');
+%     end
 
     if previousTime ~= currentTime
         T_nu = mod(currentTime - Tp1, P1);
@@ -78,9 +115,9 @@ function [] = updateParameters(updateTOF)
     %theta_tilde = mod(theta2 - theta1 + 2*pi, 2*pi);
     
     theta_tilde = theta2 - theta1;
-    if theta_tilde <= 0
-        theta_tilde = theta_tilde + 2*pi;
-    end
+%     if theta_tilde <= pi
+%         theta_tilde = theta_tilde + 2*pi;
+%     end
 
     gamma2 = asin(e2 * sin(nu2) / sqrt(1+2*e2*cos(nu2) + e2^2));
     r2 = p2 / (1+e2*cos(nu2));    
@@ -88,15 +125,56 @@ function [] = updateParameters(updateTOF)
     theta2_dot = sqrt(mju./a_final.^3).*a_final.^2./r2.^2.*sqrt(1-e2.^2);
 
     theta_f = 2.*pi.*N + theta_tilde;
-
-    geometricAngle = acos(min(r1,r2)/max(r1,r2));
-
-    if theta_f < geometricAngle
-        theta_f = theta_f + 2*pi;
+    
+    %This is (less) fucked
+    if theta_f < pi
+        cutDist1 = r1;
+        cutDist2 = r2;
+        if gamma1 < 0
+            cutDist2 = sin(pi/2 + gamma1)*r1/sin(pi/2-gamma1-theta_f);
+        end
+    
+        if gamma2 > 0
+            cutDist1 = sin(pi/2 - gamma2)*r2/sin(pi/2+gamma2-theta_f);
+        end
+        
+    %     if theta_f <= geometricAngle*safeTransferAngleMultiplier
+    %         theta_f = theta_f + 2*pi;
+    %     end
+    
+        if ((0 < cutDist1) && (cutDist1 < r1)) || ((0 < cutDist2) && (cutDist2 < r2))
+%             figure
+%             hold on 
+%             theta_vec_acc = linspace(theta_0, theta_f, intApprox);
+%     
+%             nu = linspace(0, 2*pi, plotAccuracy);
+%            
+%             orbit1 = [cos(nu+omega1) * p1 ./ (1+e1*cos(nu)); sin(nu+omega1) * p1 ./ (1+e1*cos(nu))];
+%             orbit2 = [cos(nu+omega2) * p2 ./ (1+e2*cos(nu)); sin(nu+omega2) * p2 ./ (1+e2*cos(nu))];
+%         
+%             plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
+%             plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
+%             
+%             plot(cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
+%             plot(cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+%             plot(cos(omega2 + nu2_i) * r2_i, sin(omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')
+%                 
+%             x = cos(theta_vec_acc+theta1) .* fRadiusFunction(d_minimum, theta_vec_acc, paramVector);
+%             y = sin(theta_vec_acc+theta1) .* fRadiusFunction(d_minimum, theta_vec_acc, paramVector);
+%            
+%             plot(x, y, "Color", [0.2 0.7 0.2]);
+%             pause(0.01)
+            theta_f = theta_f + 2*pi;
+        else
+            geometricAngle = pi/2 - asin(min(r1,r2)/max(r1,r2));
+            if theta_f < geometricAngle * safeTransferAngleMultiplier
+                theta_f = theta_f + 2*pi;
+            end
+        end
     end
-
+    
     theta_vec = linspace(theta_0, theta_f, intApprox);
-    theta_vec_acc = linspace(theta_0, theta_f, intApprox);
+    theta_vec_acc = linspace(theta_0, theta_f, plotAccuracy);
 
     paramVector = [mju, gamma1, gamma2, theta_f, theta1_dot, theta2_dot, r1, r2, theta1, theta2, nu2_i, r2_i];
     
@@ -114,107 +192,114 @@ function [] = updateParameters(updateTOF)
 
     %% Check if TOF is a solution 
 
-    unfeasibleOrbit = 0;
-
-    %Check what the minimum d coefficient is
-%     maxRadHandle = @(d_in) fMaxRadiusFunction(d_in, paramVector, rMax, a_initial);
-% 
-%     d_minimum = fzero(maxRadHandle, 0, opt_d_lim_fzero);
-
-    %Limit the maximum distance geometrically
+    unfeasibleOrbit = 0; 
+    %Limit the distances geometrically
     if theta_f < pi
-
         objectDistance = sqrt(r1^2 + r2^2 - 2*r1*r2*cos(theta_f));
       
         alpha1 = acos((2*r1^2 - 2*r1*r2*cos(theta_f)) / (2*r1*objectDistance));
 
-        objectToMax2 = sin(pi-alpha1) * objectDistance / sin(2*pi - theta_f);
+        objectToMax2 = sin((pi/2)-alpha1) * objectDistance / sin(2*pi - theta_f);
 
         geometricMaxRadius = sqrt(objectToMax2^2 + r2^2);
         geometricMaxRadius = min(geometricMaxRadius, rMax);
+
+        geometricMinRadius = sin(alpha1) * r1;
+        geometricMinRadius = max(geometricMinRadius, rMin);
     else
         geometricMaxRadius = rMax;
+        geometricMinRadius = rMin;
     end
 
+    %Calculate the minimum value for d
+    
     d_minimum = fFindRadiusFunction(paramVector, geometricMaxRadius);
 
-%     tof_max = trapz(theta_vec, fTimeFunction(d_minimum, theta_vec, 0));
-    %minFuncValue = min(fTimeMinReal(theta_vec_acc, d_minimum, paramVector, a_initial));
-    
-%     if ~isreal(tof_max)
-        %Further refine the guess
-%         opt_fmincon = optimset('TolFun', 1e-3, 'TolX', 1e-4, 'Display', 'off');
-%         [~, minFuncValue] = fmincon(@(angle) fInvRadiusZeroFunction(angle, d_minimum), theta_f/2, [], [], [], [], theta_0, theta_f, [], opt_fmincon);
-    
-%         while ~isreal(tof_max)
-        while min(fTimeMinReal(theta_vec_acc, d_minimum, paramVector, a_initial)) < 0
-             %Move a relative amount towards larger values and an arbitary
-             %small step to cross zero properly
-            if d_minimum < 0
-                d_minimum = d_minimum / dAdjustment + 1e-15;
-            else
-                d_minimum = d_minimum * dAdjustment + 1e-15;
-            end
-            %No real solutions exist for orbit
-            if d_minimum > 1
-                unfeasibleOrbit = 1;
-                d_maximum = 1;
-                return
-            end
-%             tof_max = trapz(theta_vec, fTimeFunction(d_minimum, theta_vec, 0));
-            %minFuncValue = min(fTimeMinReal(theta_vec_acc, d_minimum, paramVector, a_initial));
-%             [~, minFuncValue] = fmincon(@(angle) fInvRadiusZeroFunction(angle, d_minimum), theta_f/2, [], [], [], [], theta_0, theta_f, [], opt_fmincon);
-        end
-%     end
-%     %try
-      %d_maximum = fzero(@fFindRadiusFunction, [d_minimum, 1], opt_d_lim_fzero);
-      d_maximum = fFindRadiusFunction(paramVector, rMin);
-%     %catch    
-%         figure;
-%         vectorD = linspace(d_minimum, d_minimum/1000, 1000);
-%         plot(fFindRadiusFunction(vectorD));
-%         
-%         figure
-%         plot(fInvRadiusZeroFunction(theta_f/2, vectorD));
-%         
-%         figure;
-%     %end
-    %d_maximum
-
-    %tof_min = trapz(theta_vec_acc, fTimeMinReal(d_maximum, theta_vec_acc, paramVector, a_initial));
-
-%     if ~isreal(tof_min)
-%         opt_fmincon = optimset('TolFun', 1e-3, 'TolX', 1e-4, 'Display', 'off');
-%         [~, minFuncValue] = fmincon(@(angle) fTimeMinReal(angle, d_maximum), theta_f/2, [], [], [], [], theta_0, theta_f, [], opt_fmincon);
-    
-        while ~isreal(fTimeMinReal(d_maximum, theta_vec_acc, paramVector, a_initial))
-        %while minFuncValue < 0
-            %Move a relative amount towards larger values and an arbitary
-            %small step to cross zero properly
-            if d_maximum < 0
-                d_maximum = d_maximum * dAdjustment - 1e-15;
-            else
-                d_maximum = d_maximum / dAdjustment - 1e-15;
-            end
-            %tof_min = trapz(theta_vec_acc, fTimeMinReal(d_maximum, theta_vec_acc, paramVector, a_initial));
-            %[~, minFuncValue] = fmincon(@(angle) fTimeMinReal(angle,
-            %d_maximum), theta_f/2, [], [], [], [], theta_0, theta_f, [], opt_fmincon);
-            
-%             x = cos(theta_vec_acc+theta1) .* fRadiusFunction(d_maximum, theta_vec_acc, 0);
-%             y = sin(theta_vec_acc+theta1) .* fRadiusFunction(d_maximum, theta_vec_acc, 0);
-%            
-%             hold off;
-%             plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
-%             hold on;
-%             plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
+    %d_minimum = fzero
+%     figure
+%     hold on 
 % 
-%             plot(x, y, "Color", [0.2 0.7 0.2]);
-            
-        end
+%     nu = linspace(0, 2*pi, plotAccuracy);
+%    
+%     orbit1 = [cos(nu+omega1) * p1 ./ (1+e1*cos(nu)); sin(nu+omega1) * p1 ./ (1+e1*cos(nu))];
+%     orbit2 = [cos(nu+omega2) * p2 ./ (1+e2*cos(nu)); sin(nu+omega2) * p2 ./ (1+e2*cos(nu))];
+% 
+%     plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
+%     plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
+%     
+%     plot(cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
+%     plot(cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+%     plot(cos(omega2 + nu2_i) * r2_i, sin(omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')
+%      
+
+%     zeroCheck = min(fTimeMinReal(theta_vec_acc, 0, paramVector, a_initial));
+%     if zeroCheck < 0
+%         d_minimum = 0;
 %     end
-%     d_maximum
-%     tof_min = trapz(theta_vec, fTimeFunction(d_maximum, theta_vec, 0))
-%     tof_min2 = trapz(theta_vec_acc, fTimeFunction(d_maximum, theta_vec_acc, 0))
+    tof_max = fTimeMinReal(theta_vec_acc, d_minimum, paramVector, a_initial);
+
+    %minTimePart = min(fTimeMinReal(theta_vec_acc, d_minimum, paramVector, a_initial));
+    while ~isreal(tof_max)
+         %Move a relative amount towards larger values and an arbitary
+         %small step to cross zero properly
+        if d_minimum < 0
+            d_minimum = d_minimum / dAdjustment + 1e-15;
+        else
+            d_minimum = d_minimum * dAdjustment + 1e-15;
+        end
+        
+%         x = cos(theta_vec_acc+theta1) .* fRadiusFunction(d_minimum, theta_vec_acc, paramVector);
+%         y = sin(theta_vec_acc+theta1) .* fRadiusFunction(d_minimum, theta_vec_acc, paramVector);
+%        
+%         plot(x, y, "Color", [0.2 0.7 0.2]);
+%         pause(0.01)
+%         
+        %minTimePart = min(fTimeMinReal(theta_vec_acc, d_minimum, paramVector, a_initial));
+        tof_max = fTimeMinReal(theta_vec_acc, d_minimum, paramVector, a_initial);
+
+        %No real solutions exist for orbit
+        if d_minimum > 1
+            unfeasibleOrbit = 1;
+            d_maximum = 1;
+            return
+        end
+    end
+    
+    %Calculate the maximum value for d
+    d_maximum = fFindRadiusFunction(paramVector, geometricMinRadius);
+    
+%     zeroCheck = min(fTimeMinReal(theta_vec_acc, 0, paramVector, a_initial));
+%     if zeroCheck < 0
+%         d_maximum = 0;
+%     end
+    tof_min = fTimeMinReal(theta_vec_acc, d_maximum, paramVector, a_initial);
+
+    %minTimePart = min(fTimeMinReal(theta_vec_acc, d_maximum, paramVector, a_initial));
+    
+    while ~isreal(tof_min)
+        %Move a relative amount towards larger values and an arbitary
+        %small step to cross zero properly
+        if d_maximum < 0
+            d_maximum = d_maximum * dAdjustment - 1e-15;
+        else
+            d_maximum = d_maximum / dAdjustment - 1e-15;
+        end
+
+        tof_min = fTimeMinReal(theta_vec_acc, d_maximum, paramVector, a_initial);
+        %minTimePart = min(fTimeMinReal(theta_vec_acc, d_maximum, paramVector, a_initial));
+
+
+    end
+
+%     minTime = fTimeFunction(d_maximum, theta_vec_acc, paramVector);
+%     maxTime = fTimeFunction(d_minimum, theta_vec_acc, paramVector);
+%     if ~isreal(minTime) || ~isreal(maxTime)
+%         minTime_i = fTimeMinReal(d_maximum, theta_vec_acc, paramVector, a_initial)
+%         maxTime_i = fTimeMinReal(d_minimum, theta_vec_acc, paramVector, a_initial)
+%         minTime
+%         maxTime
+%     end
+
 
 end
 
@@ -341,6 +426,7 @@ function [timeImgPart] = fTimeMinReal(theta, d, paramVector, a_initial)
     r2 = paramVector(8);
 
     %global a_initial %For scaling
+    %syms theta d mju gamma1 gamma2 theta_f theta1_dot theta2_dot r1 r2
 
     a = 1/r1;
     b = -tan(gamma1) / r1;
@@ -364,39 +450,38 @@ function [timeImgPart] = fTimeMinReal(theta, d, paramVector, a_initial)
 
     timeImgPart = a_initial*(1./r + 2.*c + 6.*d.*theta + 12.*e.*theta.^2 + 20.*f.*theta.^3 + 30.*g.*theta.^4);
 
-    %     timeTroublePart = (1./r + 2.*c + 6.*d.*theta + 12.*e.*theta.^2 + 20.*f.*theta.^3 + 30.*g.*theta.^4);
-    % 
-    %     timeTroubleDiff = diff(timeTroublePart);
-    % 
-    %     timeTroubleZero = solve(timeTroubleDiff == 0, theta);
-    % 
-    %     timeTroubleRoot = vpa(timeTroubleZero)
-    % 
+    %timeTroublePart = (1./r + 2.*c + 6.*d.*theta + 12.*e.*theta.^2 + 20.*f.*theta.^3 + 30.*g.*theta.^4);
+    
+    %timeTroubleZeros = solve(timeTroublePart == 0, theta)
+
+%     timeTroubleDiffZero = diff(timeTroublePart, theta)
+% 
+%     timeTroubleThetaZero = solve(timeTroubleDiffZero == 0, theta)
+% 
+%     timeTroubleMinimum = subs(timeTroublePart, theta, timeTroubleThetaZero)
+% 
+%     timeTroubleZero = solve(timeTroubleMinimum == 0, d)
+% 
+%     holyShit = 1
 
 
 end
 
 %% For Solving the initial TOF guess 
 function [meetAngleError] = fSolveTofFunction(transferAngle)
-    global currentTime N mju TOF_estimation
-    global n1 e1 omega1 P1 p1 r1 Tp1
-    global n2 e2 omega2 P2 p2 r2 Tp2
+    global currentTime N mju TOF_estimation n1 e1 omega1 P1 p1 r1 Tp1 n2 e2 omega2 P2 p2 r2 Tp2 theta1 theta2 theta_f safeTransferAngleMultiplier gamma1 gamma2 opt_nu_fzero
     %global TOF_corrMult;
-    global n_nu e_nu T_nu
-    global theta1 theta2 theta_f
 
-    global opt_nu_fzero
+    geometricAngle = pi/2 - asin(min(r1,r2)/max(r1,r2));
+    if transferAngle < geometricAngle * safeTransferAngleMultiplier
+        transferAngle = transferAngle + 2*pi;
+    end
 
     TOF_estimation = (2*N*pi + transferAngle)*sqrt((r1+r2)^3/(8*mju));
-    %TOF_estimation = (2*N*pi + modifiedAngle)*sqrt((r1+r2)^3/(8*mju));
    
     T_nu = mod(currentTime - Tp1, P1);
     if T_nu ~= 0
-        %Used in the next fzero function
-        n_nu = n1;
-        e_nu = e1;
-
-        nuHandle = @(angle) nuFromTime(angle, T_nu, n_nu, e_nu);
+        nuHandle = @(angle) nuFromTime(angle, T_nu, n1, e1);
 
         nu1_i = fzero(nuHandle, [0, 2*pi], opt_nu_fzero);
     else
@@ -404,28 +489,26 @@ function [meetAngleError] = fSolveTofFunction(transferAngle)
     end
 
     theta1 = nu1_i + omega1;
+    gamma1 = asin(e1 * sin(nu1_i) / sqrt(1+2*e1*cos(nu1_i) + e1^2));
 
     r1 = p1 / (1+e1*cos(nu1_i));
 
-    %Used in the next fzero function
     T_nu = mod(currentTime + TOF_estimation - Tp2, P2);
     if T_nu ~= 0
-
-        n_nu = n2;
-        e_nu = e2;    
-    
-        nuHandle = @(angle) nuFromTime(angle, T_nu, n_nu, e_nu);
+        nuHandle = @(angle) nuFromTime(angle, T_nu, n2, e2);
 
         nu2 = fzero(nuHandle, [0, 2*pi], opt_nu_fzero);
     else
         nu2 = 0;
     end
+    
+    gamma2 = asin(e2 * sin(nu2) / sqrt(1+2*e2*cos(nu2) + e2^2));
 
     theta2 = nu2 + omega2;
     theta_tilde = theta2 - theta1;
-        if theta_tilde < 0
-            theta_tilde = theta_tilde + 2*pi;
-        end
+%     if theta_tilde <= pi
+%         theta_tilde = theta_tilde + 2*pi;
+%     end
     %theta_tilde = mod(theta2 - theta1 + 2*pi, 2*pi);
 %     theta_tilde_optim = theta_tilde
     
@@ -433,10 +516,40 @@ function [meetAngleError] = fSolveTofFunction(transferAngle)
     
     theta_f = 2.*pi.*N + theta_tilde;
 
+%     %This is fucked
+%     geometricAngle = pi - theta_f + gamma1 - gamma2;
+% 
+%     if theta_f < geometricAngle * safeTransferAngleMultiplier
+%         theta_f = theta_f + 2*pi;
+%     end
+
+    cutDist1 = r1;
+    cutDist2 = r2;
+    if gamma1 < 0
+        cutDist2 = sin(pi/2 + gamma1)*r1/sin(pi/2-gamma1-theta_f);
+    end
+
+    if gamma2 > 0
+        cutDist1 = sin(pi/2 - gamma2)*r2/sin(pi/2+gamma2-theta_f);
+    end
+
+    if ((0 < cutDist1) && (cutDist1 < r1)) || ((0 < cutDist2) && (cutDist2 < r2))
+        theta_f = theta_f + 2*pi;
+    else
+        geometricAngle = pi/2 - asin(min(r1,r2)/max(r1,r2));
+        if theta_f < geometricAngle * safeTransferAngleMultiplier
+            theta_f = theta_f + 2*pi;
+        end
+    end
+    
 %     transferAngle;
 %     theta_f2 = theta_f;
 %     TOF_estimation;
-    meetAngleError = transferAngle - theta_f;
+    meetAngleError = abs(transferAngle - theta_f);
+
+%     plot(transferAngle, meetAngleError,'o','Color','k','MarkerSize',6,'MarkerFaceColor', 'red');
+%     plot(transferAngle, theta_f,'o','Color','k','MarkerSize',6,'MarkerFaceColor', 'green');
+
 end
 
 % function [trueAnomaly] = fNuApproxFunction(meanAnomaly, eccentricity)
