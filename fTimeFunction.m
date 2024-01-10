@@ -30,11 +30,4 @@ function [timeStep] = fTimeFunction(d, theta, paramVector)
     r = 1 ./ (a + b.*theta + c.*theta.^2 + d.*theta.^3 + e.*theta.^4 + f.*theta.^5 + g.*theta.^6);
 
     timeStep = sqrt((r.^4./mju) .* (1./r + 2.*c + 6.*d.*theta + 12.*e.*theta.^2 + 20.*f.*theta.^3 + 30.*g.*theta.^4));
-
-    if ~isreal(timeStep)
-%         d
-%         paramVector(2:12)
-%         ang_t = (1./r + 2.*c + 6.*d.*theta + 12.*e.*theta.^2 + 20.*f.*theta.^3 + 30.*g.*theta.^4)
-%         0
-    end
 end
