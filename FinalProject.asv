@@ -54,13 +54,13 @@ rMin = bodyRadius + 100000 * 1e3; %[km] Sun
 %--First Orbit Parameters--
 %Semimajor axis
 %a_initial= 6800*1000;
-a_initial = 150*10^9;
+a_initial = 250*10^9;
 %Period of the orbit
 P1 = 2*pi/sqrt(mju/a_initial^3);
 %Time of last perigee pass
 Tp1 = 0;
 %Eccentricity
-e1 = 0.1;
+e1 = 0.4;
 %Argument of perigee
 omega1 = -pi/2;
 
@@ -73,7 +73,7 @@ P2 = 2*pi/sqrt(mju/a_final^3);
 %Time of last perigee pass
 Tp2 = 0;
 %Eccentricity
-e2 = 0.15;
+e2 = 0.6;
 %Argument of perigee
 omega2 = pi/4;
 
@@ -90,7 +90,7 @@ maxDepthN = 3;
 TOF_average = (2*N + 1)*pi*sqrt((a_initial+a_final)^3/(8*mju));
 
 %Limits for TOF in relation to first guess
-TofLowMult = 0.3;
+TofLowMult = 0.4;
 TofHighMult = 5;
 TofLimLow = TofLowMult * TOF_average;
 TofLimHigh = TofHighMult * TOF_average;
@@ -146,7 +146,10 @@ gsPointCount = 128;
 %Option 1: Global search
 %Option 2: TOF search with date vector
 %Option 3: TOF and date vectors
-transferWindowSearchOption = 3;
+transferWindowSearchOption = 2;
+
+%How many start TOFs option 2 tries (even 1->2 improves accuracy tremendously)
+
 
 %Is the transfer window plotted
 visualizeTransferWindow = 1;
@@ -355,7 +358,7 @@ if optimizeDATE == 1
     %Reset current Time
     pState.tof_current = TOF_estimation;
 
-    if pSettings.plotTransferWindow == 1
+    if visualizeTransferWindow == 1
         figure('WindowState', 'maximized');
         hold on;
     end
@@ -377,12 +380,12 @@ if optimizeDATE == 1
     if transferWindowSearchOption == 2
         for time = linspace(initialTime, initialTime + dateSearchSpan, gsPointCount)
             fprintf("Optimizing: <strong>%.1f %%</strong> ---- Best %cV Found: <strong>%.0f m/s</strong> \n", 100 * (time - initialTime)/(dateSearchSpan), 916, deltaResult);
-            %Try plotting optimization
-            pSettings.solveDate = 0;
-            pState.currentTime = time;
-            dvHandle = @(tof) optimalDVSolver(tof, pSettings);
-            fminsearch(dvHandle, pState.tof_current, opt_dv_fminsearch);
-            %tof_current = tof_optimal;
+            for tof_start = linspace(TofLimLow, TofLimHigh, 1)
+                pSettings.solveDate = 0;
+                pState.currentTime = time;
+                dvHandle = @(tof) optimalDVSolver(tof, pSettings);
+                fminsearch(dvHandle, tof_start, opt_dv_fminsearch);
+            end
         end
     end
 
@@ -411,9 +414,9 @@ if optimizeDATE == 1
     tf_fuelOptimal = fminsearch(dvHandle, [dateOptimal, tof_optimal], opt_dv_fminsearch);
     fprintf("Optimization Completed! ---- Finalized %cV Found: <strong>%.0f m/s</strong> \n", 916, deltaResult);
 
-    fprintf("Tested %.0f orbits out of which %1.f %% (%.0f were unachievable", pState.testedOrbits, pState.failedOrbits);
+    fprintf("Tested %.0f transfer windows out of which %1.f %% (%.0f) were achievable\n", pState.testedOrbits, 100 * (1 - pState.failedOrbits / pState.testedOrbits), pState.testedOrbits - pState.failedOrbits);
 
-    if pSettings.plotTransferWindow == 1
+    if visualizeTransferWindow == 1
         %plot3(tw_graph(:,1), tw_graph(:,2), tw_graph(:,3),'o','Color','k','MarkerSize',10)
         title(sprintf("DeltaV Map For Different Launch Dates and Time of Flights"));
         xlabel("Time past initial Time [s]");

@@ -1,16 +1,11 @@
 function [] = updateParameters(updateTOF, pSettings)
-    global theta_vec TOF_estimation
-
-    global pState;
+    global theta_vec TOF_estimation pState;
 
     %Outgoing globals
     global resultVector paramVector
 
     %Internally outgoing
     global r1 r2 theta1 theta2 theta_f gamma1 gamma2 bestAngleError bestTheta
-
-
-%     global theta_vec_acc;
 
     if updateTOF
         %Initial guesses for parameters
@@ -26,7 +21,7 @@ function [] = updateParameters(updateTOF, pSettings)
         fminbnd(tofHandle, 0, 2.5*pi, pSettings.opt_tf_angle);
 
         TOF_estimation = (2*pState.N*pi + bestTheta)*sqrt(((r1+r2) * pSettings.TOF_corrMult)^3/(8*pSettings.mju)) + sqrt((abs(r1-r2))^3/(8*pSettings.mju));
-        pState.tof_current = 4.251870114693819e+08;%TOF_estimation;
+        pState.tof_current = TOF_estimation;
     end
 
     if pState.previousTime ~= pState.currentTime
@@ -59,7 +54,6 @@ function [] = updateParameters(updateTOF, pSettings)
         r1 = paramVector(7);
         theta1 = paramVector(9);
         nu2_i = paramVector(11);
-
     end
     pState.previousTime = pState.currentTime;
     
@@ -98,8 +92,8 @@ function [] = updateParameters(updateTOF, pSettings)
             theta_f = theta_f + 2*pi;
         else
             geometricAngle = pi/2 - asin(min(r1,r2)/max(r1,r2));
-            geometricAngle = (2 * geometricAngle - pi) / pSettings.safeTransferAngleMultiplier + pi;
-            if theta_f < geometricAngle * pSettings.safeTransferAngleMultiplier
+            geometricAngle = (geometricAngle + pi * (pSettings.safeTransferAngleMultiplier - 1)) / pSettings.safeTransferAngleMultiplier;
+            if theta_f < geometricAngle
                 theta_f = theta_f + 2*pi;
             end
         end
@@ -107,7 +101,6 @@ function [] = updateParameters(updateTOF, pSettings)
     
     theta_vec = linspace(pSettings.theta_0, theta_f, pSettings.intApprox);
     theta_vec_acc = linspace(pSettings.theta_0, theta_f, pSettings.intApprox);
-    %theta_vec_acc = linspace(pSettings.theta_0, theta_f, 1000);
 
     paramVector = [pSettings.mju, gamma1, gamma2, theta_f, theta1_dot, theta2_dot, r1, r2, theta1, theta2, nu2_i, r2_i];
 
@@ -133,12 +126,6 @@ function [] = updateParameters(updateTOF, pSettings)
 
     %Calculate the minimum value for d
     d_minimum = fFindRadiusFunction(paramVector, geometricMaxRadius);
-%     dSolveHandle = @(d_in) fSmartTimeReal(d_in, theta_vec_acc, paramVector, pSettings.a_initial);
-% 
-%     if fSmartTimeReal(d_minimum, theta_vec_acc, paramVector, pSettings.a_initial) < 0
-%         d_minimum = fzero(dSolveHandle, 0, pSettings.opt_d_bounds_fzero);
-%     end
-
 
     endRanges = [theta_vec_acc(floor(pSettings.intApprox*0.05):ceil(pSettings.intApprox * 0.1)), theta_vec_acc(floor(pSettings.intApprox*0.9):ceil(pSettings.intApprox * 0.95))];
 
@@ -162,10 +149,6 @@ function [] = updateParameters(updateTOF, pSettings)
     
     %Calculate the maximum value for d
     d_maximum = fFindRadiusFunction(paramVector, geometricMinRadius);
-% 
-%     if fSmartTimeReal(d_maximum, theta_vec_acc, paramVector, pSettings.a_initial) < 0
-%         d_maximum = fzero(dSolveHandle, 0, pSettings.opt_d_bounds_fzero);
-%     end
 
     middleRange = theta_vec_acc(floor(pSettings.intApprox*0.45):ceil(pSettings.intApprox*0.55));
 
@@ -245,51 +228,10 @@ function [timeImgPart] = fTimeMinReal(theta, d, paramVector, a_initial)
     
     timeImgPart = a_initial*(a + 2.*c + (6.*d + b).*theta + (12.*e + c).*theta.^2 + (20.*f + d).*theta.^3 + (30.*g + e).*theta.^4 + f.*theta.^5 + g.*theta.^6);
 end
-%% Trying out a smarter version of finding the minimum of the time equation issue part
-
-%% Solve maximum d-coefficient from part of the time function
-% function [timeMinImgPart] = fSmartTimeReal(d, theta, paramVector, a_initial)
-%    
-%     mju = paramVector(1);
-%     gamma1 = paramVector(2);
-%     gamma2 = paramVector(3);
-%     theta_f = paramVector(4);
-%     theta1_dot = paramVector(5);
-%     theta2_dot = paramVector(6);
-%     r1 = paramVector(7);
-%     r2 = paramVector(8);
-% 
-%     
-%     a = 1/r1;
-%     b = -tan(gamma1) / r1;
-%     c = 1/(2*r1) * (mju / (r1^3 * theta1_dot^2) - 1);
-%     
-%     efg_Mat_1 = [30*theta_f^2  -10*theta_f^3  theta_f^4;
-%                 -48*theta_f     18*theta_f^2 -2*theta_f^3; 
-%                  20            -8*theta_f     theta_f^2];
-%     
-%     efg_Mat_2 = [1/r2 - (a + b*theta_f + c*theta_f^2 + d*theta_f^3);
-%                 -tan(gamma2)/r2 - (b + 2*c*theta_f + 3*d*theta_f^2); 
-%                 mju/(r2^4*theta2_dot^2) - (1/r2 + 2*c + 6*d*theta_f)];
-%     
-%     efg = 1/(2*theta_f^6) * efg_Mat_1 * efg_Mat_2;
-%     
-%     e = efg(1);
-%     f = efg(2);
-%     g = efg(3);
-%     
-%     safetyMargin = 0.1;
-%     timeMinImgPart = min(a_initial*(a + 2.*c + (6.*d + b).*theta + (12.*e + c).*theta.^2 + (20.*f + d).*theta.^3 + (30.*g + e).*theta.^4 + f.*theta.^5 + g.*theta.^6)) - safetyMargin;
-% end
 
 %% For Solving the initial TOF guess 
 function [meetAngleError] = fSolveTofFunction(transferAngle, pSettings, pState)
     global TOF_estimation r1 r2 theta1 theta2 theta_f gamma1 gamma2 bestAngleError bestTheta
-
-%     geometricAngle = pi/2 - asin(min(r1,r2)/max(r1,r2));
-%     if transferAngle < geometricAngle * pSettings.safeTransferAngleMultiplier
-%         transferAngle = transferAngle + 2*pi;
-%     end
 
     TOF_estimation = (2*pState.N*pi + transferAngle)*sqrt(((r1+r2) * pSettings.TOF_corrMult)^3/(8*pSettings.mju)) + sqrt((abs(r1-r2))^3/(8*pSettings.mju));
    
@@ -339,7 +281,7 @@ function [meetAngleError] = fSolveTofFunction(transferAngle, pSettings, pState)
         theta_f = theta_f + 2*pi;
     else
         geometricAngle = pi/2 - asin(min(r1,r2)/max(r1,r2));
-        geometricAngle = (2 * geometricAngle - pi) / pSettings.safeTransferAngleMultiplier + pi;
+        geometricAngle = (geometricAngle + pi * (pSettings.safeTransferAngleMultiplier - 1)) / pSettings.safeTransferAngleMultiplier;
         if theta_f < geometricAngle
             theta_f = theta_f + 2*pi;
         end

@@ -1,8 +1,6 @@
 function [deltaV_o] = optimalDVSolver(inputVec, pSettings)
     global d_solution paramVector resultVector deltaResult theta_vec pState; 
 
-    global faultCount
-
     if pSettings.solveDate == 1
         pState.currentTime = inputVec(1);
         pState.tof_current = inputVec(2);
@@ -44,23 +42,6 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings)
 
         if deltaV_o < localBestDV
             localBestDV = deltaV_o;
-
-            if pSettings.plotTransferWindow == 1
-                R_Multiplier = (3*(deltaV_o/pState.initial_DeltaV)^2 - 2*(deltaV_o/pState.initial_DeltaV)^3);
-                G_Multiplier = 1-(3*((deltaV_o-pState.initial_DeltaV)/pState.initial_DeltaV)^2 - 2*((deltaV_o-pState.initial_DeltaV)/pState.initial_DeltaV)^3);
-            
-                if deltaV_o > 2*pState.initial_DeltaV
-                    color = [1 0 0];
-                elseif deltaV_o > pState.initial_DeltaV
-                    color = [1 G_Multiplier 0];
-                elseif deltaV_o <= pState.initial_DeltaV
-                    color = [R_Multiplier 1 0];
-                end
-        
-                rectangle('Position',[pState.currentTime-0.5*pSettings.tfWindowPixelsX, pState.tof_current-0.5*pSettings.tfWindowPixelsY, ...
-                                      pSettings.tfWindowPixelsX, pSettings.tfWindowPixelsY], 'FaceColor', color.*(0.5 + 0.5 * trueSolution), 'EdgeColor',color.*(0.5 + 0.5 * trueSolution));
-                                   
-            end   
         end
 
         if deltaV_o < deltaResult
@@ -77,6 +58,23 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings)
             paramVector_opt = paramVector;
         end
     end
+
+    if pSettings.plotTransferWindow == 1
+        R_Multiplier = (3*(localBestDV/pState.initial_DeltaV)^2 - 2*(localBestDV/pState.initial_DeltaV)^3);
+        G_Multiplier = 1-(3*((localBestDV-pState.initial_DeltaV)/pState.initial_DeltaV)^2 - 2*((localBestDV-pState.initial_DeltaV)/pState.initial_DeltaV)^3);
+    
+        if localBestDV > 2*pState.initial_DeltaV
+            color = [1 0 0];
+        elseif localBestDV > pState.initial_DeltaV
+            color = [1 G_Multiplier 0];
+        elseif localBestDV <= pState.initial_DeltaV
+            color = [R_Multiplier 1 0];
+        end
+
+        rectangle('Position',[pState.currentTime-0.5*pSettings.tfWindowPixelsX, pState.tof_current-0.5*pSettings.tfWindowPixelsY, ...
+                              pSettings.tfWindowPixelsX, pSettings.tfWindowPixelsY], 'FaceColor', color.*(0.5 + 0.5 * trueSolution), 'EdgeColor',color.*(0.5 + 0.5 * trueSolution));
+                           
+    end   
 
     %Reset value
     pState.N = N_start;

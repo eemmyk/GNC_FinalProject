@@ -17,8 +17,6 @@ global d_solution dateOptimal tof_optimal;
 global d_opt pState;
 global paramVector paramVector_opt;
 
-global faultCount;
-
 %% Global variable vector structures
 %I know this should be a class....
 
@@ -51,31 +49,33 @@ bodyRadius = 696340 * 1e3; %[km] Sun
 rMin = bodyRadius + 100000 * 1e3; %[km] Sun
 
 %% Orbital parameters
+seed = floor(rand() * 100000);
+rng(seed)
 %--First Orbit Parameters--
 %Semimajor axis
 %a_initial= 6800*1000;
-a_initial = 150*10^9;
+a_initial = (0.1 + 10*rand())*150*10^9;
 %Period of the orbit
 P1 = 2*pi/sqrt(mju/a_initial^3);
 %Time of last perigee pass
-Tp1 = 0;
+Tp1 = rand() * P1;
 %Eccentricity
-e1 = 0.1;
+e1 = 0; %rand() * 0.95;
 %Argument of perigee
-omega1 = -pi/2;
+omega1 = rand() * 2 * pi;
 
 %--Second Orbit Parameters--
 %Semimajor axis
 %a_final = 384748*1000;
-a_final = 225*10^9;
+a_final = (0.1 + 10*rand())*150*10^9;
 %Period of the orbit
 P2 = 2*pi/sqrt(mju/a_final^3);
 %Time of last perigee pass
-Tp2 = 0;
+Tp2 = rand() * P2;
 %Eccentricity
-e2 = 0.15;
+e2 = 0; %rand() * 0.95;
 %Argument of perigee
-omega2 = pi/4;
+omega2 = rand() * 2 * pi;
 
 %% Program settings
 %Number of additional rotations around central body
@@ -84,17 +84,16 @@ N = 0;
 %Are unsolvable positions filled in with maxDepthN options
 useMultiorbitFilling = 1;
 %What is the maximum depth searched to
-maxDepthN = 3;
+maxDepthN = 2;
 
 %What is the average TOF for the orbit
 TOF_average = (2*N + 1)*pi*sqrt((a_initial+a_final)^3/(8*mju));
 
 %Limits for TOF in relation to first guess
-TofLowMult = 0.4;
+TofLowMult = 0.3;
 TofHighMult = 5;
 TofLimLow = TofLowMult * TOF_average;
 TofLimHigh = TofHighMult * TOF_average;
-
 %--Adjustment Parameters--
 %How much the calculated TOF is increased
 TOF_corrMult = 1;
@@ -123,8 +122,7 @@ plotAccuracy = 1000;
 theta_0 = 0;
 
 % CHANGED - Target will be at random point along 2nd orbit
-initialTime = 1.735450093776683e+08;
-currentTime = initialTime;
+initialTime = 0;
 
 %Impossible time to trigger parameter generation on first run
 %if previousTime ~= currentTime
@@ -134,19 +132,22 @@ previousTime = -1;
 %Testing out lcm to always find interesting values
 years1 = ceil(P1/(365*86400));
 years2 = ceil(P2/(365*86400));
-dateSearchSpan = max(P1,P2);%lcm(years1, years2) * 365 * 86400;
+dateSearchSpan = 2 * max(P1,P2);%lcm(years1, years2) * 365 * 86400;
 
 %How many initial points the global search starts with
 %Linear for option 1
 %Linear for option 2
 %Squared for option 3
-gsPointCount = 32;
+gsPointCount = 64;
 
 %Which approach to global search is taken
 %Option 1: Global search
 %Option 2: TOF search with date vector
 %Option 3: TOF and date vectors
 transferWindowSearchOption = 3;
+
+%How many start TOFs option 2 tries (even 1->2 improves accuracy tremendously)
+option2starts = 2;
 
 %Is the transfer window plotted
 visualizeTransferWindow = 1;
@@ -156,7 +157,7 @@ initial_DeltaV = 1e24; %A big number
 
 %% Define some optimization options here for speeeeeeeeed!
 opt_tof_fzero = optimset('TolFun', 1e2, 'Display', 'off');
-opt_tof_fzero_acc = optimset('TolFun', 1e-5, 'TolCon', 1e-5, 'TolX', 1e-15);
+%opt_tof_fzero_acc = optimset('TolFun', 1e-15, 'TolCon', 1e-15, 'TolX', 1e-15);
 opt_nu_fzero = optimset('TolFun', 1e-3, 'TolX', 1e-3, 'Display', 'off');
 opt_tf_angle = optimset('TolFun', 1e-3, 'Display', 'off');
 opt_d_lim_fzero = optimset('TolFun', 1e2, 'TolX', 1e-15, 'Display', 'off');
@@ -222,7 +223,7 @@ pSettings.tfWindowPixelsX = tfWindowPixelsX;
 pSettings.tfWindowPixelsY = tfWindowPixelsY;
 pSettings.maxDepthN = maxDepthN;
 
-pState.currentTime = currentTime;
+pState.currentTime = initialTime;
 pState.tof_current = 0; %Default as 0
 pState.previousTime = previousTime;
 pState.N = N;
@@ -252,7 +253,7 @@ if optimizeTOF == 1
     try
         %TOF solution
         tfTimeHandle = @(d_in) transferTimeSolution(d_in, paramVector, pState.tof_current, theta_vec_plot);
-        d_solution = fzero(tfTimeHandle, [d_minimum, d_maximum], opt_tof_fzero_acc);
+        d_solution = fzero(tfTimeHandle, [d_minimum, d_maximum]);%, opt_tof_fzero_acc);
     catch
         fprintf("Inital Time of Flight guess not achievable\n")
         d_solution = (d_minimum + d_maximum)/2;
@@ -284,10 +285,13 @@ if optimizeTOF == 1
 
 %     x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_vec_plot, paramVector);
 %     y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_vec_plot, paramVector);
+%     time_max = trapz(theta_vec_plot, fTimeFunction(d_minimum, theta_vec_plot, paramVector));
+% 
 %     plot(x, y, "Color", [0.5 0.9 0.5]);
 % 
 %     x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_vec_plot, paramVector);
 %     y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_vec_plot, paramVector);
+%     time_min = trapz(theta_vec_plot, fTimeFunction(d_maximum, theta_vec_plot, paramVector));
 %     plot(x, y, "Color", [0.5 0.9 0.5]);
     
     title(sprintf("TOF solution trajectory\nTarget TOF: %s\nAchieved TOF: %s\nRequired deltaV: %.0f m/s", secToTime(TOF_estimation), secToTime(time_t), deltaV_tof));
@@ -355,7 +359,7 @@ if optimizeDATE == 1
     %Reset current Time
     pState.tof_current = TOF_estimation;
 
-    if pSettings.plotTransferWindow == 1
+    if visualizeTransferWindow == 1
         figure('WindowState', 'maximized');
         hold on;
     end
@@ -377,12 +381,12 @@ if optimizeDATE == 1
     if transferWindowSearchOption == 2
         for time = linspace(initialTime, initialTime + dateSearchSpan, gsPointCount)
             fprintf("Optimizing: <strong>%.1f %%</strong> ---- Best %cV Found: <strong>%.0f m/s</strong> \n", 100 * (time - initialTime)/(dateSearchSpan), 916, deltaResult);
-            %Try plotting optimization
-            pSettings.solveDate = 0;
-            pState.currentTime = time;
-            dvHandle = @(tof) optimalDVSolver(tof, pSettings);
-            fminsearch(dvHandle, pState.tof_current, opt_dv_fminsearch);
-            %tof_current = tof_optimal;
+            for tof_start = linspace(TofLimLow + (TofLimHigh - TofLimLow)/option2starts, TofLimHigh, option2starts)
+                pSettings.solveDate = 0;
+                pState.currentTime = time;
+                dvHandle = @(tof) optimalDVSolver(tof, pSettings);
+                fminsearch(dvHandle, tof_start, opt_dv_fminsearch);
+            end
         end
     end
 
@@ -413,7 +417,7 @@ if optimizeDATE == 1
 
     fprintf("Tested %.0f transfer windows out of which %1.f %% (%.0f) were achievable\n", pState.testedOrbits, 100 * (1 - pState.failedOrbits / pState.testedOrbits), pState.testedOrbits - pState.failedOrbits);
 
-    if pSettings.plotTransferWindow == 1
+    if visualizeTransferWindow == 1
         %plot3(tw_graph(:,1), tw_graph(:,2), tw_graph(:,3),'o','Color','k','MarkerSize',10)
         title(sprintf("DeltaV Map For Different Launch Dates and Time of Flights"));
         xlabel("Time past initial Time [s]");
