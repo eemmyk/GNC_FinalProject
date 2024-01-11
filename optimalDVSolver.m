@@ -72,7 +72,7 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings)
         end
 
         rectangle('Position',[pState.currentTime-0.5*pSettings.tfWindowPixelsX, pState.tof_current-0.5*pSettings.tfWindowPixelsY, ...
-                              pSettings.tfWindowPixelsX, pSettings.tfWindowPixelsY], 'FaceColor', color.*trueSolution, 'EdgeColor',color.*trueSolution);
+                              pSettings.tfWindowPixelsX, pSettings.tfWindowPixelsY], 'FaceColor', color.*(0.5 + 0.5 * trueSolution), 'EdgeColor',color.*(0.5 + 0.5 * trueSolution));
     end
 end
 

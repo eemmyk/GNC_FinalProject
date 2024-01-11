@@ -52,35 +52,35 @@ rMin = bodyRadius + 100000 * 1e3; %[km] Sun
 %--First Orbit Parameters--
 %Semimajor axis
 %a_initial= 6800*1000;
-a_initial = 250*10^9;
+a_initial = 6.831774394018488e+11;%150*10^9;
 %Period of the orbit
 P1 = 2*pi/sqrt(mju/a_initial^3);
 %Time of last perigee pass
-Tp1 = 0;
+Tp1 = 2.954438051025724e+08;
 %Eccentricity
-e1 = 0.4;
+e1 = 0.519854753465613;
 %Argument of perigee
-omega1 = -pi/4;
+omega1 = 0.871003062397113;
 
 %--Second Orbit Parameters--
 %Semimajor axis
 %a_final = 384748*1000;
-a_final = 225*10^9;
+a_final = 1.269705041692931e+11;%225*10^9;
 %Period of the orbit
 P2 = 2*pi/sqrt(mju/a_final^3);
 %Time of last perigee pass
-Tp2 = 0;
+Tp2 = 6.354325705596093e+06;
 %Eccentricity
-e2 = 0.6;
+e2 = 0.798681393184479;
 %Argument of perigee
-omega2 = pi/3;
+omega2 = 1.597702050791534;
 
 %% Program settings
 %Number of additional rotations around central body
-N = 0;
+N = 1;
 
 %Are unsolvable positions filled in with N++ options
-useMultiorbitFilling = 1;
+useMultiorbitFilling = 0;
 
 %What is the average TOF for the orbit
 TOF_average = (2*N + 1)*pi*sqrt((a_initial+a_final)^3/(8*mju));
