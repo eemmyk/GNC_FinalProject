@@ -17,6 +17,8 @@ global d_solution dateOptimal tof_optimal;
 global d_opt pState;
 global paramVector paramVector_opt;
 
+global faultCount;
+
 %% Global variable vector structures
 %I know this should be a class....
 
@@ -52,41 +54,43 @@ rMin = bodyRadius + 100000 * 1e3; %[km] Sun
 %--First Orbit Parameters--
 %Semimajor axis
 %a_initial= 6800*1000;
-a_initial = 6.831774394018488e+11;%150*10^9;
+a_initial = 150*10^9;
 %Period of the orbit
 P1 = 2*pi/sqrt(mju/a_initial^3);
 %Time of last perigee pass
-Tp1 = 2.954438051025724e+08;
+Tp1 = 0;
 %Eccentricity
-e1 = 0.519854753465613;
+e1 = 0.1;
 %Argument of perigee
-omega1 = 0.871003062397113;
+omega1 = -pi/2;
 
 %--Second Orbit Parameters--
 %Semimajor axis
 %a_final = 384748*1000;
-a_final = 1.269705041692931e+11;%225*10^9;
+a_final = 225*10^9;
 %Period of the orbit
 P2 = 2*pi/sqrt(mju/a_final^3);
 %Time of last perigee pass
-Tp2 = 6.354325705596093e+06;
+Tp2 = 0;
 %Eccentricity
-e2 = 0.798681393184479;
+e2 = 0.15;
 %Argument of perigee
-omega2 = 1.597702050791534;
+omega2 = pi/4;
 
 %% Program settings
 %Number of additional rotations around central body
-N = 1;
+N = 0;
 
-%Are unsolvable positions filled in with N++ options
-useMultiorbitFilling = 0;
+%Are unsolvable positions filled in with maxDepthN options
+useMultiorbitFilling = 1;
+%What is the maximum depth searched to
+maxDepthN = 3;
 
 %What is the average TOF for the orbit
 TOF_average = (2*N + 1)*pi*sqrt((a_initial+a_final)^3/(8*mju));
 
 %Limits for TOF in relation to first guess
-TofLowMult = 0.3;
+TofLowMult = 0.4;
 TofHighMult = 5;
 TofLimLow = TofLowMult * TOF_average;
 TofLimHigh = TofHighMult * TOF_average;
@@ -101,7 +105,7 @@ dAdjustment = 2;
 safeTransferAngleMultiplier = 2;
 
 %Maximum allowed radius
-rMax = 10*max(a_initial, a_final);
+rMax = 1000*max(a_initial, a_final);
 
 %Spacecraft mass [16U CubeSat]
 m = 32; %kg
@@ -112,14 +116,14 @@ optimizeDV = 0;
 optimizeDATE = 1;
 
 %Accuracies of approximation
-intApprox = 50;
+intApprox = 100;
 plotAccuracy = 1000;
 
 %Doesn't change, but here not to be a hardcoded value
 theta_0 = 0;
 
 % CHANGED - Target will be at random point along 2nd orbit
-initialTime = 0;
+initialTime = 1.735450093776683e+08;
 currentTime = initialTime;
 
 %Impossible time to trigger parameter generation on first run
@@ -136,7 +140,7 @@ dateSearchSpan = max(P1,P2);%lcm(years1, years2) * 365 * 86400;
 %Linear for option 1
 %Linear for option 2
 %Squared for option 3
-gsPointCount = 128;
+gsPointCount = 32;
 
 %Which approach to global search is taken
 %Option 1: Global search
@@ -159,6 +163,7 @@ opt_d_lim_fzero = optimset('TolFun', 1e2, 'TolX', 1e-15, 'Display', 'off');
 opt_dv_fminsearch = optimset('TolFun',1e2, 'TolX', min(P1, P2)/1000);
 opt_dv_global = optimset('TolFun',1e2, 'TolX', 1e4);
 opt_minTheta_fbnd = optimset('TolFun', 1e-2, 'TolX', 1e-2);
+opt_d_bounds_fzero = optimset('TolFun', 1e-3, 'OutputFcn', @fOutputCheckerFunction);
 
 %% Calculating the orbital parameters
 n1 = sqrt(mju/a_initial^3);
@@ -209,17 +214,21 @@ pSettings.opt_tf_angle = opt_tf_angle;
 pSettings.opt_tof_fzero = opt_tof_fzero;
 pSettings.opt_d_lim_fzero = opt_d_lim_fzero;
 pSettings.opt_minTheta_fbnd = opt_minTheta_fbnd;
+pSettings.opt_d_bounds_fzero = opt_d_bounds_fzero;
 pSettings.solveDate = 0; %Default as 0
 pSettings.plotTransferWindow = 0; %Default as 0
 pSettings.useMultiorbitFilling = useMultiorbitFilling;
 pSettings.tfWindowPixelsX = tfWindowPixelsX;
 pSettings.tfWindowPixelsY = tfWindowPixelsY;
+pSettings.maxDepthN = maxDepthN;
 
 pState.currentTime = currentTime;
 pState.tof_current = 0; %Default as 0
 pState.previousTime = previousTime;
 pState.N = N;
 pState.initial_DeltaV = initial_DeltaV;
+pState.failedOrbits = 0; %Default as 0
+pState.testedOrbits = 0; %Default as 0
 
 %% Calculate all the rest of orbital parameters for the coming simulation
 updateParameters(1, pSettings);
@@ -266,9 +275,7 @@ if optimizeTOF == 1
     plot(cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
     plot(cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
     plot(cos(omega2 + nu2_i) * r2_i, sin(omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')
-    
-    bodyScale = max(a_initial, a_final) * 0.075;
-    
+        
     rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
     
     x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, paramVector);
@@ -326,9 +333,7 @@ if optimizeDV == 1
     plot(cos(theta1_opt) * r1_opt, sin(theta1_opt) * r1_opt,'or', 'MarkerSize',5,'MarkerFaceColor','g')
     plot(cos(theta2_opt) * r2_opt, sin(theta2_opt) * r2_opt,'or', 'MarkerSize',5,'MarkerFaceColor','r')
     plot(cos(omega2 + nu2_i_opt) * r2_i_opt, sin(omega2 + nu2_i_opt) * r2_i_opt,'or', 'MarkerSize',5,'MarkerFaceColor','k')
-    
-    bodyScale = max(a_initial, a_final) * 0.075;
-    
+        
     rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
     
     x = cos(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_plot, paramVector_opt);
@@ -355,6 +360,8 @@ if optimizeDATE == 1
         hold on;
     end
 
+    pState.failedOrbits = 0;
+    pState.testedOrbits = 0;
     %-- Solve transfer window using Global Search --
     if transferWindowSearchOption == 1
         gs = MultiStart;
@@ -382,6 +389,9 @@ if optimizeDATE == 1
     %-- Solve transfer window using a set grid of dates and TOFs --
     if transferWindowSearchOption == 3
         pSettings.solveDate = 1;
+
+        failedOrbits = 0;
+        testedOrbits = 0;
         for time = linspace(initialTime, initialTime + dateSearchSpan, gsPointCount)
             fprintf("Optimizing: <strong>%.1f %%</strong> ---- Best %cV Found: <strong>%.0f m/s</strong> \n", 100 * (time - initialTime)/(dateSearchSpan), 916, deltaResult);
             for tof = linspace(TofLimLow, TofLimHigh, gsPointCount)
@@ -401,7 +411,8 @@ if optimizeDATE == 1
     tf_fuelOptimal = fminsearch(dvHandle, [dateOptimal, tof_optimal], opt_dv_fminsearch);
     fprintf("Optimization Completed! ---- Finalized %cV Found: <strong>%.0f m/s</strong> \n", 916, deltaResult);
 
-    %contourf(contourMap, 100);
+    fprintf("Tested %.0f transfer windows out of which %1.f %% (%.0f) were achievable\n", pState.testedOrbits, 100 * (1 - pState.failedOrbits / pState.testedOrbits), pState.testedOrbits - pState.failedOrbits);
+
     if pSettings.plotTransferWindow == 1
         %plot3(tw_graph(:,1), tw_graph(:,2), tw_graph(:,3),'o','Color','k','MarkerSize',10)
         title(sprintf("DeltaV Map For Different Launch Dates and Time of Flights"));

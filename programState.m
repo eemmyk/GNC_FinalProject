@@ -5,6 +5,8 @@ classdef programState
         previousTime;
         N;
         initial_DeltaV;
+        failedOrbits;
+        testedOrbits;
     end
 end
 

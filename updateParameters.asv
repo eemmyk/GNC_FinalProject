@@ -10,7 +10,7 @@ function [] = updateParameters(updateTOF, pSettings)
     global r1 r2 theta1 theta2 theta_f gamma1 gamma2 bestAngleError bestTheta
 
 
-%     global theta_vec_acc;
+    global theta_vec_acc;
 
     if updateTOF
         %Initial guesses for parameters
@@ -26,7 +26,7 @@ function [] = updateParameters(updateTOF, pSettings)
         fminbnd(tofHandle, 0, 2.5*pi, pSettings.opt_tf_angle);
 
         TOF_estimation = (2*pState.N*pi + bestTheta)*sqrt(((r1+r2) * pSettings.TOF_corrMult)^3/(8*pSettings.mju)) + sqrt((abs(r1-r2))^3/(8*pSettings.mju));
-        pState.tof_current = 4.251870114693819e+08;%TOF_estimation;
+        pState.tof_current = TOF_estimation;
     end
 
     if pState.previousTime ~= pState.currentTime
@@ -106,8 +106,8 @@ function [] = updateParameters(updateTOF, pSettings)
     end
     
     theta_vec = linspace(pSettings.theta_0, theta_f, pSettings.intApprox);
-    theta_vec_acc = linspace(pSettings.theta_0, theta_f, pSettings.intApprox);
-    %theta_vec_acc = linspace(pSettings.theta_0, theta_f, 1000);
+    %theta_vec_acc = linspace(pSettings.theta_0, theta_f, pSettings.intApprox);
+    theta_vec_acc = linspace(pSettings.theta_0, theta_f, 1000);
 
     paramVector = [pSettings.mju, gamma1, gamma2, theta_f, theta1_dot, theta2_dot, r1, r2, theta1, theta2, nu2_i, r2_i];
 
@@ -133,14 +133,11 @@ function [] = updateParameters(updateTOF, pSettings)
 
     %Calculate the minimum value for d
     d_minimum = fFindRadiusFunction(paramVector, geometricMaxRadius);
-%     dSolveHandle = @(d_in) fSmartTimeReal(d_in, theta_vec_acc, paramVector, pSettings.a_initial);
-% 
-%     if fSmartTimeReal(d_minimum, theta_vec_acc, paramVector, pSettings.a_initial) < 0
-%         d_minimum = fzero(dSolveHandle, 0, pSettings.opt_d_bounds_fzero);
-%     end
 
+    dMinHandle = @(d_in) fSmartTimeReal(d_in, theta_vec_acc, paramVector, pSettings.a_initial)
+    d_minimum = fzero
 
-    endRanges = [theta_vec_acc(floor(pSettings.intApprox*0.05):ceil(pSettings.intApprox * 0.1)), theta_vec_acc(floor(pSettings.intApprox*0.9):ceil(pSettings.intApprox * 0.95))];
+    endRanges = theta_vec_acc;%[theta_vec_acc(floor(pSettings.intApprox*0.05):ceil(pSettings.intApprox * 0.1)), theta_vec_acc(floor(pSettings.intApprox*0.9):ceil(pSettings.intApprox * 0.95))];
 
     tof_max = min(fTimeMinReal(endRanges, d_minimum, paramVector, pSettings.a_initial));
     while tof_max < 0
@@ -162,12 +159,8 @@ function [] = updateParameters(updateTOF, pSettings)
     
     %Calculate the maximum value for d
     d_maximum = fFindRadiusFunction(paramVector, geometricMinRadius);
-% 
-%     if fSmartTimeReal(d_maximum, theta_vec_acc, paramVector, pSettings.a_initial) < 0
-%         d_maximum = fzero(dSolveHandle, 0, pSettings.opt_d_bounds_fzero);
-%     end
 
-    middleRange = theta_vec_acc(floor(pSettings.intApprox*0.45):ceil(pSettings.intApprox*0.55));
+    middleRange = theta_vec_acc;%(floor(pSettings.intApprox*0.45):ceil(pSettings.intApprox*0.55));
 
     tof_min = min(fTimeMinReal(middleRange, d_maximum, paramVector, pSettings.a_initial));
     while tof_min < 0
@@ -243,44 +236,50 @@ function [timeImgPart] = fTimeMinReal(theta, d, paramVector, a_initial)
     f = efg(2);
     g = efg(3);
     
-    timeImgPart = a_initial*(a + 2.*c + (6.*d + b).*theta + (12.*e + c).*theta.^2 + (20.*f + d).*theta.^3 + (30.*g + e).*theta.^4 + f.*theta.^5 + g.*theta.^6);
+    r = 1 ./ (a + b.*theta + c.*theta.^2 + d.*theta.^3 + e.*theta.^4 + f.*theta.^5 + g.*theta.^6);
+
+    timeImgPart = a_initial*(1./r + 2.*c + 6.*d.*theta + 12.*e.*theta.^2 + 20.*f.*theta.^3 + 30.*g.*theta.^4);
 end
 %% Trying out a smarter version of finding the minimum of the time equation issue part
 
 %% Solve maximum d-coefficient from part of the time function
-% function [timeMinImgPart] = fSmartTimeReal(d, theta, paramVector, a_initial)
-%    
-%     mju = paramVector(1);
-%     gamma1 = paramVector(2);
-%     gamma2 = paramVector(3);
-%     theta_f = paramVector(4);
-%     theta1_dot = paramVector(5);
-%     theta2_dot = paramVector(6);
-%     r1 = paramVector(7);
-%     r2 = paramVector(8);
-% 
-%     
-%     a = 1/r1;
-%     b = -tan(gamma1) / r1;
-%     c = 1/(2*r1) * (mju / (r1^3 * theta1_dot^2) - 1);
-%     
-%     efg_Mat_1 = [30*theta_f^2  -10*theta_f^3  theta_f^4;
-%                 -48*theta_f     18*theta_f^2 -2*theta_f^3; 
-%                  20            -8*theta_f     theta_f^2];
-%     
-%     efg_Mat_2 = [1/r2 - (a + b*theta_f + c*theta_f^2 + d*theta_f^3);
-%                 -tan(gamma2)/r2 - (b + 2*c*theta_f + 3*d*theta_f^2); 
-%                 mju/(r2^4*theta2_dot^2) - (1/r2 + 2*c + 6*d*theta_f)];
-%     
-%     efg = 1/(2*theta_f^6) * efg_Mat_1 * efg_Mat_2;
-%     
-%     e = efg(1);
-%     f = efg(2);
-%     g = efg(3);
-%     
-%     safetyMargin = 0.1;
-%     timeMinImgPart = min(a_initial*(a + 2.*c + (6.*d + b).*theta + (12.*e + c).*theta.^2 + (20.*f + d).*theta.^3 + (30.*g + e).*theta.^4 + f.*theta.^5 + g.*theta.^6)) - safetyMargin;
-% end
+function [timeMinImgPart] = fSmartTimeReal(d, theta, paramVector, a_initial)
+    
+    mju = paramVector(1);
+    gamma1 = paramVector(2);
+    gamma2 = paramVector(3);
+    theta_f = paramVector(4);
+    theta1_dot = paramVector(5);
+    theta2_dot = paramVector(6);
+    r1 = paramVector(7);
+    r2 = paramVector(8);
+
+    
+    a = 1/r1;
+    b = -tan(gamma1) / r1;
+    c = 1/(2*r1) * (mju / (r1^3 * theta1_dot^2) - 1);
+    
+    efg_Mat_1 = [30*theta_f^2  -10*theta_f^3  theta_f^4;
+                -48*theta_f     18*theta_f^2 -2*theta_f^3; 
+                 20            -8*theta_f     theta_f^2];
+    
+    efg_Mat_2 = [1/r2 - (a + b*theta_f + c*theta_f^2 + d*theta_f^3);
+                -tan(gamma2)/r2 - (b + 2*c*theta_f + 3*d*theta_f^2); 
+                mju/(r2^4*theta2_dot^2) - (1/r2 + 2*c + 6*d*theta_f)];
+    
+    efg = 1/(2*theta_f^6) * efg_Mat_1 * efg_Mat_2;
+    
+    e = efg(1);
+    f = efg(2);
+    g = efg(3);
+    
+    %r = 1 ./ (a + b.*theta + c.*theta.^2 + d.*theta.^3 + e.*theta.^4 + f.*theta.^5 + g.*theta.^6);
+
+    min(a_initial*(a + c.*theta.^2 + f.*theta.^5 + g.*theta.^6 + 2.*c + (6.*d + b).*theta + 12.*e + c).*theta.^2 + (20.*f + d).*theta.^3 + (30.*g + e).*theta.^4)
+
+    safetyMargin = 1
+    timeMinImgPart = min(abs(a_initial*(1./r + 2.*c + 6.*d.*theta + 12.*e.*theta.^2 + 20.*f.*theta.^3 + 30.*g.*theta.^4))) - safetyMargin;
+end
 
 %% For Solving the initial TOF guess 
 function [meetAngleError] = fSolveTofFunction(transferAngle, pSettings, pState)
