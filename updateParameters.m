@@ -127,7 +127,7 @@ function [] = updateParameters(updateTOF, pSettings)
     %Calculate the minimum value for d
     d_minimum = fFindRadiusFunction(paramVector, geometricMaxRadius);
 
-    endRanges = [theta_vec_acc(floor(pSettings.intApprox*0.05):ceil(pSettings.intApprox * 0.1)), theta_vec_acc(floor(pSettings.intApprox*0.9):ceil(pSettings.intApprox * 0.95))];
+    endRanges = [theta_vec_acc(1:ceil(pSettings.intApprox * 0.1)), theta_vec_acc(floor(pSettings.intApprox*0.9):end)];
 
     tof_max = min(fTimeMinReal(endRanges, d_minimum, paramVector, pSettings.a_initial));
     while tof_max < 0
@@ -150,7 +150,7 @@ function [] = updateParameters(updateTOF, pSettings)
     %Calculate the maximum value for d
     d_maximum = fFindRadiusFunction(paramVector, geometricMinRadius);
 
-    middleRange = theta_vec_acc(floor(pSettings.intApprox*0.45):ceil(pSettings.intApprox*0.55));
+    middleRange = theta_vec_acc(floor(pSettings.intApprox*0.4):ceil(pSettings.intApprox*0.6));
 
     tof_min = min(fTimeMinReal(middleRange, d_maximum, paramVector, pSettings.a_initial));
     while tof_min < 0

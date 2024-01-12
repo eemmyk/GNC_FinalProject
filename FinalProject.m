@@ -50,7 +50,7 @@ rMin = bodyRadius + 100000 * 1e3; %[km] Sun
 
 %% Orbital parameters
 seed = floor(rand() * 100000);
-rng(seed)
+rng(seed);
 %--First Orbit Parameters--
 %Semimajor axis
 %a_initial= 6800*1000;
@@ -60,7 +60,7 @@ P1 = 2*pi/sqrt(mju/a_initial^3);
 %Time of last perigee pass
 Tp1 = rand() * P1;
 %Eccentricity
-e1 = 0; %rand() * 0.95;
+e1 = rand() * 0.95;
 %Argument of perigee
 omega1 = rand() * 2 * pi;
 
@@ -73,7 +73,7 @@ P2 = 2*pi/sqrt(mju/a_final^3);
 %Time of last perigee pass
 Tp2 = rand() * P2;
 %Eccentricity
-e2 = 0; %rand() * 0.95;
+e2 = rand() * 0.95;
 %Argument of perigee
 omega2 = rand() * 2 * pi;
 
@@ -90,8 +90,8 @@ maxDepthN = 2;
 TOF_average = (2*N + 1)*pi*sqrt((a_initial+a_final)^3/(8*mju));
 
 %Limits for TOF in relation to first guess
-TofLowMult = 0.3;
-TofHighMult = 5;
+TofLowMult = 0.4;
+TofHighMult = 4;
 TofLimLow = TofLowMult * TOF_average;
 TofLimHigh = TofHighMult * TOF_average;
 %--Adjustment Parameters--
@@ -111,7 +111,7 @@ m = 32; %kg
 
 %Solve TOF, optimize deltaV and/or optimize transfer date
 optimizeTOF = 1;
-optimizeDV = 0;
+optimizeDV = 1;
 optimizeDATE = 1;
 
 %Accuracies of approximation
@@ -132,7 +132,7 @@ previousTime = -1;
 %Testing out lcm to always find interesting values
 years1 = ceil(P1/(365*86400));
 years2 = ceil(P2/(365*86400));
-dateSearchSpan = 2 * max(P1,P2);%lcm(years1, years2) * 365 * 86400;
+dateSearchSpan = max(P1,P2);%lcm(years1, years2) * 365 * 86400;
 
 %How many initial points the global search starts with
 %Linear for option 1
@@ -422,6 +422,8 @@ if optimizeDATE == 1
         title(sprintf("DeltaV Map For Different Launch Dates and Time of Flights"));
         xlabel("Time past initial Time [s]");
         ylabel("Time of Flight [s]")
+        xlim([initialTime - pSettings.tfWindowPixelsX/2, initialTime + dateSearchSpan + pSettings.tfWindowPixelsX/2])
+        ylim([TofLimLow - pSettings.tfWindowPixelsY/2, TofLimHigh + pSettings.tfWindowPixelsY/2])
     end
 
     %Update local variables to the optimal solution
