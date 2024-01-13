@@ -50,39 +50,39 @@ rMin = bodyRadius + 100000 * 1e3; %[km] Sun
 
 %% Orbital parameters
 seed = floor(rand() * 100000);
-rng(seed);
+rng(77743);
 %--First Orbit Parameters--
 %Semimajor axis
 %a_initial= 6800*1000;
-a_initial = (0.1 + 10*rand())*150*10^9;
+a_initial = 150*10^9;%(0.1 + 10*rand())*150*10^9;
 %Period of the orbit
 P1 = 2*pi/sqrt(mju/a_initial^3);
 %Time of last perigee pass
-Tp1 = rand() * P1;
+Tp1 = 0;%rand() * P1;
 %Eccentricity
-e1 = rand() * 0.95;
+e1 = 0;%rand() * 0.95;
 %Argument of perigee
-omega1 = rand() * 2 * pi;
+omega1 = 0;%rand() * 2 * pi;
 
 %--Second Orbit Parameters--
 %Semimajor axis
 %a_final = 384748*1000;
-a_final = (0.1 + 10*rand())*150*10^9;
+a_final = 225*10^9;%(0.1 + 10*rand())*150*10^9;
 %Period of the orbit
 P2 = 2*pi/sqrt(mju/a_final^3);
 %Time of last perigee pass
-Tp2 = rand() * P2;
+Tp2 = 0;%rand() * P2;
 %Eccentricity
-e2 = rand() * 0.95;
+e2 = 0;%rand() * 0.95;
 %Argument of perigee
-omega2 = rand() * 2 * pi;
+omega2 = 0;%rand() * 2 * pi;
 
 %% Program settings
 %Number of additional rotations around central body
 N = 0;
 
 %Are unsolvable positions filled in with maxDepthN options
-useMultiorbitFilling = 1;
+useMultiorbitFilling = 0;
 %What is the maximum depth searched to
 maxDepthN = 2;
 
@@ -104,7 +104,7 @@ dAdjustment = 2;
 safeTransferAngleMultiplier = 2;
 
 %Maximum allowed radius
-rMax = 1000*max(a_initial, a_final);
+rMax = 10*max(a_initial, a_final);
 
 %Spacecraft mass [16U CubeSat]
 m = 32; %kg
@@ -115,7 +115,7 @@ optimizeDV = 1;
 optimizeDATE = 1;
 
 %Accuracies of approximation
-intApprox = 100;
+intApprox = 50;
 plotAccuracy = 1000;
 
 %Doesn't change, but here not to be a hardcoded value
@@ -150,7 +150,7 @@ transferWindowSearchOption = 3;
 option2starts = 2;
 
 %Is the transfer window plotted
-visualizeTransferWindow = 1;
+visualizeTransferWindow = 0;
 
 %Set up the initial deltaV value for plotting
 initial_DeltaV = 1e24; %A big number
@@ -164,7 +164,7 @@ opt_d_lim_fzero = optimset('TolFun', 1e2, 'TolX', 1e-15, 'Display', 'off');
 opt_dv_fminsearch = optimset('TolFun',1e2, 'TolX', min(P1, P2)/1000);
 opt_dv_global = optimset('TolFun',1e2, 'TolX', 1e4);
 opt_minTheta_fbnd = optimset('TolFun', 1e-2, 'TolX', 1e-2);
-opt_d_bounds_fzero = optimset('TolFun', 1e-3, 'OutputFcn', @fOutputCheckerFunction);
+opt_d_bounds_fzero = optimset('TolFun', 1e-3);%, 'OutputFcn', @fOutputCheckerFunction);
 
 %% Calculating the orbital parameters
 n1 = sqrt(mju/a_initial^3);
@@ -251,7 +251,7 @@ theta_vec_plot = linspace(theta_0, theta_f, plotAccuracy);
 %% TOF optimization + result plotting
 if optimizeTOF == 1 
     try
-        %TOF solution
+        TOF solution
         tfTimeHandle = @(d_in) transferTimeSolution(d_in, paramVector, pState.tof_current, theta_vec_plot);
         d_solution = fzero(tfTimeHandle, [d_minimum, d_maximum]);%, opt_tof_fzero_acc);
     catch
@@ -393,9 +393,6 @@ if optimizeDATE == 1
     %-- Solve transfer window using a set grid of dates and TOFs --
     if transferWindowSearchOption == 3
         pSettings.solveDate = 1;
-
-        failedOrbits = 0;
-        testedOrbits = 0;
         for time = linspace(initialTime, initialTime + dateSearchSpan, gsPointCount)
             fprintf("Optimizing: <strong>%.1f %%</strong> ---- Best %cV Found: <strong>%.0f m/s</strong> \n", 100 * (time - initialTime)/(dateSearchSpan), 916, deltaResult);
             for tof = linspace(TofLimLow, TofLimHigh, gsPointCount)
@@ -405,7 +402,6 @@ if optimizeDATE == 1
             end
         end
     end
-    pause(0)
     
     %All searches are complimented by a final search for the local minimum 
     %close to the best found solution
