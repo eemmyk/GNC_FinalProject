@@ -2,14 +2,6 @@
 clear;
 close all;
 
-%Things to change to test stuff out:
-% tf, desired time of flight
-% N, number of rotations around central body
-% theta_tilde, angle between initial and end position
-% Any of the orbital parameters
-% limits for d
-% And stuff
-
 %% Declaring globals
  
 global deltaResult resultVector;
@@ -46,11 +38,11 @@ bodyRadius = 696340 * 1e3; %[km] Sun
 
 %Minimum allowed radius
 %rMin = bodyRadius + 250 * 1e3; %[km] Earth
-rMin = bodyRadius + 100000 * 1e3; %[km] Sun
+rMin = bodyRadius + 1000000 * 1e3; %[km] Sun
 
 %% Orbital parameters
 seed = floor(rand() * 1000000);
-rng(823648);
+rng(seed);
 %--First Orbit Parameters--
 %Semimajor axis
 %a_initial= 6800*1000;
@@ -67,7 +59,7 @@ omega1 = rand() * 2 * pi;
 %--Second Orbit Parameters--
 %Semimajor axis
 %a_final = 384748*1000;
-a_final = (0.1 + 10*rand())*150*10^9;
+a_final = 225e9;%(0.1 + 10*rand())*150*10^9;
 %Period of the orbit
 P2 = 2*pi/sqrt(mju/a_final^3);
 %Time of last perigee pass
@@ -82,7 +74,7 @@ omega2 = rand() * 2 * pi;
 N = 0;
 
 %Are unsolvable positions filled in with maxDepthN options
-useMultiorbitFilling = 0;
+useMultiorbitFilling = 1;
 %What is the maximum depth searched to
 maxDepthN = 2;
 
@@ -96,7 +88,7 @@ TofLimLow = TofLowMult * TOF_average;
 TofLimHigh = TofHighMult * TOF_average;
 %--Adjustment Parameters--
 %How much the calculated TOF is increased
-TOF_corrMult = 1;
+TOF_corrMult = 1.1;
 %How much d-coefficients are changed to find new solutions
 dAdjustment = 2;
 
@@ -115,7 +107,7 @@ optimizeDV = 1;
 optimizeDATE = 1;
 
 %Accuracies of approximation
-intApprox = 50;
+intApprox = 100;
 plotAccuracy = 1000;
 
 %Doesn't change, but here not to be a hardcoded value
@@ -150,10 +142,15 @@ transferWindowSearchOption = 3;
 option2starts = 2;
 
 %Is the transfer window plotted
-visualizeTransferWindow = 0;
+visualizeTransferWindow = 1;
 
 %Set up the initial deltaV value for plotting
 initial_DeltaV = 1e24; %A big number
+
+%% Configure subplots
+subXCount = optimizeTOF + optimizeDV + optimizeDATE;
+subYCount = 2;
+subIndex = 1;
 
 %% Define some optimization options here for speeeeeeeeed!
 opt_tof_fzero = optimset('TolFun', 1e2, 'Display', 'off');
@@ -261,7 +258,9 @@ if optimizeTOF == 1
     end
 
     %Plot results of TOF solved trajectory
-    figure;
+    figure(1);
+    subplot(subYCount, subXCount, subIndex)
+    subIndex = subIndex + 1;
     hold on;
 
     plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
@@ -304,7 +303,7 @@ if optimizeTOF == 1
 
     end
 
-    legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbit");
+    legend("Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
     axis equal
 
 end
@@ -337,17 +336,20 @@ if optimizeDV == 1
 
     time_t = trapz(theta_vec_plot, fTimeFunction(d_opt, theta_vec_plot, paramVector_opt));
     
-    figure;
+    %figure;
+    figure(1);
+    subplot(subYCount, subXCount, subIndex)
+    subIndex = subIndex + 1;
     hold on;
     
     plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
     plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
-    
+    rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
+
     plot(cos(theta1_opt) * r1_opt, sin(theta1_opt) * r1_opt,'or', 'MarkerSize',5,'MarkerFaceColor','g')
     plot(cos(theta2_opt) * r2_opt, sin(theta2_opt) * r2_opt,'or', 'MarkerSize',5,'MarkerFaceColor','r')
     plot(cos(omega2 + nu2_i_opt) * r2_i_opt, sin(omega2 + nu2_i_opt) * r2_i_opt,'or', 'MarkerSize',5,'MarkerFaceColor','k')
         
-    rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
     
     x = cos(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_plot, paramVector_opt);
     y = sin(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_plot, paramVector_opt);
@@ -355,7 +357,7 @@ if optimizeDV == 1
     plot(x, y, "Color", [0.2 0.7 0.2]);
         
     title(sprintf("deltaV optimized trajectory\nTransfer date: %s\nAchieved TOF: %s\n%.0f m/s", secToTime(initialTime), secToTime(time_t), deltaV_opt));
-    legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbit");
+    legend("Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
     axis equal
 end
 %% Optimize the transfer date for deltaV + result plotting
@@ -369,8 +371,10 @@ if optimizeDATE == 1
     pState.tof_current = TOF_estimation;
 
     if visualizeTransferWindow == 1
-        figure('WindowState', 'maximized');
+        figure(2);
         hold on;
+        %Maximize window
+        set(gcf,'WindowState','maximized')
     end
 
     pState.failedOrbits = 0;
@@ -403,7 +407,7 @@ if optimizeDATE == 1
     if transferWindowSearchOption == 3
         pSettings.solveDate = 1;
         for time = linspace(initialTime, initialTime + dateSearchSpan, gsPointCount)
-            fprintf("Optimizing: <strong>%.1f %%</strong> ---- Best %cV Found: <strong>%.0f m/s</strong> \n", 100 * (time - initialTime)/(dateSearchSpan), 916, deltaResult);
+            fprintf("Optimizing: <strong>%.1f %%</strong> ---- Best %cV Found: <strong>%.0f m/s</strong>\n", 100 * (time - initialTime)/(dateSearchSpan), 916, deltaResult);
             for tof = linspace(TofLimLow, TofLimHigh, gsPointCount)
                 pState.currentTime = time;
                 pState.tof_current = tof;
@@ -423,7 +427,6 @@ if optimizeDATE == 1
     fprintf("Tested %.0f transfer windows out of which %1.f %% (%.0f) were achievable\n", pState.testedOrbits, 100 * (1 - pState.failedOrbits / pState.testedOrbits), pState.testedOrbits - pState.failedOrbits);
 
     if visualizeTransferWindow == 1
-        %plot3(tw_graph(:,1), tw_graph(:,2), tw_graph(:,3),'o','Color','k','MarkerSize',10)
         title(sprintf("DeltaV Map For Different Launch Dates and Time of Flights"));
         xlabel("Time past initial Time [s]");
         ylabel("Time of Flight [s]")
@@ -447,8 +450,9 @@ if optimizeDATE == 1
     deltaV_opt = trapz(theta_vec_plot, abs(fJerkFunction(d_opt, theta_vec_plot, paramVector_opt)));
 
     time_t = trapz(theta_vec_plot, fTimeFunction(d_opt, theta_vec_plot, paramVector_opt));
-
-    figure;
+    
+    figure(1);
+    subplot(subYCount, subXCount, subIndex)
     hold on;
     
     plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
@@ -466,30 +470,37 @@ if optimizeDATE == 1
     plot(x, y, "Color", [0.2 0.7 0.2]);
 
     title(sprintf("Full transfer window solution\nTransfer date: %s\nAchieved TOF: %s\n%.0f m/s",secToTime(dateOptimal), secToTime(time_t), deltaV_opt));
-    legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbit");
+    legend("Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
     axis equal
 end
 
 %% Plotting thrust curves
-figure;
+subplot(subYCount, subXCount, (1:subXCount) + subXCount)
 hold on;
+legendTexts = {};
 if optimizeTOF == 1
     % Plot results of tof optimized trajectory
-    plot(thrustCurve_tof(1, :), m*thrustCurve_tof(2, :));
+    plot(thrustCurve_tof(1, :), 1000*m*thrustCurve_tof(2, :));
+    legendTexts(end+1) = {'TOF solution trajectory'};
 end
 if optimizeDV == 1
     % Plot results of dV optimized trajectory
-    plot(thrustCurve_dV(1, :), m*thrustCurve_dV(2, :));
+    plot(thrustCurve_dV(1, :), 1000*m*thrustCurve_dV(2, :));
+    legendTexts(end+1) = {'deltaV Optimized TOF'};
 end
 if optimizeDATE == 1
     % Plot results of date optimized trajectory
-    plot(thrustCurve_date(1, :), m*thrustCurve_date(2, :));
+    plot(thrustCurve_date(1, :), 1000*m*thrustCurve_date(2, :));
+    legendTexts(end+1) = {'deltaV Optimized TOF and Date'};
 end
 
 title(sprintf("Comparision of thrust curves for all solutions"));
-legend("TOF solution trajectory", "deltaV Optimized TOF", "deltaV Optimized TOF and Date");  
+legend(legendTexts);  
 xlabel("theta");
-ylabel("thurst [N]");
+ylabel("thurst [mN]");
+
+%Maximize window
+set(gcf,'WindowState','maximized')
 
 %% Second to time conversion
 function [timestring] = secToTime(seconds)

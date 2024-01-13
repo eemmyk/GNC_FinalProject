@@ -104,7 +104,7 @@ function [] = updateParameters(updateTOF, pSettings)
     end
     
     theta_vec = linspace(pSettings.theta_0, theta_f, pSettings.intApprox);
-    theta_vec_acc = linspace(pSettings.theta_0, theta_f, pSettings.intApprox);
+    theta_vec_acc = linspace(pSettings.theta_0, theta_f, pSettings.plotAccuracy);
 
     paramVector = [pSettings.mju, gamma1, gamma2, theta_f, theta1_dot, theta2_dot, r1, r2, theta1, theta2, nu2_i, r2_i];
 
@@ -113,7 +113,7 @@ function [] = updateParameters(updateTOF, pSettings)
     %Limit the distances geometrically
     if theta_f < pi
         %Remember the multiplier for theta_f is a test
-        objectDistance = sqrt(r1^2 + r2^2 - 2*r1*r2*cos(theta_f * 0.75));
+        objectDistance = sqrt(r1^2 + r2^2 - 2*r1*r2*cos(theta_f));
       
         alpha1 = acos((2*r1^2 - 2*r1*r2*cos(theta_f)) / (2*r1*objectDistance));
 
@@ -134,129 +134,60 @@ function [] = updateParameters(updateTOF, pSettings)
 
     endRanges = [theta_vec_acc(1:ceil(pSettings.intApprox * 0.1)), theta_vec_acc(floor(pSettings.intApprox*0.9):end)];
     
-    lastMinTheta = 0.1 * theta_f;
-    [tof_max, thetaInd] = min(fTimeMinReal(endRanges, d_minimum, paramVector, pSettings.a_initial, lastMinTheta));
-    lastMinTheta = endRanges(thetaInd);
+    tof_max = min(fTimeMinReal(endRanges, d_minimum, paramVector, pSettings.a_initial));
 
-    while tof_max < 0
-        %Move a relative amount towards larger values and an arbitary
-        %small step to cross zero properly
+    if tof_max < 0
+        y0 = tof_max;
+        x0 = d_minimum;
+        
         if d_minimum < 0
             d_minimum = d_minimum / pSettings.dAdjustment + 1e-15;
         else
             d_minimum = d_minimum * pSettings.dAdjustment + 1e-15;
         end
 
-        [tof_max, thetaInd] = min(fTimeMinReal(endRanges, d_minimum, paramVector, pSettings.a_initial, lastMinTheta));
-        lastMinTheta = endRanges(thetaInd);
+        tof_max = min(fTimeMinReal(endRanges, d_minimum, paramVector, pSettings.a_initial));
+        
+        y1 = tof_max;
+        x1 = d_minimum;
 
-        %pState.No real solutions exist for orbit
-        if d_minimum > 1
-            d_maximum = 1;
-            resultVector = [d_minimum, d_maximum, TOF_estimation];
-            return
-        end
+        k = (y1-y0)/(x1-x0);
+        
+        %Where does the troublesome time part reach 1
+        d_minimum = (1 - y1)/k + x1;
+
     end
-
-%     %Trying newtons method
-%     tof_diff = -1/d_minimum;
-%     while tof_max < 0
-% 
-%         d_n = d_minimum;
-%         d_np1 = d_n - tof_max/tof_diff;
-%         [tof_max_new, thetaInd] = min(fTimeMinReal(endRanges, d_np1, paramVector, pSettings.a_initial, 0));
-%         %lastMinTheta = endRanges(thetaInd);
-%         
-%         tof_diff = -(tof_max_new - tof_max) / (d_np1 - d_n);
-% 
-%         tof_max = tof_max_new;
-%         d_minimum = d_np1;
-% 
-%         %No real solutions exist for orbit
-%         if d_minimum < -1 || d_minimum > 1
-%             d_maximum = 1;
-%             resultVector = [d_minimum, d_maximum, TOF_estimation];
-%             return
-%         end
-%     end
 
     %Calculate the maximum value for d
     d_maximum = fFindRadiusFunction(paramVector, geometricMinRadius);
 
     middleRange = theta_vec_acc(floor(pSettings.intApprox*0.4):ceil(pSettings.intApprox*0.6));
 
-    lastMinTheta = theta_f/2;
-    [tof_min, thetaInd] = min(fTimeMinReal(middleRange, d_maximum, paramVector, pSettings.a_initial, lastMinTheta));
-    lastMinTheta = endRanges(thetaInd);
+    tof_min = min(fTimeMinReal(middleRange, d_maximum, paramVector, pSettings.a_initial));
 
-%     %Trying newtons method
-%     tof_diff = 1/d_maximum;
-%     while tof_min < 0
-% 
-%         d_n = d_maximum;
-%         d_np1 = d_n - tof_min/tof_diff;
-% 
-%         [tof_min_new, thetaInd] = min(fTimeMinReal(middleRange, d_np1, paramVector, pSettings.a_initial, 0));
-%         %lastMinTheta = endRanges(thetaInd);
-% 
-%         tof_diff = (tof_min_new - tof_min) / (d_np1 - d_n);
-% 
-%         tof_min = tof_min_new;
-%         d_maximum = d_np1;
-% 
-%     end
-
-
-    while tof_min < 0
-        %Move a relative amount towards larger values and an arbitary
-        %small step to cross zero properly
+    if tof_min < 0
+        y0 = tof_min;
+        x0 = d_maximum;
+        
         if d_maximum < 0
             d_maximum = d_maximum * pSettings.dAdjustment - 1e-15;
         else
             d_maximum = d_maximum / pSettings.dAdjustment - 1e-15;
         end
 
-        [tof_min, thetaInd] = min(fTimeMinReal(middleRange, d_maximum, paramVector, pSettings.a_initial, lastMinTheta));
-        lastMinTheta = middleRange(thetaInd);
+        tof_min = min(fTimeMinReal(endRanges, d_maximum, paramVector, pSettings.a_initial));
+        
+        y1 = tof_min;
+        x1 = d_maximum;
+
+        k = (y1-y0)/(x1-x0);
+        
+        %Where does the troublesome time part reach 1
+        d_maximum = (1 - y1)/k + x1;
     end
 
     resultVector = [d_minimum, d_maximum, TOF_estimation];
 end
-
-% %% Trying out a smarter version of finding the minimum of the time equation issue part
-% % Solve maximum d-coefficient from part of the time function
-% function [timeMinImgPart] = fSmartTimeReal(d, theta, paramVector, a_initial, margin)
-%    
-%     mju = paramVector(1);
-%     gamma1 = paramVector(2);
-%     gamma2 = paramVector(3);
-%     theta_f = paramVector(4);
-%     theta1_dot = paramVector(5);
-%     theta2_dot = paramVector(6);
-%     r1 = paramVector(7);
-%     r2 = paramVector(8);
-% 
-%     
-%     a = 1/r1;
-%     b = -tan(gamma1) / r1;
-%     c = 1/(2*r1) * (mju / (r1^3 * theta1_dot^2) - 1);
-%     
-%     efg_Mat_1 = [30*theta_f^2  -10*theta_f^3  theta_f^4;
-%                 -48*theta_f     18*theta_f^2 -2*theta_f^3; 
-%                  20            -8*theta_f     theta_f^2];
-%     
-%     efg_Mat_2 = [1/r2 - (a + b*theta_f + c*theta_f^2 + d*theta_f^3);
-%                 -tan(gamma2)/r2 - (b + 2*c*theta_f + 3*d*theta_f^2); 
-%                 mju/(r2^4*theta2_dot^2) - (1/r2 + 2*c + 6*d*theta_f)];
-%     
-%     efg = 1/(2*theta_f^6) * efg_Mat_1 * efg_Mat_2;
-%     
-%     e = efg(1);
-%     f = efg(2);
-%     g = efg(3);
-%     
-%     timeMinImgPart = min(a_initial*(a + 2.*c + (6.*d + b).*theta + (12.*e + c).*theta.^2 + (20.*f + d).*theta.^3 + (30.*g + e).*theta.^4 + f.*theta.^5 + g.*theta.^6)) - margin;
-% end
 
 %% Function for finding the d-coefficient where orbit reaches r (at theta_f/2)
 function [d_sol] = fFindRadiusFunction(paramVector, rTarget)
@@ -286,7 +217,7 @@ function [angleError] = nuFromTime(nu_time, T, n, e)
 end
 
 %% Solve the bounds of the d-coefficient from part of the time function
-function [timeImgPart] = fTimeMinReal(theta, d, paramVector, a_initial, lastMinTheta)
+function [timeImgPart] = fTimeMinReal(theta, d, paramVector, a_initial)
     
     mju = paramVector(1);
     gamma1 = paramVector(2);
@@ -314,13 +245,6 @@ function [timeImgPart] = fTimeMinReal(theta, d, paramVector, a_initial, lastMinT
     e = efg(1);
     f = efg(2);
     g = efg(3);
-
-    lastMinimum = a_initial*(a + 2.*c + (6.*d + b).*lastMinTheta + (12.*e + c).*lastMinTheta.^2 + (20.*f + d).*lastMinTheta.^3 + (30.*g + e).*lastMinTheta.^4 + f.*lastMinTheta.^5 + g.*lastMinTheta.^6);
-    
-    if lastMinimum < 0
-        timeImgPart = -1;
-        return
-    end
 
     timeImgPart = a_initial*(a + 2.*c + (6.*d + b).*theta + (12.*e + c).*theta.^2 + (20.*f + d).*theta.^3 + (30.*g + e).*theta.^4 + f.*theta.^5 + g.*theta.^6);
 end
@@ -390,6 +314,6 @@ function [meetAngleError] = fSolveTofFunction(transferAngle, pSettings, pState)
 
     if meetAngleError < bestAngleError
         bestAngleError = meetAngleError;
-        bestTheta = theta_f;
+        bestTheta = transferAngle;
     end
 end
