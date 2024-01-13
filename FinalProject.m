@@ -49,33 +49,33 @@ bodyRadius = 696340 * 1e3; %[km] Sun
 rMin = bodyRadius + 100000 * 1e3; %[km] Sun
 
 %% Orbital parameters
-seed = floor(rand() * 100000);
-rng(77743);
+seed = floor(rand() * 1000000);
+rng(823648);
 %--First Orbit Parameters--
 %Semimajor axis
 %a_initial= 6800*1000;
-a_initial = 150*10^9;%(0.1 + 10*rand())*150*10^9;
+a_initial = (0.1 + 10*rand())*150*10^9;
 %Period of the orbit
 P1 = 2*pi/sqrt(mju/a_initial^3);
 %Time of last perigee pass
-Tp1 = 0;%rand() * P1;
+Tp1 = rand() * P1;
 %Eccentricity
-e1 = 0;%rand() * 0.95;
+e1 = rand() * 0.95;
 %Argument of perigee
-omega1 = 0;%rand() * 2 * pi;
+omega1 = rand() * 2 * pi;
 
 %--Second Orbit Parameters--
 %Semimajor axis
 %a_final = 384748*1000;
-a_final = 225*10^9;%(0.1 + 10*rand())*150*10^9;
+a_final = (0.1 + 10*rand())*150*10^9;
 %Period of the orbit
 P2 = 2*pi/sqrt(mju/a_final^3);
 %Time of last perigee pass
-Tp2 = 0;%rand() * P2;
+Tp2 = rand() * P2;
 %Eccentricity
-e2 = 0;%rand() * 0.95;
+e2 = rand() * 0.95;
 %Argument of perigee
-omega2 = 0;%rand() * 2 * pi;
+omega2 = rand() * 2 * pi;
 
 %% Program settings
 %Number of additional rotations around central body
@@ -250,26 +250,20 @@ theta_vec_plot = linspace(theta_0, theta_f, plotAccuracy);
 
 %% TOF optimization + result plotting
 if optimizeTOF == 1 
+    solutionFound = 0;
     try
-        TOF solution
+        %TOF solution
         tfTimeHandle = @(d_in) transferTimeSolution(d_in, paramVector, pState.tof_current, theta_vec_plot);
         d_solution = fzero(tfTimeHandle, [d_minimum, d_maximum]);%, opt_tof_fzero_acc);
+        solutionFound = 1;
     catch
         fprintf("Inital Time of Flight guess not achievable\n")
-        d_solution = (d_minimum + d_maximum)/2;
     end
-
-    thrustCurve_tof = [theta_vec_plot; fThrustFunction(d_solution, theta_vec_plot, paramVector)];    
-
-    deltaV_tof = trapz(theta_vec_plot, abs(fJerkFunction(d_solution, theta_vec_plot, paramVector)));
-    pState.initial_DeltaV = deltaV_tof;
-    
-    time_t = trapz(theta_vec_plot, fTimeFunction(d_solution, theta_vec_plot, paramVector));
 
     %Plot results of TOF solved trajectory
     figure;
     hold on;
-    
+
     plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
     plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
     
@@ -278,24 +272,39 @@ if optimizeTOF == 1
     plot(cos(omega2 + nu2_i) * r2_i, sin(omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')
         
     rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
+        
+    if solutionFound == 1
+        thrustCurve_tof = [theta_vec_plot; fThrustFunction(d_solution, theta_vec_plot, paramVector)];    
     
-    x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, paramVector);
-    y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, paramVector);
-    plot(x, y, "Color", [0.2 0.7 0.2]);
+        deltaV_tof = trapz(theta_vec_plot, abs(fJerkFunction(d_solution, theta_vec_plot, paramVector)));
+        pState.initial_DeltaV = deltaV_tof;
+        
+        time_t = trapz(theta_vec_plot, fTimeFunction(d_solution, theta_vec_plot, paramVector));
+   
+        x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, paramVector);
+        y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, paramVector);
+        plot(x, y, "Color", [0.2 0.7 0.2]);
 
-%     x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_vec_plot, paramVector);
-%     y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_vec_plot, paramVector);
-%     time_max = trapz(theta_vec_plot, fTimeFunction(d_minimum, theta_vec_plot, paramVector));
-% 
-%     plot(x, y, "Color", [0.5 0.9 0.5]);
-% 
-%     x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_vec_plot, paramVector);
-%     y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_vec_plot, paramVector);
-%     time_min = trapz(theta_vec_plot, fTimeFunction(d_maximum, theta_vec_plot, paramVector));
-%     plot(x, y, "Color", [0.5 0.9 0.5]);
-    
-    title(sprintf("TOF solution trajectory\nTarget TOF: %s\nAchieved TOF: %s\nRequired deltaV: %.0f m/s", secToTime(TOF_estimation), secToTime(time_t), deltaV_tof));
-    legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbits");
+        title(sprintf("TOF solution trajectory\nTarget TOF: %s\nAchieved TOF: %s\nRequired deltaV: %.0f m/s", secToTime(TOF_estimation), secToTime(time_t), deltaV_tof));
+   
+    else
+        x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_vec_plot, paramVector);
+        y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_vec_plot, paramVector);
+        time_max = trapz(theta_vec_plot, fTimeFunction(d_minimum, theta_vec_plot, paramVector));
+        plot(x, y, "Color", [0.5 0.9 0.5]);
+
+        x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_vec_plot, paramVector);
+        y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_vec_plot, paramVector);
+        time_min = trapz(theta_vec_plot, fTimeFunction(d_maximum, theta_vec_plot, paramVector));
+        plot(x, y, "Color", [0.5 0.9 0.5]);
+
+        title(sprintf("Inital Time of Flight guess not achievable\nTarget TOF: %s\nMinimum Achieved TOF: %s\nMaximum Achieved TOF: %s", secToTime(TOF_estimation), secToTime(time_min), secToTime(time_max)));
+        
+        thrustCurve_tof = [0;0];
+
+    end
+
+    legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbit");
     axis equal
 
 end
@@ -346,7 +355,7 @@ if optimizeDV == 1
     plot(x, y, "Color", [0.2 0.7 0.2]);
         
     title(sprintf("deltaV optimized trajectory\nTransfer date: %s\nAchieved TOF: %s\n%.0f m/s", secToTime(initialTime), secToTime(time_t), deltaV_opt));
-    legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbits");
+    legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbit");
     axis equal
 end
 %% Optimize the transfer date for deltaV + result plotting
@@ -457,7 +466,7 @@ if optimizeDATE == 1
     plot(x, y, "Color", [0.2 0.7 0.2]);
 
     title(sprintf("Full transfer window solution\nTransfer date: %s\nAchieved TOF: %s\n%.0f m/s",secToTime(dateOptimal), secToTime(time_t), deltaV_opt));
-    legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbits");
+    legend("Initial orbit", "Target orbit", "body 1 @ t = 0", "body 2 @ t = tf", " body 2 @ t = 0", "Transfer Orbit");
     axis equal
 end
 

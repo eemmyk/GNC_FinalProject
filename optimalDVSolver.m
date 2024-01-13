@@ -60,19 +60,23 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings)
     end
 
     if pSettings.plotTransferWindow == 1
+        colorScaleDown = 4;
+
         R_Multiplier = (3*(localBestDV/pState.initial_DeltaV)^2 - 2*(localBestDV/pState.initial_DeltaV)^3);
-        G_Multiplier = 1-(3*((localBestDV-pState.initial_DeltaV)/pState.initial_DeltaV)^2 - 2*((localBestDV-pState.initial_DeltaV)/pState.initial_DeltaV)^3);
+        G_Multiplier = 1-(3*((localBestDV-pState.initial_DeltaV)/(pState.initial_DeltaV * colorScaleDown))^2 - 2*((localBestDV-pState.initial_DeltaV)/(pState.initial_DeltaV * colorScaleDown))^3);
     
-        if localBestDV > 2*pState.initial_DeltaV
+        if localBestDV > (1+colorScaleDown)*pState.initial_DeltaV
             color = [1 0 0];
         elseif localBestDV > pState.initial_DeltaV
-            color = [1 G_Multiplier 0];
+            color = [1 G_Multiplier^4 0];
         elseif localBestDV <= pState.initial_DeltaV
-            color = [R_Multiplier 1 0];
+            color = [R_Multiplier^4 1 0];
         end
 
+        color = color.*(0.75 + 0.25 * trueSolution);
+
         rectangle('Position',[pState.currentTime-0.5*pSettings.tfWindowPixelsX, pState.tof_current-0.5*pSettings.tfWindowPixelsY, ...
-                              pSettings.tfWindowPixelsX, pSettings.tfWindowPixelsY], 'FaceColor', color.*(0.5 + 0.5 * trueSolution), 'EdgeColor',color.*(0.5 + 0.5 * trueSolution));
+                              pSettings.tfWindowPixelsX, pSettings.tfWindowPixelsY], 'FaceColor', color, 'EdgeColor', color);
                            
     end   
 
