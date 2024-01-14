@@ -36,6 +36,5 @@ function [timeStep] = fTimeFunction(d, theta, paramVector)
     
     r = 1 ./ (a + b.*theta1 + c.*theta2 + d.*theta3 + e.*theta4 + f.*theta5 + g.*theta6);
 
-    timeStep = sqrt((r.^4./mju) .* (1./r + 2.*c + 6.*d.*theta1 + 12.*e.*theta2 + 20.*f.*theta3 + 30.*g.*theta4));
-    
+    timeStep = sqrt((r.^4./mju) .* (1./r + 2.*c + 6.*d.*theta1 + 12.*e.*theta2 + 20.*f.*theta3 + 30.*g.*theta4)); 
 end

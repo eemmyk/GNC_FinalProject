@@ -74,7 +74,7 @@ omega2 = rand() * 2 * pi;
 N = 0;
 
 %Are unsolvable positions filled in with maxDepthN options
-useMultiorbitFilling = 0;
+useMultiorbitFilling = 1;
 %What is the maximum depth searched to
 maxDepthN = 2;
 
@@ -107,7 +107,7 @@ optimizeDV = 1;
 optimizeDATE = 1;
 
 %Accuracies of approximation
-intApprox = 50;
+intApprox = 100;
 plotAccuracy = 1000;
 
 %Doesn't change, but here not to be a hardcoded value
@@ -130,7 +130,7 @@ dateSearchSpan = max(P1,P2);%lcm(years1, years2) * 365 * 86400;
 %Linear for option 1
 %Linear for option 2
 %Squared for option 3
-gsPointCount = 64;
+gsPointCount = 128;
 
 %Which approach to global search is taken
 %Option 1: Global search
@@ -142,7 +142,7 @@ transferWindowSearchOption = 3;
 option2starts = 2;
 
 %Is the transfer window plotted
-visualizeTransferWindow = 0;
+visualizeTransferWindow = 1;
 
 %Set up the initial deltaV value for plotting
 initial_DeltaV = 1e24; %A big number
@@ -312,6 +312,8 @@ if optimizeTOF == 1
 
         theta_f = paramVector(4);
         theta1 = paramVector(9);
+        d_minimum = resultVector(1);
+        d_maximum = resultVector(2);
         TOF_estimation = resultVector(3);
 
         theta_vec_plot = linspace(theta_0, theta_f, plotAccuracy);
@@ -547,7 +549,7 @@ nexttile([subYCount-2, 2])
 bar(1, resultsDeltaVs./1000)
 
 legendTexts = {};
-if optimizeTOF == 1
+if (optimizeTOF == 1) && (solutionFound == 1)
     legendTexts(end+1) = {'TOF solution'};
 end
 if optimizeDV == 1
