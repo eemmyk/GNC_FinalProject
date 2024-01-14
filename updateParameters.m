@@ -1,5 +1,5 @@
 function [] = updateParameters(updateTOF, pSettings)
-    global theta_vec TOF_estimation pState;
+    global theta_vec theta_super TOF_estimation pState;
 
     %Outgoing globals
     global resultVector paramVector
@@ -104,7 +104,9 @@ function [] = updateParameters(updateTOF, pSettings)
     end
     
     theta_vec = linspace(pSettings.theta_0, theta_f, pSettings.intApprox);
-    theta_vec_acc = linspace(pSettings.theta_0, theta_f, pSettings.plotAccuracy);
+    
+    %Pre power the long vector instead of doing it many times
+    theta_super = [theta_vec; theta_vec.^2; theta_vec.^3; theta_vec.^4; theta_vec.^5; theta_vec.^6];
 
     paramVector = [pSettings.mju, gamma1, gamma2, theta_f, theta1_dot, theta2_dot, r1, r2, theta1, theta2, nu2_i, r2_i];
 
@@ -117,10 +119,21 @@ function [] = updateParameters(updateTOF, pSettings)
       
         alpha1 = acos((2*r1^2 - 2*r1*r2*cos(theta_f)) / (2*r1*objectDistance));
 
-        objectToMax2 = sin((pi/2)-alpha1) * objectDistance / sin(2*pi - theta_f);
+%         objectToMax2 = sin((pi/2)-alpha1) * objectDistance / sin(2*pi - theta_f);
+% 
+%         geometricMaxRadius = sqrt(objectToMax2^2 + r2^2);
 
-        geometricMaxRadius = sqrt(objectToMax2^2 + r2^2);
-        geometricMaxRadius = min(geometricMaxRadius, pSettings.rMax);
+        coord_A = tan(theta1+gamma1+pi/2);
+        coord_B = tan(theta2+gamma2+pi/2);
+        coord_C = -tan(theta1+gamma1+pi/2)*cos(theta1)*r1+sin(theta1)*r1;
+        coord_D = -tan(theta2+gamma2+pi/2)*cos(theta2)*r2+sin(theta2)*r2;
+        
+        x_max = (coord_D - coord_C) / (coord_B - coord_A);
+        y_max = coord_A * (coord_D - coord_C) / (coord_B - coord_A) + coord_C;
+
+        altGeometricMaxRadius = sqrt(x_max^2 + y_max^2);
+
+        geometricMaxRadius = min(altGeometricMaxRadius, pSettings.rMax);
 
         geometricMinRadius = sin(alpha1) * r1;
         geometricMinRadius = max(geometricMinRadius, pSettings.rMin);
@@ -132,12 +145,13 @@ function [] = updateParameters(updateTOF, pSettings)
     %Calculate the minimum value for d
     d_minimum = fFindRadiusFunction(paramVector, geometricMaxRadius);
 
-    endRanges = [theta_vec_acc(1:ceil(pSettings.intApprox * 0.1)), theta_vec_acc(floor(pSettings.intApprox*0.9):end)];
+    endRanges = [theta_super(:,1:ceil(pSettings.intApprox * 0.15)), theta_super(:,floor(pSettings.intApprox*0.85):end)];
     
-    tof_max = min(fTimeMinReal(endRanges, d_minimum, paramVector, pSettings.a_initial));
+    [timePart, radiusPart] = fTimeMinReal(endRanges, d_minimum, paramVector, pSettings.a_initial);
 
-    if tof_max < 0
-        y0 = tof_max;
+    if (timePart < 0) || (radiusPart < 0)
+        y0_1 = timePart;
+        y0_2 = radiusPart;
         x0 = d_minimum;
         
         if d_minimum < 0
@@ -146,27 +160,39 @@ function [] = updateParameters(updateTOF, pSettings)
             d_minimum = d_minimum * pSettings.dAdjustment + 1e-15;
         end
 
-        tof_max = min(fTimeMinReal(endRanges, d_minimum, paramVector, pSettings.a_initial));
+        [timePart, radiusPart] = fTimeMinReal(endRanges, d_minimum, paramVector, pSettings.a_initial);
         
-        y1 = tof_max;
+        y1_1 = timePart;
+        y1_2 = radiusPart;
         x1 = d_minimum;
 
-        k = (y1-y0)/(x1-x0);
-        
-        %Where does the troublesome time part reach 1
-        d_minimum = (1 - y1)/k + x1;
+        k1 = (y1_1-y0_1)/(x1-x0);
+        k2 = (y1_2-y0_2)/(x1-x0);
+
+        %Where does the troublesome time part reach 0.1
+        d_minimum_1 = (0.1 - y1_1)/k1 + x1;
+        d_minimum_2 = (0.01 - y1_2)/k2 + x1;
+
+        if radiusPart < 0
+            d_minimum = max(d_minimum_1, d_minimum_2);
+        else
+            d_minimum = d_minimum_1;
+        end
+
+        %[timePart, radiusPart] = fTimeMinReal(endRanges, d_minimum, paramVector, pSettings.a_initial);
 
     end
 
     %Calculate the maximum value for d
     d_maximum = fFindRadiusFunction(paramVector, geometricMinRadius);
 
-    middleRange = theta_vec_acc(floor(pSettings.intApprox*0.4):ceil(pSettings.intApprox*0.6));
+    middleRange = theta_super(:,floor(pSettings.intApprox*0.4):ceil(pSettings.intApprox*0.6));
 
-    tof_min = min(fTimeMinReal(middleRange, d_maximum, paramVector, pSettings.a_initial));
+    [timePart, radiusPart] = fTimeMinReal(middleRange, d_maximum, paramVector, pSettings.a_initial);
 
-    if tof_min < 0
-        y0 = tof_min;
+    if (timePart < 0) || (radiusPart < 0)
+        y0_1 = timePart;
+        %y0_2 = radiusPart;
         x0 = d_maximum;
         
         if d_maximum < 0
@@ -175,15 +201,24 @@ function [] = updateParameters(updateTOF, pSettings)
             d_maximum = d_maximum / pSettings.dAdjustment - 1e-15;
         end
 
-        tof_min = min(fTimeMinReal(endRanges, d_maximum, paramVector, pSettings.a_initial));
+        [timePart, radiusPart] = fTimeMinReal(endRanges, d_maximum, paramVector, pSettings.a_initial);
         
-        y1 = tof_min;
+        y1_1 = timePart;
+        %y1_2 = radiusPart;
         x1 = d_maximum;
 
-        k = (y1-y0)/(x1-x0);
-        
-        %Where does the troublesome time part reach 1
-        d_maximum = (1 - y1)/k + x1;
+        k1 = (y1_1-y0_1)/(x1-x0);
+        %k2 = (y1_2-y0_2)/(x1-x0);
+
+        %Where does the troublesome time part reach 0.1
+        d_maximum_1 = (0.1 - y1_1)/k1 + x1;
+        %d_maximum_2 = (0.01 - y1_2)/k2 + x1;
+
+        %d_maximum = min(d_maximum_1, d_maximum_2);
+        d_maximum = d_maximum_1;
+
+        [timePart, radiusPart] = fTimeMinReal(endRanges, d_maximum, paramVector, pSettings.a_initial);
+
     end
 
     resultVector = [d_minimum, d_maximum, TOF_estimation];
@@ -217,8 +252,15 @@ function [angleError] = nuFromTime(nu_time, T, n, e)
 end
 
 %% Solve the bounds of the d-coefficient from part of the time function
-function [timeImgPart] = fTimeMinReal(theta, d, paramVector, a_initial)
-    
+function [timeImgPart, radiusImgPart] = fTimeMinReal(theta, d, paramVector, a_initial)
+
+    theta1 = theta(1,:);
+    theta2 = theta(2,:);
+    theta3 = theta(3,:);
+    theta4 = theta(4,:);
+    theta5 = theta(5,:);
+    theta6 = theta(6,:);
+
     mju = paramVector(1);
     gamma1 = paramVector(2);
     gamma2 = paramVector(3);
@@ -227,7 +269,9 @@ function [timeImgPart] = fTimeMinReal(theta, d, paramVector, a_initial)
     theta2_dot = paramVector(6);
     r1 = paramVector(7);
     r2 = paramVector(8);
-    
+ 
+    %syms theta d
+
     a = 1/r1;
     b = -tan(gamma1) / r1;
     c = 1/(2*r1) * (mju / (r1^3 * theta1_dot^2) - 1);
@@ -246,7 +290,8 @@ function [timeImgPart] = fTimeMinReal(theta, d, paramVector, a_initial)
     f = efg(2);
     g = efg(3);
 
-    timeImgPart = a_initial*(a + 2.*c + (6.*d + b).*theta + (12.*e + c).*theta.^2 + (20.*f + d).*theta.^3 + (30.*g + e).*theta.^4 + f.*theta.^5 + g.*theta.^6);
+    radiusImgPart = min(a_initial*(a + b.*theta1 + c.*theta2 + d.*theta3 + e.*theta4 + f.*theta5 + g.*theta6));
+    timeImgPart = min(a_initial*(a + 2.*c + (6.*d + b).*theta1 + (12.*e + c).*theta2 + (20.*f + d).*theta3 + (30.*g + e).*theta4 + f.*theta5 + g.*theta6));
 end
 
 %% For Solving the initial TOF guess 

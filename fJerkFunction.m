@@ -1,4 +1,11 @@
-function [jerk_vec] = fJerkFunction(d, theta, paramVector)%, plotGamma)
+function [jerk_vec] = fJerkFunction(d, theta, paramVector)
+
+    theta1 = theta(1,:);
+    theta2 = theta(2,:);
+    theta3 = theta(3,:);
+    theta4 = theta(4,:);
+    theta5 = theta(5,:);
+    theta6 = theta(6,:);
 
     mju = paramVector(1);
     gamma1 = paramVector(2);
@@ -27,11 +34,11 @@ function [jerk_vec] = fJerkFunction(d, theta, paramVector)%, plotGamma)
     f = efg(2);
     g = efg(3);
     
-    r = 1 ./ (a + b.*theta + c.*theta.^2 + d.*theta.^3 + e.*theta.^4 + f.*theta.^5 + g.*theta.^6);
-    gamma = atan(-r .* (b + 2.*c.*theta + 3.*d.*theta.^2 + 4.*e.*theta.^3 + 5.*f.*theta.^4 + 6.*g.*theta.^5));
+    r = 1 ./ (a + b.*theta1 + c.*theta2 + d.*theta3 + e.*theta4 + f.*theta5 + g.*theta6);
+    gamma = atan(-r .* (b + 2.*c.*theta1 + 3.*d.*theta2 + 4.*e.*theta3 + 5.*f.*theta4 + 6.*g.*theta5));
     
-    thetaDotFunction = sqrt((mju./r.^4) ./ (1./r + 2.*c + 6.*d.*theta + 12.*e.*theta.^2 + 20.*f.*theta.^3 + 30.*g.*theta.^4));
-    thrustFunction = -mju ./ (2 .* r.^3 .* cos(gamma)) .* (6.*d + 24.*e.*theta + 60.*f.*theta.^2 + 120.*g.*theta.^3 - tan(gamma)./r) ./ (1./r + 2.*c + 6.*d.*theta + 12.*e.*theta.^2 + 20.*f.*theta.^3 + 30.*g.*theta.^4).^2;
+    thetaDotFunction = sqrt((mju./r.^4) ./ (1./r + 2.*c + 6.*d.*theta1 + 12.*e.*theta2 + 20.*f.*theta3 + 30.*g.*theta4));
+    thrustFunction = -mju ./ (2 .* r.^3 .* cos(gamma)) .* (6.*d + 24.*e.*theta1 + 60.*f.*theta2 + 120.*g.*theta3 - tan(gamma)./r) ./ (1./r + 2.*c + 6.*d.*theta1 + 12.*e.*theta2 + 20.*f.*theta3 + 30.*g.*theta4).^2;
     
     jerk_vec = thrustFunction./thetaDotFunction;
 
