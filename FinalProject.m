@@ -42,7 +42,7 @@ rMin = bodyRadius + 1000000 * 1e3; %[km] Sun
 
 %% Orbital parameters
 seed = floor(rand() * 1000000);
-rng(seed);
+rng(608763);
 %--First Orbit Parameters--
 %Semimajor axis
 %a_initial= 6800*1000;
@@ -139,7 +139,7 @@ gsPointCount = 64;
 transferWindowSearchOption = 3;
 
 %How many start TOFs option 2 tries (even 1->2 improves accuracy tremendously)
-option2starts = 2;
+option2starts = 3;
 
 %Is the transfer window plotted
 visualizeTransferWindow = 1;
@@ -467,8 +467,9 @@ if optimizeDATE == 1
     pState.testedOrbits = 0;
     %-- Solve transfer window using Global Search --
     if transferWindowSearchOption == 1
+        pSettings.solveDate = 1;
         gs = MultiStart;
-        numberOfStartPoints = gsPointCount;
+        numberOfStartPoints = gsPointCount*5;
         dvHandle = @(tof) optimalDVSolver(tof, pSettings);
         problem = createOptimProblem('fmincon','x0',[initialTime, TOF_average],...
         'objective',dvHandle,'lb',[initialTime, TofLimLow], ...
