@@ -130,7 +130,7 @@ dateSearchSpan = max(P1,P2);%lcm(years1, years2) * 365 * 86400;
 %Linear for option 1
 %Linear for option 2
 %Squared for option 3
-gsPointCount = 128;
+gsPointCount = 64;
 
 %Which approach to global search is taken
 %Option 1: Global search
@@ -152,6 +152,28 @@ resultsDeltaVs = [];
 subXCount = optimizeTOF + optimizeDV + optimizeDATE;
 subYCount = 5;
 tiledlayout(subYCount, subXCount*3 + 2, 'Padding', 'tight', 'TileSpacing', 'tight')
+
+
+%Create colormap
+cmap = zeros(100, 3);
+dv_v = linspace(1, 0, 100);
+dv_i = 0.5;
+
+for i = 1:100
+    dv = dv_v(i);
+    R_Multiplier = (3.*(dv./dv_i).^2 - 2.*(dv./dv_i).^3);
+    G_Multiplier = 1-(3.*((dv-dv_i)./(dv_i)).^2 - 2.*((dv-dv_i)./(dv_i)).^3);
+    
+    if dv > 2*dv_i
+        color = [1 0 0];
+    elseif dv > dv_i
+        color = [1 G_Multiplier^4 0];
+    elseif dv <= dv_i
+        color = [R_Multiplier^4 1 0];
+    end
+    
+   cmap(i,:) = color;
+end
 
 %% Define some optimization options here for speeeeeeeeed!
 opt_tof_fzero = optimset('TolFun', 1e1, 'Display', 'off');
@@ -437,6 +459,8 @@ if optimizeDATE == 1
         hold on;
         %Maximize window
         set(gcf,'WindowState','maximized')
+        xlim([initialTime - pSettings.tfWindowPixelsX/2, initialTime + dateSearchSpan + pSettings.tfWindowPixelsX/2])
+        ylim([TofLimLow - pSettings.tfWindowPixelsY/2, TofLimHigh + pSettings.tfWindowPixelsY/2])
     end
 
     pState.failedOrbits = 0;
@@ -489,11 +513,16 @@ if optimizeDATE == 1
     fprintf("Tested %.0f transfer windows out of which %1.f %% (%.0f) were achievable\n", pState.testedOrbits, 100 * (1 - pState.failedOrbits / pState.testedOrbits), pState.testedOrbits - pState.failedOrbits);
 
     if visualizeTransferWindow == 1
+        rectangle('Position',[dateOptimal-0.5*pSettings.tfWindowPixelsX, tof_optimal-0.5*pSettings.tfWindowPixelsY, ...
+                   pSettings.tfWindowPixelsX, pSettings.tfWindowPixelsY], 'LineWidth', 1, 'EdgeColor', 'black');
+                           
         title(sprintf("DeltaV Map For Different Launch Dates and Time of Flights"));
         xlabel("Time past initial Time [s]");
         ylabel("Time of Flight [s]")
-        xlim([initialTime - pSettings.tfWindowPixelsX/2, initialTime + dateSearchSpan + pSettings.tfWindowPixelsX/2])
-        ylim([TofLimLow - pSettings.tfWindowPixelsY/2, TofLimHigh + pSettings.tfWindowPixelsY/2])
+        colormap(cmap)
+        cb = colorbar;
+        cb.Ticks = [0, 0.5, 1];
+        cb.TickLabels = [{sprintf('More %cV', 916)}, {sprintf('Same %cV', 916)}, {sprintf('Less %cV', 916)}];
     end
 
     %Update local variables to the optimal solution
