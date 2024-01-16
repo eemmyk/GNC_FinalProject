@@ -38,18 +38,18 @@ transferTime = 23*60*60; % seconds
 
 semiMajor_inner = orbitalAltitude_inner + earthRadius;
 orbitalPeriod_inner = 2*pi*sqrt((semiMajor_inner^3)/mu);
-r1 = semiMajor_inner;
-e1 = 0.2;
+e1 = 0.4;
 r1_orbit = (semiMajor_inner*(1 - e1^2))./(1 + e1*cos(theta));
+r1 = r1_orbit(1);
 theta_dot1 = 1/sqrt((semiMajor_inner^3)/mu);
 
 % Outer Orbit
 
 semiMajor_outer = orbitalAltitude_outer + earthRadius;
 orbitalPeriod_outer = 2*pi*sqrt((semiMajor_outer^3)/mu);
-r2 = semiMajor_outer;
 e2 = 0.1;
-r2_orbit = (semiMajor_outer*(1 - e2^2))./(1 + e2*cos(theta));
+r2_orbit = (semiMajor_outer.*(1 - e2.^2))./(1 + e2.*cos(theta));
+r2 = semiMajor_outer;
 theta_dot2 = 1/sqrt((semiMajor_outer^3)/mu);
 
 %..........................................................................
@@ -58,12 +58,6 @@ theta_dot2 = 1/sqrt((semiMajor_outer^3)/mu);
 
 gamma1 = pi/20;
 gamma2 = -pi/20;
-
-%..........................................................................
-% Finding the transfer time calculated by the constants
-%..........................................................................
-
-d = fminsearch(@dOptimiser, 1e-12);
 
 %..........................................................................
 % Coefficients Definitions
@@ -77,24 +71,30 @@ c = (1/(2*r1))*((mu/((r1^3)*theta_dot1^2)) - 1);
 
 % Next, e, f, and g are found through use of the syms package
 
-syms theta_f_ theta_dot_ r2_ a_ b_ c_ d_ e_ f_ g_ gamma2_ mu_ r_ theta_ tf_
+% syms theta_f_ theta_dot_ r2_ a_ b_ c_ d_ e_ f_ g_ gamma2_ mu_ r_ theta_ tf_
+% 
+% efgMatrix1 = [30*theta_f_^2, -10*theta_f_^3, theta_f_^4;
+%               -48*theta_f_, 18*theta_f_^2, -2*theta_f_^3;
+%               20, -8*theta_f_, theta_f_^2];
+% efgMatrix2 = [(1/r2_) - (a_ + b_*theta_f_ + c_*theta_f_^2 + d_*theta_f_^3);
+%               -(tan(gamma2_)/r2_) - (b_ + 2*c_*theta_f_ + 3*d_*theta_f_^2);
+%               (mu_/((r2_^4)*theta_dot_^2)) - ((1/r2_) + 2*c_ + 6*d_*theta_f_)];
+% efgSolution_sym = (1/(2*theta_f_^6))*efgMatrix1*efgMatrix2;
+% 
+% efgSolution = subs(efgSolution_sym, [theta_f_, theta_dot_, r2_, a_, b_, c_, d_, gamma2_, mu_], ...
+%                    [theta_f, theta_dot2, r2, a, b, c, d, gamma2, mu]);
+% 
+% efgSolution = double(efgSolution);
+% 
+% e = efgSolution(1);
+% f = efgSolution(2);
+% g = efgSolution(3);
 
-efgMatrix1 = [30*theta_f_^2, -10*theta_f_^3, theta_f_^4;
-              -48*theta_f_, 18*theta_f_^2, -2*theta_f_^3;
-              20, -8*theta_f_, theta_f_^2];
-efgMatrix2 = [(1/r2_) - (a_ + b_*theta_f_ + c_*theta_f_^2 + d_*theta_f_^3);
-              -(tan(gamma2_)/r2_) - (b_ + 2*c_*theta_f_ + 3*d_*theta_f_^2);
-              (mu_/((r2_^4)*theta_dot_^2)) - ((1/r2_) + 2*c_ + 6*d_*theta_f_)];
-efgSolution_sym = (1/(2*theta_f_^6))*efgMatrix1*efgMatrix2;
+%..........................................................................
+% Finding the transfer time calculated by the constants
+%..........................................................................
 
-efgSolution = subs(efgSolution_sym, [theta_f_, theta_dot_, r2_, a_, b_, c_, d_, gamma2_, mu_], ...
-                   [theta_f, theta_dot2, r2, a, b, c, d, gamma2, mu]);
-
-efgSolution = double(efgSolution);
-
-e = efgSolution(1);
-f = efgSolution(2);
-g = efgSolution(3);
+d = fminsearch(@dOptimiser, 1e-12);
 
 %..........................................................................
 % Plotting Section
@@ -109,9 +109,9 @@ hold on
 plot(x, y, 'LineStyle', '--', 'DisplayName', 'Trajectory', 'Color', 'k')
 plot(0, 0, 'Marker', 'o', 'MarkerFaceColor', 'b', 'DisplayName', 'Earth', 'MarkerEdgeColor', 'b', 'LineStyle', 'none')
 
-plot(cos(theta).*r1_orbit, sin(theta).*r1_orbit)
+plot(cos(theta).*r1_orbit, sin(theta).*r1_orbit, 'Color', 'k', 'DisplayName', 'Inner Orbit')
 
-plot(cos(theta).*r2_orbit, sin(theta).*r2_orbit)
+plot(cos(theta).*r2_orbit, sin(theta).*r2_orbit, 'Color', 'k', 'DisplayName', 'Outer Orbit')
 
 hold off
 xlabel('Distance From Earth (m)')
