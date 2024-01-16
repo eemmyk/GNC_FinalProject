@@ -42,7 +42,7 @@ rMin = bodyRadius + 1000000 * 1e3; %[km] Sun
 
 %% Orbital parameters
 seed = floor(rand() * 1000000);
-rng(608763);
+rng(seed);
 %--First Orbit Parameters--
 %Semimajor axis
 %a_initial= 6800*1000;
@@ -393,7 +393,7 @@ if optimizeDV == 1
     deltaResult = Inf;
 
     dvHandle = @(tof) optimalDVSolver(tof, pSettings);
-    tf_fuelOptimal = fminbnd(dvHandle, TofLimLow, TofLimHigh, opt_dv_fminsearch);
+    tf_fuelOptimal = fminsearch(dvHandle, (TofLimHigh + TofLimLow) / 2, opt_dv_fminsearch);
 
     %Update local variables to the optimal solution
     theta_f_opt = paramVector_opt(4);
@@ -517,7 +517,7 @@ if optimizeDATE == 1
         rectangle('Position',[dateOptimal-0.5*pSettings.tfWindowPixelsX, tof_optimal-0.5*pSettings.tfWindowPixelsY, ...
                    pSettings.tfWindowPixelsX, pSettings.tfWindowPixelsY], 'LineWidth', 1, 'EdgeColor', 'black');
                            
-        title(sprintf("DeltaV Map For Different Launch Dates and Time of Flights"));
+        title(sprintf("DeltaV Map For Different Launch Dates and Time of Flights - Seed: %.0f", seed));
         xlabel("Time past initial Time [s]");
         ylabel("Time of Flight [s]")
         colormap(cmap)

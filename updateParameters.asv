@@ -127,14 +127,14 @@ function [] = updateParameters(updateTOF, pSettings)
     theta_vec = linspace(pSettings.theta_0, theta_f, pSettings.intApprox);
     
     %Pre power the long vector instead of doing it many times
-    theta_vec1 = theta_vec;
-    theta_vec2 = theta_vec1.*theta_vec;
-    theta_vec3 = theta_vec2.*theta_vec;
-    theta_vec4 = theta_vec3.*theta_vec;
-    theta_vec5 = theta_vec4.*theta_vec;
-    theta_vec6 = theta_vec5.*theta_vec;
+    theta1_v = theta_vec;
+    theta2_v = theta1.*theta_vec;
+    theta3_v = theta2.*theta_vec;
+    theta_vec4_v = theta3.*theta_vec;
+    theta_vec5_v = theta4.*theta_vec;
+    theta_vec6_vec = theta5.*theta_vec;
     
-    theta_super = [theta_vec1; theta_vec2; theta_vec3; theta_vec4; theta_vec5; theta_vec6];
+    theta_super = [theta1; theta2; theta3; theta4; theta5; theta6];
 
     paramVector = [pSettings.mju, gamma1, gamma2, theta_f, theta1_dot, theta2_dot, r1, r2, theta1, theta2, nu2_i, r2_i];
 

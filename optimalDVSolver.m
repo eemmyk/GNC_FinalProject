@@ -1,5 +1,5 @@
 function [deltaV_o] = optimalDVSolver(inputVec, pSettings)
-    global d_solution paramVector resultVector deltaResult theta_vec theta_super pState; 
+    global d_solution paramVector resultVector deltaResult theta_super pState; 
 
     if pSettings.solveDate == 1
         pState.currentTime = inputVec(1);
@@ -33,7 +33,12 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings)
             tfTimeHandle = @(d_in) transferTimeSolution(d_in, paramVector, pState.tof_current, theta_super);
             d_solution = fzero(tfTimeHandle, [d_minimum, d_maximum], pSettings.opt_tof_fzero);
         
-            deltaV_o = trapz(theta_vec, abs(fJerkFunction(d_solution, theta_super, paramVector)));
+            dT = theta_super(1,2) - theta_super(1,1);
+            deltaV_o_Vec = abs(fJerkFunction(d_solution, theta_super, paramVector));
+            deltaV_o = dT * (deltaV_o_Vec(1) + deltaV_o_Vec(end)) / 2 + dT * sum(deltaV_o_Vec(2:end-1));
+
+
+            %deltaV_o = trapz(theta_super(1,:), abs(fJerkFunction(d_solution, theta_super, paramVector)));
             trueSolution = 1;
         catch
             d_solution = 0;
