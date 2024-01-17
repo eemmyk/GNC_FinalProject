@@ -29,12 +29,16 @@ classdef programSettings
         opt_d_lim_fzero;
         opt_minTheta_fbnd;
         opt_d_bounds_fzero;
+        opt_dv_fminsearch;
         solveDate;
         plotTransferWindow;
         useMultiorbitFilling;
         tfWindowPixelsX;
         tfWindowPixelsY;
         maxDepthN;
+        gsPointCount;
+        transferWindowSearchOption;
+        cmap;
     end
 end
 

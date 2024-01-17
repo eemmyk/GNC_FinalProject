@@ -6,7 +6,7 @@ close all;
  
 global deltaResult resultVector;
 global d_solution dateOptimal tof_optimal;
-global d_opt pState;
+global d_opt pState pSettings;
 global paramVector paramVector_opt;
 
 %% Global variable vector structures
@@ -154,7 +154,6 @@ subYCount = 5;
 tiledlayout(subYCount, subXCount*3 + 2, 'Padding', 'tight', 'TileSpacing', 'tight')
 sgtitle(sprintf("Initial Time: %s - Seed: %0.f", secToTime(initialTime, 1), rng().Seed));
 
-
 %Create colormap
 cmap = zeros(100, 3);
 dv_v = linspace(1, 0, 100);
@@ -177,8 +176,8 @@ for i = 1:100
 end
 
 %% Define some optimization options here for speeeeeeeeed!
-opt_tof_fzero = optimset('TolFun', 1e1, 'Display', 'off');
-opt_tof_fzero_acc = optimset('TolFun', 1e-15, 'TolCon', 1e-15, 'TolX', 1e-15);
+opt_tof_fzero = optimset('TolX', 1e-18, 'TolFun', 1e1, 'Display', 'off');
+opt_tof_fzero_acc = optimset('TolX', 1e-18);%, 'TolFun', 1e-15, 'TolCon', 1e-15, 'TolX', 1e-15);
 opt_nu_fzero = optimset('TolFun', 1e-3, 'TolX', 1e-3, 'Display', 'off');
 opt_tf_angle = optimset('TolFun', 1e-3, 'Display', 'off');
 opt_d_lim_fzero = optimset('TolFun', 1e2, 'TolX', 1e-15, 'Display', 'off');
@@ -237,12 +236,16 @@ pSettings.opt_tof_fzero = opt_tof_fzero;
 pSettings.opt_d_lim_fzero = opt_d_lim_fzero;
 pSettings.opt_minTheta_fbnd = opt_minTheta_fbnd;
 pSettings.opt_d_bounds_fzero = opt_d_bounds_fzero;
+pSettings.opt_dv_fminsearch = opt_dv_fminsearch;
 pSettings.solveDate = 0; %Default as 0
 pSettings.plotTransferWindow = 0; %Default as 0
 pSettings.useMultiorbitFilling = useMultiorbitFilling;
 pSettings.tfWindowPixelsX = tfWindowPixelsX;
 pSettings.tfWindowPixelsY = tfWindowPixelsY;
 pSettings.maxDepthN = maxDepthN;
+pSettings.gsPointCount = gsPointCount;
+pSettings.transferWindowSearchOption = transferWindowSearchOption;
+pSettings.cmap = cmap;
 
 pState.currentTime = initialTime;
 pState.tof_current = 0; %Default as 0
@@ -394,7 +397,7 @@ if optimizeDV == 1
     deltaResult = Inf;
 
     for tof_start = [TofLimLow, TOF_estimation, TofLimHigh]
-        dvHandle = @(tof) optimalDVSolver(tof, pSettings);
+        dvHandle = @(tof_in) optimalDVSolver(tof_in, pSettings);
         tf_fuelOptimal = fminsearch(dvHandle, tof_start, opt_dv_fminsearch);
     end
 
@@ -474,7 +477,7 @@ if optimizeDATE == 1
         pSettings.solveDate = 1;
         gs = MultiStart;
         numberOfStartPoints = gsPointCount*5;
-        dvHandle = @(tof) optimalDVSolver(tof, pSettings);
+        dvHandle = @(tof_in) optimalDVSolver(tof_in, pSettings);
         problem = createOptimProblem('fmincon','x0',[initialTime, TOF_average],...
         'objective',dvHandle,'lb',[initialTime, TofLimLow], ...
         'ub',[initialTime + dateSearchSpan, TofLimHigh], 'options', opt_dv_global);
@@ -488,7 +491,7 @@ if optimizeDATE == 1
             for tof_start = linspace(TofLimLow + (TofLimHigh - TofLimLow)/option2starts, TofLimHigh, option2starts)
                 pSettings.solveDate = 0;
                 pState.currentTime = time;
-                dvHandle = @(tof) optimalDVSolver(tof, pSettings);
+                dvHandle = @(tof_in) optimalDVSolver(tof_in, pSettings);
                 fminsearch(dvHandle, tof_start, opt_dv_fminsearch);
             end
         end
@@ -511,7 +514,7 @@ if optimizeDATE == 1
     %close to the best found solution
     pSettings.solveDate = 1;
     pSettings.plotTransferWindow = 0;
-    dvHandle = @(tof) optimalDVSolver(tof, pSettings);
+    dvHandle = @(tof_in) optimalDVSolver(tof_in, pSettings);
     tf_fuelOptimal = fminsearch(dvHandle, [dateOptimal, tof_optimal], opt_dv_fminsearch);
     fprintf("Optimization Completed! ---- Finalized %cV Found: <strong>%.0f m/s</strong> \n", 916, deltaResult);
 
@@ -521,13 +524,21 @@ if optimizeDATE == 1
         rectangle('Position',[dateOptimal-0.5*pSettings.tfWindowPixelsX, tof_optimal-0.5*pSettings.tfWindowPixelsY, ...
                    pSettings.tfWindowPixelsX, pSettings.tfWindowPixelsY], 'LineWidth', 1, 'EdgeColor', 'black');
                            
-        title(sprintf("DeltaV Map For Different Launch Dates and Time of Flights - Seed: %.0f", seed));
+        title(sprintf("DeltaV Map For Different Launch Dates and Time of Flights - Seed: %.0f", rng().Seed));
         xlabel("Time past initial Time [s]");
         ylabel("Time of Flight [s]")
         colormap(cmap)
         cb = colorbar;
         cb.Ticks = [0, 0.5, 1];
         cb.TickLabels = [{sprintf('More %cV', 916)}, {sprintf('Same %cV', 916)}, {sprintf('Less %cV', 916)}];
+
+
+        % Set up the zoom callback
+        zoomHandle = zoom;
+        
+        % Specify the zoom callback function
+        set(zoomHandle, 'ActionPostCallback', @zoomCallback);
+
     end
 
     %Update local variables to the optimal solution
@@ -680,4 +691,95 @@ function [theta_super] = fGetThetaSuper(theta_vec)
 %                    theta_vec13; theta_vec14; theta_vec15; theta_vec16; theta_vec17; theta_vec18;
 %                    theta_vec19; theta_vec20; theta_vec21; theta_vec22; theta_vec23; theta_vec24];
 
+end
+
+% Zoom callback function
+function zoomCallback(obj, eventData)
+
+    global deltaResult resultVector;
+    global dateOptimal tof_optimal;
+    global pState pSettings;
+ 
+    %Update transfer window bounds
+    initialTime = eventData.Axes.XLim(1);
+    dateSearchSpan = eventData.Axes.XLim(2) - initialTime;
+    TofLimLow = eventData.Axes.YLim(1);
+    TofLimHigh = eventData.Axes.YLim(2);
+    %How large are the pixels in the transfer window plot
+    tfWindowPixelsX = ceil(dateSearchSpan / (pSettings.gsPointCount-1));
+    tfWindowPixelsY = ceil((TofLimHigh - TofLimLow) / (pSettings.gsPointCount-1));
+
+    pSettings.tfWindowPixelsX = tfWindowPixelsX;
+    pSettings.tfWindowPixelsY = tfWindowPixelsY;
+    
+    pState.currentTime = initialTime;
+
+    pSettings.plotTransferWindow = 1;
+
+    %Initialize best values
+    deltaResult = Inf;
+    
+    %Reset current Time
+    TOF_estimation = resultVector(3);
+    pState.tof_current = TOF_estimation;
+    cla;
+    %Maximize window
+    %set(gcf,'WindowState','maximized')
+    xlim([initialTime - pSettings.tfWindowPixelsX/2, initialTime + dateSearchSpan + pSettings.tfWindowPixelsX/2])
+    ylim([TofLimLow - pSettings.tfWindowPixelsY/2, TofLimHigh + pSettings.tfWindowPixelsY/2])
+
+    pState.failedOrbits = 0;
+    pState.testedOrbits = 0;
+    %-- Solve transfer window using Global Search --
+    if pSettings.transferWindowSearchOption == 1
+        pSettings.solveDate = 1;
+        gs = MultiStart;
+        numberOfStartPoints = pSettings.gsPointCount;
+        dvHandle = @(tof_in) optimalDVSolver(tof_in, pSettings);
+        problem = createOptimProblem('fmincon','x0',[initialTime, TOF_average],...
+        'objective',dvHandle,'lb',[initialTime, TofLimLow], ...
+        'ub',[initialTime + dateSearchSpan, TofLimHigh], 'options', pSettings.opt_dv_global);
+        run(gs, problem, numberOfStartPoints);
+    end    
+    
+    %-- Solve transfer window using set dates and optimize TOF --
+    if pSettings.transferWindowSearchOption == 2
+        for time = linspace(initialTime, initialTime + dateSearchSpan, pSettings.gsPointCount)
+            fprintf("Optimizing: <strong>%.1f %%</strong> ---- Best %cV Found: <strong>%.0f m/s</strong> \n", 100 * (time - initialTime)/(dateSearchSpan), 916, deltaResult);
+            for tof_start = linspace(TofLimLow + (TofLimHigh - TofLimLow)/option2starts, TofLimHigh, option2starts)
+                pSettings.solveDate = 0;
+                pState.currentTime = time;
+                dvHandle = @(tof_in) optimalDVSolver(tof_in, pSettings);
+                fminsearch(dvHandle, tof_start, pSettings.opt_dv_fminsearch);
+            end
+        end
+    end
+
+    %-- Solve transfer window using a set grid of dates and TOFs --
+    if pSettings.transferWindowSearchOption == 3
+        pSettings.solveDate = 1;
+        for time = linspace(initialTime, initialTime + dateSearchSpan, pSettings.gsPointCount)
+            fprintf("Optimizing: <strong>%.1f %%</strong> ---- Best %cV Found: <strong>%.0f m/s</strong>\n", 100 * (time - initialTime)/(dateSearchSpan), 916, deltaResult);
+            for tof = linspace(TofLimLow, TofLimHigh, pSettings.gsPointCount)
+                pState.currentTime = time;
+                pState.tof_current = tof;
+                optimalDVSolver([pState.currentTime, pState.tof_current], pSettings);
+            end
+        end
+    end
+    
+    %All searches are complimented by a final search for the local minimum 
+    %close to the best found solution
+%     pSettings.solveDate = 1;
+%     pSettings.plotTransferWindow = 0;
+%     dvHandle = @(tof_in) optimalDVSolver(tof_in, pSettings);
+%     fminsearch(dvHandle, [dateOptimal, tof_optimal], pSettings.opt_dv_fminsearch);
+
+    fprintf("Optimization Completed! ---- Finalized %cV Found: <strong>%.0f m/s</strong> \n", 916, deltaResult);
+
+    fprintf("Tested %.0f transfer windows out of which %1.f %% (%.0f) were achievable\n", pState.testedOrbits, 100 * (1 - pState.failedOrbits / pState.testedOrbits), pState.testedOrbits - pState.failedOrbits);
+
+%     rectangle('Position',[dateOptimal-0.5*pSettings.tfWindowPixelsX, tof_optimal-0.5*pSettings.tfWindowPixelsY, ...
+%                pSettings.tfWindowPixelsX, pSettings.tfWindowPixelsY], 'LineWidth', 1, 'EdgeColor', 'black');
+                       
 end
