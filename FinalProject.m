@@ -152,6 +152,7 @@ resultsDeltaVs = [];
 subXCount = optimizeTOF + optimizeDV + optimizeDATE;
 subYCount = 5;
 tiledlayout(subYCount, subXCount*3 + 2, 'Padding', 'tight', 'TileSpacing', 'tight')
+sgtitle(sprintf("Initial Time: %s - Seed: %0.f", secToTime(initialTime, 1), rng().Seed));
 
 
 %Create colormap
@@ -177,7 +178,7 @@ end
 
 %% Define some optimization options here for speeeeeeeeed!
 opt_tof_fzero = optimset('TolFun', 1e1, 'Display', 'off');
-%opt_tof_fzero_acc = optimset('TolFun', 1e-15, 'TolCon', 1e-15, 'TolX', 1e-15);
+opt_tof_fzero_acc = optimset('TolFun', 1e-15, 'TolCon', 1e-15, 'TolX', 1e-15);
 opt_nu_fzero = optimset('TolFun', 1e-3, 'TolX', 1e-3, 'Display', 'off');
 opt_tf_angle = optimset('TolFun', 1e-3, 'Display', 'off');
 opt_d_lim_fzero = optimset('TolFun', 1e2, 'TolX', 1e-15, 'Display', 'off');
@@ -277,10 +278,10 @@ if optimizeTOF == 1
         try
             %TOF solution
             theta_vec_plot = linspace(theta_0, theta_f, plotAccuracy);
-            theta_vec_super = [theta_vec_plot; theta_vec_plot.^2; theta_vec_plot.^3; theta_vec_plot.^4; theta_vec_plot.^5; theta_vec_plot.^6];
+            theta_vec_super = fGetThetaSuper(theta_vec_plot);
             
             tfTimeHandle = @(d_in) transferTimeSolution(d_in, paramVector, pState.tof_current, theta_vec_super);
-            d_solution = fzero(tfTimeHandle, [d_minimum, d_maximum]);%, opt_tof_fzero_acc);
+            d_solution = fzero(tfTimeHandle, [d_minimum, d_maximum], opt_tof_fzero_acc);
             solutionFound = 1;
             break;
         catch
@@ -325,7 +326,7 @@ if optimizeTOF == 1
         y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, paramVector);
         plot(x, y, "Color", [0.2 0.7 0.2]);
 
-        title(sprintf("TOF solution trajectory\nTarget TOF: %s\nAchieved TOF: %s\nRequired deltaV: %.0f m/s", secToTime(TOF_estimation), secToTime(time_t), deltaV_tof));
+        title(sprintf("TOF solution trajectory\nTarget TOF: %s\nAchieved TOF: %s\nRequired deltaV: %.0f m/s", secToTime(TOF_estimation, 0), secToTime(time_t, 0), deltaV_tof));
    
     else
         %Reset revolutions
@@ -339,7 +340,7 @@ if optimizeTOF == 1
         TOF_estimation = resultVector(3);
 
         theta_vec_plot = linspace(theta_0, theta_f, plotAccuracy);
-        theta_vec_super = [theta_vec_plot; theta_vec_plot.^2; theta_vec_plot.^3; theta_vec_plot.^4; theta_vec_plot.^5; theta_vec_plot.^6];
+        theta_vec_super = fGetThetaSuper(theta_vec_plot);
     
 
         fprintf("Inital Time of Flight guess not achievable\n")
@@ -354,7 +355,7 @@ if optimizeTOF == 1
         time_min = trapz(theta_vec_plot, fTimeFunction(d_maximum, theta_vec_super, paramVector));
         plot(x, y, "Color", [0.5 0.9 0.5]);
 
-        title(sprintf("Inital Time of Flight guess not achievable\nTarget TOF: %s\nMinimum Achieved TOF: %s\nMaximum Achieved TOF: %s", secToTime(TOF_estimation), secToTime(time_min), secToTime(time_max)));
+        title(sprintf("Inital Time of Flight guess not achievable\nTarget TOF: %s\nMinimum Achieved TOF: %s\nMaximum Achieved TOF: %s", secToTime(TOF_estimation, 0), secToTime(time_min, 0), secToTime(time_max, 0)));
         
         thrustCurve_tof = [0;0];
 
@@ -392,8 +393,11 @@ if optimizeDV == 1
     %Initialize best values
     deltaResult = Inf;
 
-    dvHandle = @(tof) optimalDVSolver(tof, pSettings);
-    tf_fuelOptimal = fminsearch(dvHandle, (TofLimHigh + TofLimLow) / 2, opt_dv_fminsearch);
+    for tof_start = [TofLimLow, TOF_estimation, TofLimHigh]
+        dvHandle = @(tof) optimalDVSolver(tof, pSettings);
+        tf_fuelOptimal = fminsearch(dvHandle, tof_start, opt_dv_fminsearch);
+    end
+
 
     %Update local variables to the optimal solution
     theta_f_opt = paramVector_opt(4);
@@ -405,7 +409,7 @@ if optimizeDV == 1
     r2_i_opt = paramVector_opt(12);
 
     theta_vec_plot = linspace(theta_0, theta_f_opt, plotAccuracy);
-    theta_vec_super = [theta_vec_plot; theta_vec_plot.^2; theta_vec_plot.^3; theta_vec_plot.^4; theta_vec_plot.^5; theta_vec_plot.^6];
+    theta_vec_super = fGetThetaSuper(theta_vec_plot);
     
     thrustCurve_dV = [theta_vec_plot; fThrustFunction(d_opt, theta_vec_plot, paramVector_opt)]; 
     
@@ -432,7 +436,7 @@ if optimizeDV == 1
    
     plot(x, y, "Color", [0.2 0.7 0.2]);
         
-    title(sprintf("DeltaV optimized trajectory\nTransfer date: T+%s\nUsed TOF: %s\nRequired deltaV: %.0f m/s", secToTime(initialTime), secToTime(time_t), deltaV_opt));
+    title(sprintf("DeltaV optimized trajectory\nTransfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s", secToTime(initialTime, 1), secToTime(time_t, 0), deltaV_opt));
     legend("Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
     %axis equal
     xlims = xlim;
@@ -536,7 +540,7 @@ if optimizeDATE == 1
     r2_i_opt = paramVector_opt(12);
 
     theta_vec_plot = linspace(theta_0, theta_f_opt, plotAccuracy);
-    theta_vec_super = [theta_vec_plot; theta_vec_plot.^2; theta_vec_plot.^3; theta_vec_plot.^4; theta_vec_plot.^5; theta_vec_plot.^6];
+    theta_vec_super = fGetThetaSuper(theta_vec_plot);
 
     thrustCurve_date = [theta_vec_plot; fThrustFunction(d_opt, theta_vec_plot, paramVector_opt)]; 
 
@@ -563,7 +567,7 @@ if optimizeDATE == 1
    
     plot(x, y, "Color", [0.2 0.7 0.2]);
 
-    title(sprintf("Full transfer window solution\nTransfer date: T+%s\nUsed TOF: %s\nRequired deltaV: %.0f m/s",secToTime(dateOptimal), secToTime(time_t), deltaV_date));
+    title(sprintf("Full transfer window solution\nTransfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s",secToTime(dateOptimal, 1), secToTime(time_t, 0), deltaV_date));
     legend("Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
     %axis equal    
     xlims = xlim;
@@ -575,7 +579,7 @@ if optimizeDATE == 1
 end
 
 %% Plotting thrust curves and deltaV results
-nexttile([subYCount-2, 2])
+nexttile([subYCount, 2])
 bar(1, resultsDeltaVs./1000)
 
 legendTexts = {};
@@ -594,22 +598,22 @@ legend(legendTexts);
 ylabel("deltaV [km/s]");
 
 
-nexttile([2 subXCount*3 + 2])
+nexttile([2 subXCount*3])
 hold on;
 legendTexts = {};
 if optimizeTOF == 1
     % Plot results of tof optimized trajectory
-    plot(thrustCurve_tof(1, :), 1000*m*thrustCurve_tof(2, :));
+    plot(thrustCurve_tof(1, :), 1000*m*thrustCurve_tof(2, :), 'LineWidth', 1);
     legendTexts(end+1) = {'TOF solution trajectory'};
 end
 if optimizeDV == 1
     % Plot results of dV optimized trajectory
-    plot(thrustCurve_dV(1, :), 1000*m*thrustCurve_dV(2, :));
+    plot(thrustCurve_dV(1, :), 1000*m*thrustCurve_dV(2, :), 'LineWidth', 1);
     legendTexts(end+1) = {'deltaV Optimized TOF'};
 end
 if optimizeDATE == 1
     % Plot results of date optimized trajectory
-    plot(thrustCurve_date(1, :), 1000*m*thrustCurve_date(2, :));
+    plot(thrustCurve_date(1, :), 1000*m*thrustCurve_date(2, :), 'LineWidth', 1);
     legendTexts(end+1) = {'deltaV Optimized TOF and Date'};
 end
 
@@ -622,16 +626,58 @@ ylabel("thurst [mN]");
 set(gcf,'WindowState','maximized')
 
 %% Second to time conversion
-function [timestring] = secToTime(seconds)
-    years = floor(seconds / (365.25 * 86400));
-    seconds = seconds - years * (365.25 * 86400);
-    days = floor(seconds / 86400);
-    seconds = seconds - days * 86400;
-    hours = floor(seconds / 3600);
-    seconds = seconds - hours * 3600;
-    mins = floor(seconds / 60);
-    seconds = seconds - mins * 60;
-    secs = floor(seconds);
+function [timestring] = secToTime(secs, outputDate)
+    if outputDate == 1
+        baseDate = datetime('now','Format','dd-MMM-yyyy');
+        timestring = baseDate + seconds(secs);
 
-    timestring = sprintf("%.0f y %.0f d %.0f h %.0f m %.0f s", years, days, hours, mins, secs);
+    else
+        years = floor(secs / (365.25 * 86400));
+        secs = secs - years * (365.25 * 86400);
+        days = floor(secs / 86400);
+        secs = secs - days * 86400;
+        hours = floor(secs / 3600);
+%         secs = secs - hours * 3600;
+%         mins = floor(secs / 60);
+%         secs = secs - mins * 60;
+%         secs = floor(secs);
+    
+        timestring = sprintf("%.0f y %.0f d %.0f h %.0f m %.0f s", years, days, hours);%, mins, secs);
+    end
+
+end
+
+%% Create the supervector
+function [theta_super] = fGetThetaSuper(theta_vec)
+%Pre power the long vector instead of doing it many times
+    theta_vec1 = theta_vec;
+    theta_vec2 = theta_vec1.*theta_vec;
+    theta_vec3 = theta_vec2.*theta_vec;
+    theta_vec4 = theta_vec3.*theta_vec;
+    theta_vec5 = theta_vec4.*theta_vec;
+    theta_vec6 = theta_vec5.*theta_vec;
+%     theta_vec7 = theta_vec6.*theta_vec;
+%     theta_vec8 = theta_vec7.*theta_vec;
+%     theta_vec9 = theta_vec8.*theta_vec;
+%     theta_vec10 = theta_vec9.*theta_vec;
+%     theta_vec11 = theta_vec10.*theta_vec;
+%     theta_vec12 = theta_vec11.*theta_vec;
+%     theta_vec13 = theta_vec12.*theta_vec;
+%     theta_vec14 = theta_vec13.*theta_vec;
+%     theta_vec15 = theta_vec14.*theta_vec;
+%     theta_vec16 = theta_vec15.*theta_vec;
+%     theta_vec17 = theta_vec16.*theta_vec;
+%     theta_vec18 = theta_vec17.*theta_vec;
+%     theta_vec19 = theta_vec18.*theta_vec;
+%     theta_vec20 = theta_vec19.*theta_vec;
+%     theta_vec21 = theta_vec20.*theta_vec;
+%     theta_vec22 = theta_vec21.*theta_vec;
+%     theta_vec23 = theta_vec22.*theta_vec;
+%     theta_vec24 = theta_vec23.*theta_vec;
+
+    theta_super = [theta_vec1; theta_vec2; theta_vec3; theta_vec4; theta_vec5; theta_vec6];
+%                    theta_vec7; theta_vec8; theta_vec9; theta_vec10; theta_vec11; theta_vec12;
+%                    theta_vec13; theta_vec14; theta_vec15; theta_vec16; theta_vec17; theta_vec18;
+%                    theta_vec19; theta_vec20; theta_vec21; theta_vec22; theta_vec23; theta_vec24];
+
 end

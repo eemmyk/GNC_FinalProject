@@ -8,24 +8,6 @@ function [] = updateParameters(updateTOF, pSettings)
     global currentGuessVector
 
     if updateTOF
-
-%         figure(4);
-%         hold on
-%         for time = linspace(0, pSettings.P2*2, 1000)
-%             T_nu = mod(time, pSettings.P2);
-%             if T_nu ~= 0
-%                 nuHandle = @(angle) nuFromTime(angle, T_nu, pSettings.n2, pSettings.e2);
-%         
-%                 nu2 = fzero(nuHandle, [0, 2*pi], pSettings.opt_nu_fzero);
-%             else
-%                 nu2 = 0;
-%             end
-% 
-%             plot(time, nu2, 'o');
-%         end
-
-
-
         %Initial guesses for parameters
         r1 = pSettings.a_initial;
         r2 = pSettings.a_final;
@@ -48,9 +30,35 @@ function [] = updateParameters(updateTOF, pSettings)
     if pState.previousTime ~= pState.currentTime
         T_nu = mod(pState.currentTime - pSettings.Tp1, pSettings.P1);
         if T_nu ~= 0        
-            nuHandle = @(angle) nuFromTime(angle, T_nu, pSettings.n1, pSettings.e1);
+            n = pSettings.n1;
+            e = pSettings.e1;
 
-            nu1_i = fzero(nuHandle, [0, 2*pi], pSettings.opt_nu_fzero);
+%             figure(4);
+%             hold on
+%             for time = linspace(0, pSettings.P2*2, 1000)
+%                 T_nu = mod(time, pSettings.P2);
+%                 if T_nu ~= 0
+%                     nuHandle = @(angle) nuSolver(angle, T_nu, n, e);
+%             
+%                     nu2 = fzero(nuHandle, [0, 2*pi], pSettings.opt_nu_fzero);
+% 
+%                     nu22 = nuFromTime(T_nu, n, e);
+%                 else
+%                     nu2 = 0;
+%                     nu22 = 0;
+%                 end
+%     
+%                 plot(time, nu2, 'o');
+%                 plot(time, nu22, 'o');
+%             end
+
+            %nuHandle = @(angle) nuSolver(angle, T_nu, n, e);
+
+            %nu1_i = fzero(nuHandle, [0, 2*pi], pSettings.opt_nu_fzero);
+
+
+            nu1_i = nuFromTime(T_nu, n, e);
+
         else
             nu1_i = 0;
         end
@@ -63,9 +71,14 @@ function [] = updateParameters(updateTOF, pSettings)
         
         T_nu = mod(pState.currentTime - pSettings.Tp2, pSettings.P2);
         if T_nu ~= 0
-            nuHandle = @(angle) nuFromTime(angle, T_nu, pSettings.n2, pSettings.e2);
-        
-            nu2_i = fzero(nuHandle, [0, 2*pi], pSettings.opt_nu_fzero);
+            n = pSettings.n2;
+            e = pSettings.e2;
+
+%             nuHandle = @(angle) nuSolver(angle, T_nu, n, e);
+%         
+%             nu2_i = fzero(nuHandle, [0, 2*pi], pSettings.opt_nu_fzero);
+
+            nu2_i = nuFromTime(T_nu, n, e);
         else
             nu2_i = 0;
         end
@@ -80,9 +93,14 @@ function [] = updateParameters(updateTOF, pSettings)
     
     T_nu = mod(pState.currentTime + pState.tof_current - pSettings.Tp2, pSettings.P2);
     if T_nu ~= 0
-        nuHandle = @(angle) nuFromTime(angle, T_nu, pSettings.n2, pSettings.e2);
+        n = pSettings.n2;
+        e = pSettings.e2;
 
-        nu2 = fzero(nuHandle, [0, 2*pi], pSettings.opt_nu_fzero);
+%         nuHandle = @(angle) nuSolver(angle, T_nu, n, e);
+% 
+%         nu2 = fzero(nuHandle, [0, 2*pi], pSettings.opt_nu_fzero);
+
+        nu2 = nuFromTime(T_nu, n, e);
     else
         nu2 = 0;
     end
@@ -133,8 +151,29 @@ function [] = updateParameters(updateTOF, pSettings)
     theta_vec4 = theta_vec3.*theta_vec;
     theta_vec5 = theta_vec4.*theta_vec;
     theta_vec6 = theta_vec5.*theta_vec;
-    
+%     theta_vec7 = theta_vec6.*theta_vec;
+%     theta_vec8 = theta_vec7.*theta_vec;
+%     theta_vec9 = theta_vec8.*theta_vec;
+%     theta_vec10 = theta_vec9.*theta_vec;
+%     theta_vec11 = theta_vec10.*theta_vec;
+%     theta_vec12 = theta_vec11.*theta_vec;
+%     theta_vec13 = theta_vec12.*theta_vec;
+%     theta_vec14 = theta_vec13.*theta_vec;
+%     theta_vec15 = theta_vec14.*theta_vec;
+%     theta_vec16 = theta_vec15.*theta_vec;
+%     theta_vec17 = theta_vec16.*theta_vec;
+%     theta_vec18 = theta_vec17.*theta_vec;
+%     theta_vec19 = theta_vec18.*theta_vec;
+%     theta_vec20 = theta_vec19.*theta_vec;
+%     theta_vec21 = theta_vec20.*theta_vec;
+%     theta_vec22 = theta_vec21.*theta_vec;
+%     theta_vec23 = theta_vec22.*theta_vec;
+%     theta_vec24 = theta_vec23.*theta_vec;
+
     theta_super = [theta_vec1; theta_vec2; theta_vec3; theta_vec4; theta_vec5; theta_vec6];
+%                    theta_vec7; theta_vec8; theta_vec9; theta_vec10; theta_vec11; theta_vec12;
+%                    theta_vec13; theta_vec14; theta_vec15; theta_vec16; theta_vec17; theta_vec18;
+%                    theta_vec19; theta_vec20; theta_vec21; theta_vec22; theta_vec23; theta_vec24];
 
     paramVector = [pSettings.mju, gamma1, gamma2, theta_f, theta1_dot, theta2_dot, r1, r2, theta1, theta2, nu2_i, r2_i];
 
@@ -269,7 +308,7 @@ function [d_sol] = fFindRadiusFunction(paramVector, rTarget)
 end
 
 %% Solve nu around an orbit at a given time T
-function [angleError] = nuFromTime(nu_time, T, n, e)
+function [angleError] = nuSolver(nu_time, T, n, e)
     if nu_time <= pi
         E = 2*atan(tan(nu_time/2)/sqrt((1+e)/(1-e)));
     else
@@ -278,6 +317,54 @@ function [angleError] = nuFromTime(nu_time, T, n, e)
 
     angleError = E-e*sin(E) - n*T;
 end
+
+%% Solve nu around an orbit at a given time T
+function [nu] = nuFromTime(T, n, e)
+
+    M = n*T;
+    nu = M;
+
+    if e ~= 0
+    
+        root = sqrt(-e^3 * (-8 + 24*e - 24*e^2 + 8*e^3 - 9*e*M^2));
+    
+        nom = -2*e + 2*e^2 + (3*M*e^2 + root)^(2/3);
+        denom = e * (3*M*e^2 + root)^(1/3);
+    
+        E =  nom/denom;
+        
+        if E <= pi
+            nu = 2*atan(tan(E/2)*sqrt((1+e)/(1-e)));
+        else
+            nu = 2*pi + 2*atan(tan(E/2)*sqrt((1+e)/(1-e)));
+        end
+    
+         if M <= pi
+            E2 = 2*atan(tan(M/2)/sqrt((1+e)/(1-e)));
+        else
+            E2 = 2*pi + 2*atan(tan(M/2)/sqrt((1+e)/(1-e)));
+        end
+
+
+        xnm1 = M;
+        fnm1 = E2 - e*sin(E2) - M;
+        xn = nu;
+        fn = E - e*sin(E) - M;
+    
+        while abs(fn) > 0.001
+            xnp1 = xn - fn * (xn-xnm1) / (fn-fnm1);
+            fnm1 = fn;
+            xnm1 = xn;
+            xn = xnp1;
+            fn = nuSolver(xnp1, T, n, e);
+        end
+
+        nu = xn;
+
+    end
+
+end
+
 
 %% Solve the bounds of the d-coefficient from part of the time function
 function [timeImgPart, radiusImgPart] = fTimeMinReal(theta, d, paramVector, a_initial)
@@ -334,7 +421,7 @@ function [meetAngleError] = fSolveTofFunction(transferAngle, pSettings, pState)
    
     T_nu = mod(pState.currentTime - pSettings.Tp1, pSettings.P1);
     if T_nu ~= 0
-        nuHandle = @(angle) nuFromTime(angle, T_nu, pSettings.n1, pSettings.e1);
+        nuHandle = @(angle) nuSolver(angle, T_nu, pSettings.n1, pSettings.e1);
 
         nu1_i = fzero(nuHandle, [0, 2*pi], pSettings.opt_nu_fzero);
     else
@@ -348,7 +435,7 @@ function [meetAngleError] = fSolveTofFunction(transferAngle, pSettings, pState)
 
     T_nu = mod(pState.currentTime + TOF_estimation - pSettings.Tp2, pSettings.P2);
     if T_nu ~= 0
-        nuHandle = @(angle) nuFromTime(angle, T_nu, pSettings.n2, pSettings.e2);
+        nuHandle = @(angle) nuSolver(angle, T_nu, pSettings.n2, pSettings.e2);
 
         nu2 = fzero(nuHandle, [0, 2*pi], pSettings.opt_nu_fzero);
     else
