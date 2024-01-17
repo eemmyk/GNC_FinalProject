@@ -694,11 +694,11 @@ function [theta_super] = fGetThetaSuper(theta_vec)
 end
 
 % Zoom callback function
-function zoomCallback(obj, eventData)
+function zoomCallback(~, eventData)
 
     global deltaResult resultVector;
-    global dateOptimal tof_optimal;
     global pState pSettings;
+    %global dateOptimal tof_optimal;
  
     %Update transfer window bounds
     initialTime = eventData.Axes.XLim(1);
@@ -724,12 +724,13 @@ function zoomCallback(obj, eventData)
     pState.tof_current = TOF_estimation;
     cla;
     %Maximize window
-    %set(gcf,'WindowState','maximized')
+    set(gcf,'WindowState','maximized')
     xlim([initialTime - pSettings.tfWindowPixelsX/2, initialTime + dateSearchSpan + pSettings.tfWindowPixelsX/2])
     ylim([TofLimLow - pSettings.tfWindowPixelsY/2, TofLimHigh + pSettings.tfWindowPixelsY/2])
 
     pState.failedOrbits = 0;
     pState.testedOrbits = 0;
+
     %-- Solve transfer window using Global Search --
     if pSettings.transferWindowSearchOption == 1
         pSettings.solveDate = 1;
@@ -768,18 +769,7 @@ function zoomCallback(obj, eventData)
         end
     end
     
-    %All searches are complimented by a final search for the local minimum 
-    %close to the best found solution
-%     pSettings.solveDate = 1;
-%     pSettings.plotTransferWindow = 0;
-%     dvHandle = @(tof_in) optimalDVSolver(tof_in, pSettings);
-%     fminsearch(dvHandle, [dateOptimal, tof_optimal], pSettings.opt_dv_fminsearch);
-
     fprintf("Optimization Completed! ---- Finalized %cV Found: <strong>%.0f m/s</strong> \n", 916, deltaResult);
-
     fprintf("Tested %.0f transfer windows out of which %1.f %% (%.0f) were achievable\n", pState.testedOrbits, 100 * (1 - pState.failedOrbits / pState.testedOrbits), pState.testedOrbits - pState.failedOrbits);
-
-%     rectangle('Position',[dateOptimal-0.5*pSettings.tfWindowPixelsX, tof_optimal-0.5*pSettings.tfWindowPixelsY, ...
-%                pSettings.tfWindowPixelsX, pSettings.tfWindowPixelsY], 'LineWidth', 1, 'EdgeColor', 'black');
-                       
+         
 end
