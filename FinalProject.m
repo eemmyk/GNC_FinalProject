@@ -130,7 +130,7 @@ dateSearchSpan = max(P1,P2);%lcm(years1, years2) * 365 * 86400;
 %Linear for option 1
 %Linear for option 2
 %Squared for option 3
-gsPointCount = 64;
+gsPointCount = 32;
 
 %Which approach to global search is taken
 %Option 1: Global search
@@ -538,7 +538,6 @@ if optimizeDATE == 1
         
         % Specify the zoom callback function
         set(zoomHandle, 'ActionPostCallback', @zoomCallback);
-
     end
 
     %Update local variables to the optimal solution
@@ -773,3 +772,5 @@ function zoomCallback(~, eventData)
     fprintf("Tested %.0f transfer windows out of which %1.f %% (%.0f) were achievable\n", pState.testedOrbits, 100 * (1 - pState.failedOrbits / pState.testedOrbits), pState.testedOrbits - pState.failedOrbits);
          
 end
+
+
