@@ -6,7 +6,7 @@ close all;
  
 global deltaResult resultVector;
 global d_solution dateOptimal tof_optimal;
-global d_opt pState;% pSettings;
+global d_opt pState;
 global paramVector paramVector_opt;
 
 %% Global variable vector structures
@@ -141,6 +141,9 @@ transferWindowSearchOption = 3;
 %How many start TOFs option 2 tries (even 1->2 improves accuracy tremendously)
 option2starts = 3;
 
+%How many more points are started with in option 1
+option1pointMultiplier = 3;
+
 %Is the transfer window plotted
 visualizeTransferWindow = 1;
 
@@ -200,8 +203,8 @@ n2 = sqrt(mju/a_final^3);
 p2 = a_final * (1-e2^2);
 
 %How large are the pixels in the transfer window plot
-tfWindowPixelsX = ceil(dateSearchSpan / (gsPointCount-1));
-tfWindowPixelsY = ceil((TofLimHigh - TofLimLow) / (gsPointCount-1));
+tfWindowPixelsX = dateSearchSpan / (gsPointCount-1);
+tfWindowPixelsY = (TofLimHigh - TofLimLow) / (gsPointCount-1);
 
 %Propagating the two orbits
 nu = linspace(0, 2*pi, plotAccuracy);
@@ -235,6 +238,7 @@ pSettings.plotAccuracy = plotAccuracy;
 pSettings.theta_0 = theta_0;
 pSettings.safeTransferAngleMultiplier = safeTransferAngleMultiplier;
 pSettings.TOF_corrMult = TOF_corrMult;
+pSettings.TOF_average = TOF_average;
 pSettings.dAdjustment = dAdjustment;
 pSettings.opt_nu_fzero = opt_nu_fzero;
 pSettings.opt_tf_angle = opt_tf_angle;
@@ -244,6 +248,7 @@ pSettings.opt_minTheta_fbnd = opt_minTheta_fbnd;
 pSettings.opt_d_bounds_fzero = opt_d_bounds_fzero;
 pSettings.opt_dv_fminsearch = opt_dv_fminsearch;
 pSettings.opt_tof_fzero_acc = opt_tof_fzero_acc;
+pSettings.opt_dv_global = opt_dv_global;
 pSettings.solveDate = 0; %Default as 0
 pSettings.plotTransferWindow = 0; %Default as 0
 pSettings.useMultiorbitFilling = useMultiorbitFilling;
@@ -252,6 +257,8 @@ pSettings.tfWindowPixelsY = tfWindowPixelsY;
 pSettings.maxDepthN = maxDepthN;
 pSettings.gsPointCount = gsPointCount;
 pSettings.transferWindowSearchOption = transferWindowSearchOption;
+pSettings.option2starts = option2starts;
+pSettings.option1pointMultiplier = option1pointMultiplier;
 pSettings.cmap = cmap;
 pSettings.bodyRadius = bodyRadius;
 pSettings.orbit1 = orbit1;
@@ -308,9 +315,7 @@ if optimizeTOF == 1
             d_minimum = resultVector(1);
             d_maximum = resultVector(2);
             TOF_estimation = resultVector(3);
-
         end
-
     end
 
     %Plot results of TOF solved trajectory
@@ -412,7 +417,6 @@ if optimizeDV == 1
         tf_fuelOptimal = fminsearch(dvHandle, tof_start, opt_dv_fminsearch);
     end
 
-
     %Update local variables to the optimal solution
     theta_f_opt = paramVector_opt(4);
     r1_opt = paramVector_opt(7);
@@ -487,7 +491,7 @@ if optimizeDATE == 1
     if transferWindowSearchOption == 1
         pSettings.solveDate = 1;
         gs = MultiStart;
-        numberOfStartPoints = gsPointCount*5;
+        numberOfStartPoints = gsPointCount * option1pointMultiplier;
         dvHandle = @(tof_in) optimalDVSolver(tof_in, pSettings);
         problem = createOptimProblem('fmincon','x0',[initialTime, TOF_average],...
         'objective',dvHandle,'lb',[initialTime, TofLimLow], ...
@@ -543,13 +547,11 @@ if optimizeDATE == 1
         cb.Ticks = [0, 0.5, 1];
         cb.TickLabels = [{sprintf('More %cV', 916)}, {sprintf('Same %cV', 916)}, {sprintf('Less %cV', 916)}];
 
-
-        % Set up the zoom callback
-        zoomHandle = zoom;
         
-        % Specify the zoom callback function
-        set(zoomHandle, 'ActionPostCallback', @zoomCallback);
+        % Set up the zoom callback function
+        set(zoom, 'ActionPostCallback', @(src, event) zoomCallback(src, event, pSettings));
 
+        % Set up the hover callback function
         set(gcf, 'WindowButtonMotionFcn', @(src, event) hoverCallback(src, event, pSettings));
     end
 
@@ -658,11 +660,7 @@ function [timestring] = secToTime(secs, outputDate)
         days = floor(secs / 86400);
         secs = secs - days * 86400;
         hours = floor(secs / 3600);
-%         secs = secs - hours * 3600;
-%         mins = floor(secs / 60);
-%         secs = secs - mins * 60;
-%         secs = floor(secs);
-    
+
         timestring = sprintf("%.0f y %.0f d %.0f h %.0f m %.0f s", years, days, hours);%, mins, secs);
     end
 
@@ -677,39 +675,17 @@ function [theta_super] = fGetThetaSuper(theta_vec)
     theta_vec4 = theta_vec3.*theta_vec;
     theta_vec5 = theta_vec4.*theta_vec;
     theta_vec6 = theta_vec5.*theta_vec;
-%     theta_vec7 = theta_vec6.*theta_vec;
-%     theta_vec8 = theta_vec7.*theta_vec;
-%     theta_vec9 = theta_vec8.*theta_vec;
-%     theta_vec10 = theta_vec9.*theta_vec;
-%     theta_vec11 = theta_vec10.*theta_vec;
-%     theta_vec12 = theta_vec11.*theta_vec;
-%     theta_vec13 = theta_vec12.*theta_vec;
-%     theta_vec14 = theta_vec13.*theta_vec;
-%     theta_vec15 = theta_vec14.*theta_vec;
-%     theta_vec16 = theta_vec15.*theta_vec;
-%     theta_vec17 = theta_vec16.*theta_vec;
-%     theta_vec18 = theta_vec17.*theta_vec;
-%     theta_vec19 = theta_vec18.*theta_vec;
-%     theta_vec20 = theta_vec19.*theta_vec;
-%     theta_vec21 = theta_vec20.*theta_vec;
-%     theta_vec22 = theta_vec21.*theta_vec;
-%     theta_vec23 = theta_vec22.*theta_vec;
-%     theta_vec24 = theta_vec23.*theta_vec;
 
     theta_super = [theta_vec1; theta_vec2; theta_vec3; theta_vec4; theta_vec5; theta_vec6];
-%                    theta_vec7; theta_vec8; theta_vec9; theta_vec10; theta_vec11; theta_vec12;
-%                    theta_vec13; theta_vec14; theta_vec15; theta_vec16; theta_vec17; theta_vec18;
-%                    theta_vec19; theta_vec20; theta_vec21; theta_vec22; theta_vec23; theta_vec24];
 
 end
 
 % Zoom callback function
-function zoomCallback(~, eventData)
+function zoomCallback(~, eventData, pSettings)
 
     global deltaResult resultVector;
-    global pState pSettings;
+    global pState;
     pState.isRunning = 1;
-    %global dateOptimal tof_optimal;
  
     %Update transfer window bounds
     initialTime = eventData.Axes.XLim(1);
@@ -717,8 +693,8 @@ function zoomCallback(~, eventData)
     TofLimLow = eventData.Axes.YLim(1);
     TofLimHigh = eventData.Axes.YLim(2);
     %How large are the pixels in the transfer window plot
-    tfWindowPixelsX = ceil(dateSearchSpan / (pSettings.gsPointCount-1));
-    tfWindowPixelsY = ceil((TofLimHigh - TofLimLow) / (pSettings.gsPointCount-1));
+    tfWindowPixelsX = dateSearchSpan / (pSettings.gsPointCount-1);
+    tfWindowPixelsY = (TofLimHigh - TofLimLow) / (pSettings.gsPointCount-1);
 
     pSettings.tfWindowPixelsX = tfWindowPixelsX;
     pSettings.tfWindowPixelsY = tfWindowPixelsY;
@@ -747,9 +723,9 @@ function zoomCallback(~, eventData)
     if pSettings.transferWindowSearchOption == 1
         pSettings.solveDate = 1;
         gs = MultiStart;
-        numberOfStartPoints = pSettings.gsPointCount;
+        numberOfStartPoints = pSettings.gsPointCount * pSettings.option1pointMultiplier;
         dvHandle = @(tof_in) optimalDVSolver(tof_in, pSettings);
-        problem = createOptimProblem('fmincon','x0',[initialTime, TOF_average],...
+        problem = createOptimProblem('fmincon','x0',[initialTime, pSettings.TOF_average],...
         'objective',dvHandle,'lb',[initialTime, TofLimLow], ...
         'ub',[initialTime + dateSearchSpan, TofLimHigh], 'options', pSettings.opt_dv_global);
         run(gs, problem, numberOfStartPoints);
@@ -759,7 +735,7 @@ function zoomCallback(~, eventData)
     if pSettings.transferWindowSearchOption == 2
         for time = linspace(initialTime, initialTime + dateSearchSpan, pSettings.gsPointCount)
             fprintf("Optimizing: <strong>%.1f %%</strong> ---- Best %cV Found: <strong>%.0f m/s</strong> \n", 100 * (time - initialTime)/(dateSearchSpan), 916, deltaResult);
-            for tof_start = linspace(TofLimLow + (TofLimHigh - TofLimLow)/option2starts, TofLimHigh, option2starts)
+            for tof_start = linspace(TofLimLow + (TofLimHigh - TofLimLow)/pSettings.option2starts, TofLimHigh, pSettings.option2starts)
                 pSettings.solveDate = 0;
                 pState.currentTime = time;
                 dvHandle = @(tof_in) optimalDVSolver(tof_in, pSettings);
@@ -832,10 +808,10 @@ function hoverCallback(obj, eventHandle, pSettings)
         end
 
         pState.N = startN;
-
+        figure(3);
+        cla;
         if solutionFound == 1
-            figure(3);
-            cla;
+            
             hold on;
 
             theta_f = paramVector(4);
@@ -847,6 +823,7 @@ function hoverCallback(obj, eventHandle, pSettings)
             r2_i = paramVector(12);
 
             theta_vec_plot = linspace(pSettings.theta_0, theta_f, pSettings.plotAccuracy);
+            theta_super_plot = fGetThetaSuper(theta_vec_plot);
     
             plot(pSettings.orbit1(1,:), pSettings.orbit1(2,:), 'LineStyle',':', LineWidth=2);
             plot(pSettings.orbit2(1,:), pSettings.orbit2(2,:), 'LineStyle',':', LineWidth=2);
@@ -858,13 +835,16 @@ function hoverCallback(obj, eventHandle, pSettings)
             x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, paramVector);
             y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, paramVector);
             plot(x, y, "Color", [0.2 0.7 0.2]);
-
-%             xlims = xlim;
-%             ylims = ylim;
-%             newLimits = [min(xlims(1), ylims(1)), max(xlims(2), ylims(2))];
-%             xlim(newLimits);
-%             ylim(newLimits);
+            
+            dT = theta_super_plot(1,2) - theta_super_plot(1,1);
+            dVstep_Vec = abs(fJerkFunction(d_solution, theta_super_plot, paramVector));
+            deltaV_tof = dT * (dVstep_Vec(1) + dVstep_Vec(end)) / 2 + dT * sum(dVstep_Vec(2:end-1));
+            
+            title(sprintf("Required deltaV: %.0f m/s", deltaV_tof));
+   
             axis equal;
+        else
+            title(sprintf("No solution found"));
         end
             pState.isRunning = 0;
     end

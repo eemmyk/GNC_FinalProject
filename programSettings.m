@@ -22,6 +22,7 @@ classdef programSettings
         theta_0;
         safeTransferAngleMultiplier;
         TOF_corrMult;
+        TOF_average;
         dAdjustment;
         opt_nu_fzero;
         opt_tf_angle;
@@ -31,6 +32,7 @@ classdef programSettings
         opt_d_bounds_fzero;
         opt_dv_fminsearch;
         opt_tof_fzero_acc;
+        opt_dv_global;
         solveDate;
         plotTransferWindow;
         useMultiorbitFilling;
@@ -39,6 +41,8 @@ classdef programSettings
         maxDepthN;
         gsPointCount;
         transferWindowSearchOption;
+        option2starts;
+        option1pointMultiplier;
         cmap;
         bodyRadius;
         orbit1;
