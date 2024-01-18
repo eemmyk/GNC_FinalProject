@@ -47,6 +47,8 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings)
 
         if deltaV_o < localBestDV
             localBestDV = deltaV_o;
+        %else
+            %break
         end
 
         if deltaV_o < deltaResult

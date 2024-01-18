@@ -145,7 +145,7 @@ option2starts = 3;
 option1pointMultiplier = 3;
 
 %Is the transfer window plotted
-visualizeTransferWindow = 0;
+visualizeTransferWindow = 1;
 
 %Set up the initial deltaV value for plotting
 initial_DeltaV = 1e24; %A big number
@@ -696,7 +696,7 @@ function [theta_super] = fGetThetaSuper(theta_vec)
 
 end
 
-% Zoom callback function
+%% Zoom callback function
 function zoomCallback(~, eventData, pSettings)
 
     global deltaResult resultVector;
@@ -778,8 +778,8 @@ function zoomCallback(~, eventData, pSettings)
     pState.isRunning = 0;
 end
 
-% Hover callback function
-function hoverCallback(obj, eventHandle, pSettings, axHandle)
+%% Hover callback function
+function hoverCallback(obj, ~, pSettings, axHandle)
     global pState 
 
     if pState.isRunning == 0
@@ -795,7 +795,7 @@ function hoverCallback(obj, eventHandle, pSettings, axHandle)
         ymin = obj.CurrentAxes.YLim(1);
         ySpan = obj.CurrentAxes.YLim(2) - obj.CurrentAxes.YLim(1);
 
-        pState.currentTime = xmin + relativePos(1) * xSpan;
+        pState.currentTime = xmin + relativePos(1) * xSpan
         pState.tof_current = ymin + relativePos(2) * ySpan;
 
         localBestDV = Inf;
