@@ -795,7 +795,7 @@ function hoverCallback(obj, ~, pSettings, axHandle)
         ymin = obj.CurrentAxes.YLim(1);
         ySpan = obj.CurrentAxes.YLim(2) - obj.CurrentAxes.YLim(1);
 
-        pState.currentTime = xmin + relativePos(1) * xSpan
+        pState.currentTime = xmin + relativePos(1) * xSpan;
         pState.tof_current = ymin + relativePos(2) * ySpan;
 
         localBestDV = Inf;
@@ -877,7 +877,7 @@ function hoverCallback(obj, ~, pSettings, axHandle)
             dT = theta_super_plot(1,2) - theta_super_plot(1,1);
             dVstep_Vec = abs(fJerkFunction(d_solution, theta_super_plot, paramVector_opt));
             deltaV_tof = dT * (dVstep_Vec(1) + dVstep_Vec(end)) / 2 + dT * sum(dVstep_Vec(2:end-1));
-            
+
             title(axHandle, sprintf("Transfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s", secToTime(pState.currentTime, 1), secToTime(pState.tof_current, 0), deltaV_tof));
    
             xlims = axHandle.XLim;
