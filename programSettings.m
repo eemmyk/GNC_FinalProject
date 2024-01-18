@@ -47,6 +47,7 @@ classdef programSettings
         bodyRadius;
         orbit1;
         orbit2;
+        axRelative;
     end
 end
 

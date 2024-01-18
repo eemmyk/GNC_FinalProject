@@ -33,30 +33,6 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
             n = pSettings.n1;
             e = pSettings.e1;
 
-%             figure(4);
-%             hold on
-%             for time = linspace(0, pSettings.P2*2, 1000)
-%                 T_nu = mod(time, pSettings.P2);
-%                 if T_nu ~= 0
-%                     nuHandle = @(angle) nuSolver(angle, T_nu, n, e);
-%             
-%                     nu2 = fzero(nuHandle, [0, 2*pi], pSettings.opt_nu_fzero);
-% 
-%                     nu22 = nuFromTime(T_nu, n, e);
-%                 else
-%                     nu2 = 0;
-%                     nu22 = 0;
-%                 end
-%     
-%                 plot(time, nu2, 'o');
-%                 plot(time, nu22, 'o');
-%             end
-
-            %nuHandle = @(angle) nuSolver(angle, T_nu, n, e);
-
-            %nu1_i = fzero(nuHandle, [0, 2*pi], pSettings.opt_nu_fzero);
-
-
             nu1_i = nuFromTime(T_nu, n, e);
 
         else
@@ -73,10 +49,6 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
         if T_nu ~= 0
             n = pSettings.n2;
             e = pSettings.e2;
-
-%             nuHandle = @(angle) nuSolver(angle, T_nu, n, e);
-%         
-%             nu2_i = fzero(nuHandle, [0, 2*pi], pSettings.opt_nu_fzero);
 
             nu2_i = nuFromTime(T_nu, n, e);
         else
@@ -95,10 +67,6 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
     if T_nu ~= 0
         n = pSettings.n2;
         e = pSettings.e2;
-
-%         nuHandle = @(angle) nuSolver(angle, T_nu, n, e);
-% 
-%         nu2 = fzero(nuHandle, [0, 2*pi], pSettings.opt_nu_fzero);
 
         nu2 = nuFromTime(T_nu, n, e);
     else
@@ -151,29 +119,8 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
     theta_vec4 = theta_vec3.*theta_vec;
     theta_vec5 = theta_vec4.*theta_vec;
     theta_vec6 = theta_vec5.*theta_vec;
-%     theta_vec7 = theta_vec6.*theta_vec;
-%     theta_vec8 = theta_vec7.*theta_vec;
-%     theta_vec9 = theta_vec8.*theta_vec;
-%     theta_vec10 = theta_vec9.*theta_vec;
-%     theta_vec11 = theta_vec10.*theta_vec;
-%     theta_vec12 = theta_vec11.*theta_vec;
-%     theta_vec13 = theta_vec12.*theta_vec;
-%     theta_vec14 = theta_vec13.*theta_vec;
-%     theta_vec15 = theta_vec14.*theta_vec;
-%     theta_vec16 = theta_vec15.*theta_vec;
-%     theta_vec17 = theta_vec16.*theta_vec;
-%     theta_vec18 = theta_vec17.*theta_vec;
-%     theta_vec19 = theta_vec18.*theta_vec;
-%     theta_vec20 = theta_vec19.*theta_vec;
-%     theta_vec21 = theta_vec20.*theta_vec;
-%     theta_vec22 = theta_vec21.*theta_vec;
-%     theta_vec23 = theta_vec22.*theta_vec;
-%     theta_vec24 = theta_vec23.*theta_vec;
 
     theta_super = [theta_vec1; theta_vec2; theta_vec3; theta_vec4; theta_vec5; theta_vec6];
-%                    theta_vec7; theta_vec8; theta_vec9; theta_vec10; theta_vec11; theta_vec12;
-%                    theta_vec13; theta_vec14; theta_vec15; theta_vec16; theta_vec17; theta_vec18;
-%                    theta_vec19; theta_vec20; theta_vec21; theta_vec22; theta_vec23; theta_vec24];
 
     paramVector = [pSettings.mju, gamma1, gamma2, theta_f, theta1_dot, theta2_dot, r1, r2, theta1, theta2, nu2_i, r2_i];
 
@@ -185,10 +132,6 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
         objectDistance = sqrt(r1^2 + r2^2 - 2*r1*r2*cos(theta_f));
       
         alpha1 = acos((2*r1^2 - 2*r1*r2*cos(theta_f)) / (2*r1*objectDistance));
-
-%         objectToMax2 = sin((pi/2)-alpha1) * objectDistance / sin(2*pi - theta_f);
-% 
-%         geometricMaxRadius = sqrt(objectToMax2^2 + r2^2);
 
         coord_A = tan(theta1+gamma1+pi/2);
         coord_B = tan(theta2+gamma2+pi/2);
@@ -246,8 +189,6 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
             d_minimum = d_minimum_1;
         end
 
-        %[timePart, radiusPart] = fTimeMinReal(endRanges, d_minimum, paramVector, pSettings.a_initial);
-
     end
 
     %Calculate the maximum value for d
@@ -268,10 +209,9 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
             d_maximum = d_maximum / pSettings.dAdjustment - 1e-15;
         end
 
-        [timePart, radiusPart] = fTimeMinReal(endRanges, d_maximum, paramVector, pSettings.a_initial);
+        [timePart, ~] = fTimeMinReal(endRanges, d_maximum, paramVector, pSettings.a_initial);
         
         y1_1 = timePart;
-        %y1_2 = radiusPart;
         x1 = d_maximum;
 
         k1 = (y1_1-y0_1)/(x1-x0);
@@ -279,12 +219,9 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
 
         %Where does the troublesome time part reach 0.1
         d_maximum_1 = (0.1 - y1_1)/k1 + x1;
-        %d_maximum_2 = (0.01 - y1_2)/k2 + x1;
 
-        %d_maximum = min(d_maximum_1, d_maximum_2);
         d_maximum = d_maximum_1;
 
-        %[timePart, radiusPart] = fTimeMinReal(endRanges, d_maximum, paramVector, pSettings.a_initial);
 
     end
 
