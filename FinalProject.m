@@ -6,7 +6,7 @@ close all;
  
 global deltaResult resultVector;
 global d_solution dateOptimal tof_optimal;
-global d_opt pState pSettings;
+global d_opt pState;% pSettings;
 global paramVector paramVector_opt;
 
 %% Global variable vector structures
@@ -108,7 +108,7 @@ optimizeDATE = 1;
 
 %Accuracies of approximation
 intApprox = 100;
-plotAccuracy = 1000;
+plotAccuracy = 500;
 
 %Doesn't change, but here not to be a hardcoded value
 theta_0 = 0;
@@ -153,6 +153,12 @@ subXCount = optimizeTOF + optimizeDV + optimizeDATE;
 subYCount = 5;
 tiledlayout(subYCount, subXCount*3 + 2, 'Padding', 'tight', 'TileSpacing', 'tight')
 sgtitle(sprintf("Initial Time: %s - Seed: %0.f", secToTime(initialTime, 1), rng().Seed));
+
+%Maximize window
+set(gcf,'WindowState','maximized')
+
+%Is the live plotting running
+isRunning = 0;
 
 %Create colormap
 cmap = zeros(100, 3);
@@ -237,6 +243,7 @@ pSettings.opt_d_lim_fzero = opt_d_lim_fzero;
 pSettings.opt_minTheta_fbnd = opt_minTheta_fbnd;
 pSettings.opt_d_bounds_fzero = opt_d_bounds_fzero;
 pSettings.opt_dv_fminsearch = opt_dv_fminsearch;
+pSettings.opt_tof_fzero_acc = opt_tof_fzero_acc;
 pSettings.solveDate = 0; %Default as 0
 pSettings.plotTransferWindow = 0; %Default as 0
 pSettings.useMultiorbitFilling = useMultiorbitFilling;
@@ -246,6 +253,9 @@ pSettings.maxDepthN = maxDepthN;
 pSettings.gsPointCount = gsPointCount;
 pSettings.transferWindowSearchOption = transferWindowSearchOption;
 pSettings.cmap = cmap;
+pSettings.bodyRadius = bodyRadius;
+pSettings.orbit1 = orbit1;
+pSettings.orbit2 = orbit2;
 
 pState.currentTime = initialTime;
 pState.tof_current = 0; %Default as 0
@@ -254,6 +264,7 @@ pState.N = N;
 pState.initial_DeltaV = initial_DeltaV;
 pState.failedOrbits = 0; %Default as 0
 pState.testedOrbits = 0; %Default as 0
+pState.isRunning = isRunning;
 
 %% Calculate all the rest of orbital parameters for the coming simulation
 updateParameters(1, pSettings);
@@ -538,6 +549,8 @@ if optimizeDATE == 1
         
         % Specify the zoom callback function
         set(zoomHandle, 'ActionPostCallback', @zoomCallback);
+
+        set(gcf, 'WindowButtonMotionFcn', @(src, event) hoverCallback(src, event, pSettings));
     end
 
     %Update local variables to the optimal solution
@@ -632,8 +645,6 @@ legend(legendTexts);
 xlabel("theta");
 ylabel("thurst [mN]");
 
-%Maximize window
-set(gcf,'WindowState','maximized')
 
 %% Second to time conversion
 function [timestring] = secToTime(secs, outputDate)
@@ -697,6 +708,7 @@ function zoomCallback(~, eventData)
 
     global deltaResult resultVector;
     global pState pSettings;
+    pState.isRunning = 1;
     %global dateOptimal tof_optimal;
  
     %Update transfer window bounds
@@ -721,6 +733,7 @@ function zoomCallback(~, eventData)
     %Reset current Time
     TOF_estimation = resultVector(3);
     pState.tof_current = TOF_estimation;
+    figure(2);
     cla;
     %Maximize window
     set(gcf,'WindowState','maximized')
@@ -770,7 +783,89 @@ function zoomCallback(~, eventData)
     
     fprintf("Optimization Completed! ---- Finalized %cV Found: <strong>%.0f m/s</strong> \n", 916, deltaResult);
     fprintf("Tested %.0f transfer windows out of which %1.f %% (%.0f) were achievable\n", pState.testedOrbits, 100 * (1 - pState.failedOrbits / pState.testedOrbits), pState.testedOrbits - pState.failedOrbits);
-         
+    pState.isRunning = 0;
 end
 
+% Hover callback function
+function hoverCallback(obj, eventHandle, pSettings)
+    global pState 
 
+    if pState.isRunning == 0
+        pState.isRunning = 1;
+
+        % Get the cursor position
+        cursorPos = get(eventHandle.Source.CurrentAxes, 'CurrentPoint');
+        pState.currentTime = cursorPos(1, 1);
+        pState.tof_current = cursorPos(1, 2);
+
+        [resultVector, paramVector] = updateParameters(0, pSettings);
+        
+        theta_f = paramVector(4);
+        
+        d_minimum = resultVector(1);
+        d_maximum = resultVector(2);
+                
+        solutionFound = 0;
+        startN = 0;
+        pState.N = 0;
+    
+        while (solutionFound == 0) && (pState.N <= pSettings.maxDepthN)
+            try
+                %TOF solution
+                theta_vec = linspace(pSettings.theta_0, theta_f, pSettings.intApprox);
+                theta_vec_super = fGetThetaSuper(theta_vec);
+                
+                tfTimeHandle = @(d_in) transferTimeSolution(d_in, paramVector, pState.tof_current, theta_vec_super);
+                d_solution = fzero(tfTimeHandle, [d_minimum, d_maximum], pSettings.opt_tof_fzero_acc);
+                solutionFound = 1;
+                break;
+            catch
+                solutionFound = 0;
+                pState.N = pState.N + 1;
+                [resultVector, paramVector] = updateParameters(1, pSettings);
+    
+                theta_f = paramVector(4);
+              
+                d_minimum = resultVector(1);
+                d_maximum = resultVector(2);
+            end
+        end
+
+        pState.N = startN;
+
+        if solutionFound == 1
+            figure(3);
+            cla;
+            hold on;
+
+            theta_f = paramVector(4);
+            r1 = paramVector(7);
+            r2 = paramVector(8);
+            theta1 = paramVector(9);
+            theta2 = paramVector(10);
+            nu2_i = paramVector(11);
+            r2_i = paramVector(12);
+
+            theta_vec_plot = linspace(pSettings.theta_0, theta_f, pSettings.plotAccuracy);
+    
+            plot(pSettings.orbit1(1,:), pSettings.orbit1(2,:), 'LineStyle',':', LineWidth=2);
+            plot(pSettings.orbit2(1,:), pSettings.orbit2(2,:), 'LineStyle',':', LineWidth=2);
+    
+            plot(cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
+            plot(cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+            plot(cos(pSettings.omega2 + nu2_i) * r2_i, sin(pSettings.omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')      
+        
+            x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, paramVector);
+            y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, paramVector);
+            plot(x, y, "Color", [0.2 0.7 0.2]);
+
+%             xlims = xlim;
+%             ylims = ylim;
+%             newLimits = [min(xlims(1), ylims(1)), max(xlims(2), ylims(2))];
+%             xlim(newLimits);
+%             ylim(newLimits);
+            axis equal;
+        end
+            pState.isRunning = 0;
+    end
+end

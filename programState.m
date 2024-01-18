@@ -7,6 +7,7 @@ classdef programState
         initial_DeltaV;
         failedOrbits;
         testedOrbits;
+        isRunning;
     end
 end
 

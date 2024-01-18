@@ -1,4 +1,4 @@
-function [] = updateParameters(updateTOF, pSettings)
+function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings)
     global theta_super pState;
 
     %Outgoing globals
@@ -289,6 +289,8 @@ function [] = updateParameters(updateTOF, pSettings)
     end
 
     resultVector = [d_minimum, d_maximum, resultVector(3)];
+    resultVector_o = resultVector;
+    paramVector_o = paramVector;
 end
 
 %% Function for finding the d-coefficient where orbit reaches r (at theta_f/2)

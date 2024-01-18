@@ -30,6 +30,7 @@ classdef programSettings
         opt_minTheta_fbnd;
         opt_d_bounds_fzero;
         opt_dv_fminsearch;
+        opt_tof_fzero_acc;
         solveDate;
         plotTransferWindow;
         useMultiorbitFilling;
@@ -39,6 +40,9 @@ classdef programSettings
         gsPointCount;
         transferWindowSearchOption;
         cmap;
+        bodyRadius;
+        orbit1;
+        orbit2;
     end
 end
 
