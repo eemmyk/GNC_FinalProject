@@ -125,6 +125,7 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
     paramVector = [pSettings.mju, gamma1, gamma2, theta_f, theta1_dot, theta2_dot, r1, r2, theta1, theta2, nu2_i, r2_i];
 
     %% Check if TOF is a solution 
+    
 
     %Limit the distances geometrically
     if theta_f < pi
@@ -222,10 +223,16 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
 
         d_maximum = d_maximum_1;
 
-
     end
 
-    resultVector = [d_minimum, d_maximum, resultVector(3)];
+    [timePart, radiusPart] = fTimeMinReal(theta_super, (d_minimum + d_maximum) / 2, paramVector, pSettings.a_initial);
+
+    realOrbit = 0;
+    if (timePart > 0) && (radiusPart > 0)
+        realOrbit = 1;
+    end
+
+    resultVector = [d_minimum, d_maximum, resultVector(3), realOrbit];
     resultVector_o = resultVector;
     paramVector_o = paramVector;
 end

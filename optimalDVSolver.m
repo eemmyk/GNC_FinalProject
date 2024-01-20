@@ -20,32 +20,77 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings)
     end
 
     pState.testedOrbits = pState.testedOrbits + 1;
+    
+    d_solution = 0;
+    deltaV_o = 1e24; %A big number
 
     for N_current = N_start:N_end
         
         pState.N = N_current;
         [resultVector, paramVector] = updateParameters(0, pSettings);
-        
+        dT = theta_super(1,2) - theta_super(1,1);
+        tof_current = pState.tof_current;
+
         d_minimum = resultVector(1);
         d_maximum = resultVector(2);
+        realOrbit = resultVector(4);
 
-        try
+%         figure(7);
+%         hold on;
+%         
+
+%         for d_i = linspace(d_minimum, d_maximum, 1000)
+%             timeStep_Vec = fTimeFunction(d_i, theta_super, paramVector);
+%             f_i = dT * (timeStep_Vec(1) + timeStep_Vec(end)) / 2 + dT * sum(timeStep_Vec(2:end-1)) - tof_current;
+%             plot(d_i, f_i, 'o')
+%         end
+
+
+     if ~realOrbit
+        continue
+     end
+
+            x_min = d_minimum;
+            timeStep_Vec = fTimeFunction(x_min, theta_super, paramVector);
+            f_min = dT * (timeStep_Vec(1) + timeStep_Vec(end)) / 2 + dT * sum(timeStep_Vec(2:end-1)) - tof_current;
+            x_max = d_maximum;
+            timeStep_Vec = fTimeFunction(x_max, theta_super, paramVector);
+            f_max = dT * (timeStep_Vec(1) + timeStep_Vec(end)) / 2 + dT * sum(timeStep_Vec(2:end-1)) - tof_current;
+            
+            crossing = (f_min < 0) ~= (f_max < 0);
+            if ~crossing % || imaginary
+                continue
+            end
+
+            d_minimum_in = d_minimum;
+            d_maximum_in = d_maximum;
+            
+            if (d_minimum < 0) ~= (d_maximum < 0)
+                timeStep_Vec = fTimeFunction(0, theta_super, paramVector);
+                f_zero = dT * (timeStep_Vec(1) + timeStep_Vec(end)) / 2 + dT * sum(timeStep_Vec(2:end-1)) - tof_current;
+                if f_zero > 0
+                    d_minimum_in = 0;
+                else
+                    d_maximum_in = 0;
+                end
+            end
+
+
+%          try
             tfTimeHandle = @(d_in) transferTimeSolution(d_in, paramVector, pState.tof_current, theta_super);
-            d_solution = fzero(tfTimeHandle, [d_minimum, d_maximum], pSettings.opt_tof_fzero);
-        
+            d_solution = fMyFastZero(tfTimeHandle, [d_minimum_in, d_maximum_in], pSettings.opt_tof_fzero);
+
             dT = theta_super(1,2) - theta_super(1,1);
             deltaV_o_Vec = abs(fJerkFunction(d_solution, theta_super, paramVector));
             deltaV_o = dT * (deltaV_o_Vec(1) + deltaV_o_Vec(end)) / 2 + dT * sum(deltaV_o_Vec(2:end-1));
-
-
-            %deltaV_o = trapz(theta_super(1,:), abs(fJerkFunction(d_solution, theta_super, paramVector)));
             trueSolution = 1;
-        catch
-            d_solution = 0;
-            deltaV_o = 1e24; %A big number
-        end
 
-        if deltaV_o < localBestDV
+%         catch
+%             d_solution = 0;
+%             deltaV_o = 1e24; %A big number
+%         end
+
+        if deltaV_o <= localBestDV
             localBestDV = deltaV_o;
         %else
             %break
@@ -64,6 +109,7 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings)
     
             paramVector_opt = paramVector;
         end
+
     end
 
     if pSettings.plotTransferWindow == 1
@@ -94,3 +140,66 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings)
         pState.failedOrbits = pState.failedOrbits + 1;
     end
 end
+
+% function root = myFzero(func, x0, x1, tol, max_iter)
+%     global theta_super pState
+% 
+%     dT = theta_super(1,2) - theta_super(1,1);
+% 
+% 
+%     if nargin < 4
+%         tol = 1e-6;
+%     end
+%     
+%     if nargin < 5
+%         max_iter = 100;
+%     end
+%     
+%     for iteration = 1:max_iter
+%         f0_vec = func(x0);
+%         f0 = dT * (f0_vec(1) + f0_vec(end)) / 2 + dT * sum(f0_vec(2:end-1)) - pState.tof_current;
+% 
+%         f1_vec = func(x1);
+%         f1 = dT * (f1_vec(1) + f1_vec(end)) / 2 + dT * sum(f1_vec(2:end-1)) - pState.tof_current;
+%         
+%         if abs(f1) < tol
+%             root = x1;
+%             return;
+%         end
+%         
+%         % Check for sign change and apply bisection
+%         if (f0 < 0) ~= (f1 < 0)
+%             x2 = (x0 + x1) / 2;
+%         else
+%             % Apply secant method
+%             x2 = x1 - f1 * (x1 - x0) / (f1 - f0);
+%             
+%             % Check for convergence
+% %             if abs(x2 - x1) < tol
+% %                 root = x2;
+% %                 return;
+% %             end
+%             
+%             % Apply inverse quadratic interpolation
+%             x3 = x0 - (f0 * (x1 - x0)^2) / (f1 - 2*f0 + f1);
+% %             if abs(x3 - x2) < tol
+% %                 root = x3;
+% %                 return;
+% %             end
+% 
+%             f3_vec = func(x3);
+%             f3 = dT * (f3_vec(1) + f3_vec(end)) / 2 + dT * sum(f3_vec(2:end-1)) - pState.tof_current;
+%             
+%             % Choose the best approximation based on the bisection method
+%             if (f1 < 0) ~= (f3 < 0)
+%                 x2 = (x1 + x3) / 2;
+%             end
+%         end
+%         
+%         % Update iterates
+%         x0 = x1;
+%         x1 = x2;
+%     end
+%     
+%     error('Root not found within the maximum number of iterations.');
+% end

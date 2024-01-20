@@ -42,7 +42,7 @@ rMin = bodyRadius + 1000000 * 1e3; %[km] Sun
 
 %% Orbital parameters
 seed = floor(rand() * 1000000);
-rng(seed);
+rng(761982);
 %--First Orbit Parameters--
 %Semimajor axis
 %a_initial= 6800*1000;
@@ -130,7 +130,7 @@ dateSearchSpan = max(P1,P2);%lcm(years1, years2) * 365 * 86400;
 %Linear for option 1
 %Linear for option 2
 %Squared for option 3
-gsPointCount = 32;
+gsPointCount = 64;
 
 %Which approach to global search is taken
 %Option 1: Global search
@@ -312,6 +312,10 @@ if optimizeTOF == 1
             updateParameters(1, pSettings);
 
             theta_f = paramVector(4);
+            theta1 = paramVector(9);
+            theta2 = paramVector(10);
+            nu2_i = paramVector(11);
+            r2_i = paramVector(12);
           
             d_minimum = resultVector(1);
             d_maximum = resultVector(2);
@@ -342,8 +346,8 @@ if optimizeTOF == 1
         
         time_t = trapz(theta_vec_plot, fTimeFunction(d_solution, theta_vec_super, paramVector));
    
-        x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, paramVector);
-        y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, paramVector);
+        x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_super, paramVector);
+        y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_super, paramVector);
         plot(x, y, "Color", [0.2 0.7 0.2]);
 
         title(sprintf("TOF solution trajectory\nTarget TOF: %s\nAchieved TOF: %s\nRequired deltaV: %.0f m/s", secToTime(TOF_estimation, 0), secToTime(time_t, 0), deltaV_tof));
@@ -365,13 +369,13 @@ if optimizeTOF == 1
 
         fprintf("Inital Time of Flight guess not achievable\n")
 
-        x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_vec_plot, paramVector);
-        y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_vec_plot, paramVector);
+        x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_vec_super, paramVector);
+        y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_vec_super, paramVector);
         time_max = trapz(theta_vec_plot, fTimeFunction(d_minimum, theta_vec_super, paramVector));
         plot(x, y, "Color", [0.5 0.9 0.5]);
 
-        x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_vec_plot, paramVector);
-        y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_vec_plot, paramVector);
+        x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_vec_super, paramVector);
+        y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_vec_super, paramVector);
         time_min = trapz(theta_vec_plot, fTimeFunction(d_maximum, theta_vec_super, paramVector));
         plot(x, y, "Color", [0.5 0.9 0.5]);
 
@@ -451,8 +455,8 @@ if optimizeDV == 1
     plot(cos(theta2_opt) * r2_opt, sin(theta2_opt) * r2_opt,'or', 'MarkerSize',5,'MarkerFaceColor','r')
     plot(cos(omega2 + nu2_i_opt) * r2_i_opt, sin(omega2 + nu2_i_opt) * r2_i_opt,'or', 'MarkerSize',5,'MarkerFaceColor','k')
         
-    x = cos(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_plot, paramVector_opt);
-    y = sin(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_plot, paramVector_opt);
+    x = cos(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_super, paramVector_opt);
+    y = sin(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_super, paramVector_opt);
    
     plot(x, y, "Color", [0.2 0.7 0.2]);
         
@@ -475,6 +479,10 @@ if optimizeDATE == 1
     
     %Reset current Time
     pState.tof_current = TOF_estimation;
+
+    %Befor changing figure
+    nexttile([3 3]);
+    orbitAx = gca;
 
     if visualizeTransferWindow == 1
         figure(2);
@@ -575,34 +583,32 @@ if optimizeDATE == 1
     resultsDeltaVs(end+1) = deltaV_date;
 
     time_t = trapz(theta_vec_plot, fTimeFunction(d_opt, theta_vec_super, paramVector_opt));
+
+    hold(orbitAx, 'on') 
     
-    figure(1);
-    nexttile([3, 3]);
-    hold on;
+    plot(orbitAx, orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
+    plot(orbitAx, orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
     
-    plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
-    plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
-    
-    plot(cos(theta1_opt) * r1_opt, sin(theta1_opt) * r1_opt,'or', 'MarkerSize',5,'MarkerFaceColor','g')
-    plot(cos(theta2_opt) * r2_opt, sin(theta2_opt) * r2_opt,'or', 'MarkerSize',5,'MarkerFaceColor','r')
-    plot(cos(omega2 + nu2_i_opt) * r2_i_opt, sin(omega2 + nu2_i_opt) * r2_i_opt,'or', 'MarkerSize',5,'MarkerFaceColor','k')
+    plot(orbitAx, cos(theta1_opt) * r1_opt, sin(theta1_opt) * r1_opt,'or', 'MarkerSize',5,'MarkerFaceColor','g')
+    plot(orbitAx, cos(theta2_opt) * r2_opt, sin(theta2_opt) * r2_opt,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+    plot(orbitAx, cos(omega2 + nu2_i_opt) * r2_i_opt, sin(omega2 + nu2_i_opt) * r2_i_opt,'or', 'MarkerSize',5,'MarkerFaceColor','k')
         
     rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
     
-    x = cos(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_plot, paramVector_opt);
-    y = sin(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_plot, paramVector_opt);
+    x = cos(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_super, paramVector_opt);
+    y = sin(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_super, paramVector_opt);
    
-    plot(x, y, "Color", [0.2 0.7 0.2]);
+    plot(orbitAx, x, y, "Color", [0.2 0.7 0.2]);
 
-    title(sprintf("Full transfer window solution\nTransfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s",secToTime(dateOptimal, 1), secToTime(time_t, 0), deltaV_date));
-    legend("Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
+    title(orbitAx, sprintf("Full transfer window solution\nTransfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s",secToTime(dateOptimal, 1), secToTime(time_t, 0), deltaV_date));
+    legend(orbitAx, "Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
     %axis equal    
-    xlims = xlim;
-    ylims = ylim;
+    xlims = orbitAx.XLim;
+    ylims = orbitAx.YLim;
     newLimits = [min(xlims(1), ylims(1)), max(xlims(2), ylims(2))];
-    xlim(newLimits);
-    ylim(newLimits);
-    axis square
+    orbitAx.XLim = newLimits;
+    orbitAx.YLim = newLimits;
+    axis(orbitAx, 'square')
 end
 
 %% Plotting thrust curves and deltaV results
@@ -780,7 +786,8 @@ end
 
 %% Hover callback function
 function hoverCallback(obj, ~, pSettings, axHandle)
-    global pState 
+    global pState theta_super
+    global d_opt paramVector_opt deltaResult resultVector
 
     if pState.isRunning == 0
         pState.isRunning = 1;
@@ -798,57 +805,64 @@ function hoverCallback(obj, ~, pSettings, axHandle)
         pState.currentTime = xmin + relativePos(1) * xSpan;
         pState.tof_current = ymin + relativePos(2) * ySpan;
 
-        localBestDV = Inf;
-        solutionFound = 0;
-        startN = 0;
-        pState.N = 0;
-        paramVector_opt = 0;
+%         localBestDV = Inf;
 
-        %Set limits for multiorbit search
-        if pSettings.useMultiorbitFilling == 1
-            N_end = pSettings.maxDepthN;
-        else
-            N_end = startN;
-        end
+        deltaResult = Inf;
+        pSettings.solveDate = 1;
+        dv_mouse = optimalDVSolver([pState.currentTime, pState.tof_current], pSettings);
 
-        for N_current = 0:N_end
-            pState.N = N_current;
-            [resultVector, paramVector] = updateParameters(0, pSettings);
-
-            theta_f = paramVector(4);
-        
-            d_minimum = resultVector(1);
-            d_maximum = resultVector(2);
-    
-            try
-                %TOF solution
-                theta_vec = linspace(pSettings.theta_0, theta_f, pSettings.intApprox);
-                theta_vec_super = fGetThetaSuper(theta_vec);
-                
-                tfTimeHandle = @(d_in) transferTimeSolution(d_in, paramVector, pState.tof_current, theta_vec_super);
-                d_solution = fzero(tfTimeHandle, [d_minimum, d_maximum], pSettings.opt_tof_fzero_acc);
-                solutionFound = 1;
-                
-                dT = theta_vec_super(1,2) - theta_vec_super(1,1);
-                dVstep_Vec = abs(fJerkFunction(d_solution, theta_vec_super, paramVector));
-                deltaV_o = dT * (dVstep_Vec(1) + dVstep_Vec(end)) / 2 + dT * sum(dVstep_Vec(2:end-1));
-            catch
-                solutionFound = 0;
-                deltaV_o = 1e24; % A big number
-            end
-
-            if deltaV_o < localBestDV
-                localBestDV = deltaV_o;
-                paramVector_opt = paramVector;
-
-            end
-        end
-
-        pState.N = startN;
+%         solutionFound = 0;
+%         startN = 0;
+%         pState.N = 0;
+%         paramVector_opt = 0;
+% 
+%         %Set limits for multiorbit search
+%         if pSettings.useMultiorbitFilling == 1
+%             N_end = pSettings.maxDepthN;
+%         else
+%             N_end = startN;
+%         end
+% 
+%         for N_current = 0:N_end
+%             pState.N = N_current;
+%             [resultVector, paramVector] = updateParameters(0, pSettings);
+% 
+%             dT = theta_super(1,2) - theta_super(1,1);
+% 
+%             %theta_f = paramVector(4);
+%         
+%             d_minimum = resultVector(1);
+%             d_maximum = resultVector(2);
+%     
+%             try
+%                 %TOF solution
+%                 %theta_vec = linspace(pSettings.theta_0, theta_f, pSettings.intApprox);
+%                 %theta_vec_super = fGetThetaSuper(theta_vec);
+%                 
+%                 tfTimeHandle = @(d_in) transferTimeSolution(d_in, paramVector, pState.tof_current, theta_super);
+%                 d_solution = fzero(tfTimeHandle, [d_minimum, d_maximum], pSettings.opt_tof_fzero_acc);
+%                 solutionFound = 1;
+%                               
+%                 dVstep_Vec = abs(fJerkFunction(d_solution, theta_super, paramVector));
+%                 deltaV_o = dT * (dVstep_Vec(1) + dVstep_Vec(end)) / 2 + dT * sum(dVstep_Vec(2:end-1));
+%             catch
+%                 solutionFound = 0;
+%                 deltaV_o = 1e24; % A big number
+%             end
+% 
+%             if deltaV_o < localBestDV
+%                 localBestDV = deltaV_o;
+%                 paramVector_opt = paramVector;
+% 
+%             end
+%         end
+% 
+%         pState.N = startN;
 
         
         cla(axHandle);
-        if solutionFound == 1
+        %if solutionFound == 1
+        if dv_mouse < 1e24
             
             hold on;
 
@@ -870,12 +884,12 @@ function hoverCallback(obj, ~, pSettings, axHandle)
             plot(axHandle, cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
             plot(axHandle, cos(pSettings.omega2 + nu2_i) * r2_i, sin(pSettings.omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')      
         
-            x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, paramVector_opt);
-            y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_plot, paramVector_opt);
+            x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_opt, theta_super_plot, paramVector_opt);
+            y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_opt, theta_super_plot, paramVector_opt);
             plot(axHandle, x, y, "Color", [0.2 0.7 0.2]);
             
             dT = theta_super_plot(1,2) - theta_super_plot(1,1);
-            dVstep_Vec = abs(fJerkFunction(d_solution, theta_super_plot, paramVector_opt));
+            dVstep_Vec = abs(fJerkFunction(d_opt, theta_super_plot, paramVector_opt));
             deltaV_tof = dT * (dVstep_Vec(1) + dVstep_Vec(end)) / 2 + dT * sum(dVstep_Vec(2:end-1));
 
             title(axHandle, sprintf("Transfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s", secToTime(pState.currentTime, 1), secToTime(pState.tof_current, 0), deltaV_tof));
@@ -887,8 +901,49 @@ function hoverCallback(obj, ~, pSettings, axHandle)
             axHandle.YLim = newLimits;
 
         else
+            hold on;
+            
+            d_minimum = resultVector(1);
+            d_maximum = resultVector(2);
+
+
+            theta_f = paramVector_opt(4);
+            r1 = paramVector_opt(7);
+            r2 = paramVector_opt(8);
+            theta1 = paramVector_opt(9);
+            theta2 = paramVector_opt(10);
+            nu2_i = paramVector_opt(11);
+            r2_i = paramVector_opt(12);
+
+            theta_vec_plot = linspace(pSettings.theta_0, theta_f, pSettings.plotAccuracy);
+            theta_super_plot = fGetThetaSuper(theta_vec_plot);
+
+    
+            plot(axHandle, pSettings.orbit1(1,:), pSettings.orbit1(2,:), 'LineStyle',':', LineWidth=2);
+            plot(axHandle, pSettings.orbit2(1,:), pSettings.orbit2(2,:), 'LineStyle',':', LineWidth=2);
+    
+            plot(axHandle, cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
+            plot(axHandle, cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+            plot(axHandle, cos(pSettings.omega2 + nu2_i) * r2_i, sin(pSettings.omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')      
+        
+            x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_super_plot, paramVector_opt);
+            y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_super_plot, paramVector_opt);
+            plot(axHandle, x, y, "Color", [0.2 0.7 0.2]);
+            
+            x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_super_plot, paramVector_opt);
+            y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_super_plot, paramVector_opt);
+            plot(axHandle, x, y, "Color", [0.2 0.2 0.7]);
+            
+            xlims = axHandle.XLim;
+            ylims = axHandle.YLim;
+            newLimits = [min(xlims(1), ylims(1)), max(xlims(2), ylims(2))];
+            axHandle.XLim = newLimits;
+            axHandle.YLim = newLimits;
+
             title(axHandle, sprintf("No solution found"));
         end
             pState.isRunning = 0;
     end
 end
+
+
