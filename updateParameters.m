@@ -55,11 +55,11 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
             nu2_i = 0;
         end
     else
-        gamma1 = paramVector(2);
-        theta1_dot = paramVector(5);
-        r1 = paramVector(7);
-        theta1 = paramVector(9);
-        nu2_i = paramVector(11);
+        gamma1 = paramVector.gamma1;
+        theta1_dot = paramVector.theta1_dot;
+        r1 = paramVector.r1;
+        theta1 = paramVector.theta1;
+        nu2_i = paramVector.nu2_i;
     end
     pState.previousTime = pState.currentTime;
     
@@ -102,11 +102,11 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
         if ((0 < cutDist1) && (cutDist1 < r1)) || ((0 < cutDist2) && (cutDist2 < r2))
             theta_f = theta_f + 2*pi;
         else
-            geometricAngle = pi/2 - asin(min(r1,r2)/max(r1,r2));
-            geometricAngle = (geometricAngle + pi * (pSettings.safeTransferAngleMultiplier - 1)) / pSettings.safeTransferAngleMultiplier;
-            if theta_f < geometricAngle
-                theta_f = theta_f + 2*pi;
-            end
+%             geometricAngle = pi/2 - asin(min(r1,r2)/max(r1,r2));
+%             geometricAngle = (geometricAngle + pi * (pSettings.safeTransferAngleMultiplier - 1)) / pSettings.safeTransferAngleMultiplier;
+%             if theta_f < geometricAngle
+%                 theta_f = theta_f + 2*pi;
+%             end
         end
     end
     
@@ -120,15 +120,39 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
     theta_vec5 = theta_vec4.*theta_vec;
     theta_vec6 = theta_vec5.*theta_vec;
 
+    a = 1/r1;
+    b = -tan(gamma1) / r1;
+    c = 1/(2*r1) * (pSettings.mju / (r1^3 * theta1_dot^2) - 1);
+    
+    efg_Mat_1 = [30*theta_f^2  -10*theta_f^3  theta_f^4;
+                -48*theta_f     18*theta_f^2 -2*theta_f^3; 
+                 20            -8*theta_f     theta_f^2];
+    
+
     theta_super = [theta_vec1; theta_vec2; theta_vec3; theta_vec4; theta_vec5; theta_vec6];
 
-    paramVector = [pSettings.mju, gamma1, gamma2, theta_f, theta1_dot, theta2_dot, r1, r2, theta1, theta2, nu2_i, r2_i];
+    paramVector.mju = pSettings.mju;
+    paramVector.gamma1 = gamma1;
+    paramVector.gamma2 = gamma2;
+    paramVector.theta_f = theta_f;
+    paramVector.theta1_dot = theta1_dot;
+    paramVector.theta2_dot = theta2_dot;
+    paramVector.r1 = r1;
+    paramVector.r2 = r2;
+    paramVector.theta1 = theta1;
+    paramVector.theta2 = theta2;
+    paramVector.nu2_i = nu2_i;
+    paramVector.r2_i = r2_i;
+    paramVector.a = a;
+    paramVector.b = b;
+    paramVector.c = c;
+    paramVector.efg_Mat_1 = efg_Mat_1;
 
     %% Check if TOF is a solution 
     
 
     %Limit the distances geometrically
-    if theta_f < pi
+    if theta_f-gamma2+gamma1 < pi
         %Remember the multiplier for theta_f is a test
         objectDistance = sqrt(r1^2 + r2^2 - 2*r1*r2*cos(theta_f));
       
@@ -139,8 +163,8 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
         coord_C = -tan(theta1+gamma1+pi/2)*cos(theta1)*r1+sin(theta1)*r1;
         coord_D = -tan(theta2+gamma2+pi/2)*cos(theta2)*r2+sin(theta2)*r2;
         
-        x_max = (coord_D - coord_C) / (coord_B - coord_A);
-        y_max = coord_A * (coord_D - coord_C) / (coord_B - coord_A) + coord_C;
+        x_max = (coord_D - coord_C) / (coord_A - coord_B);
+        y_max = coord_A * (coord_D - coord_C) / (coord_A - coord_B) + coord_C;
 
         altGeometricMaxRadius = sqrt(x_max^2 + y_max^2);
 
@@ -148,17 +172,22 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
 
         geometricMinRadius = sin(alpha1) * r1;
         geometricMinRadius = max(geometricMinRadius, pSettings.rMin);
+        
     else
         geometricMaxRadius = pSettings.rMax;
         geometricMinRadius = pSettings.rMin;
     end
 
+    % Could implement real root finding algorithm for this part.
+
+
+
     %Calculate the minimum value for d
     d_minimum = fFindRadiusFunction(paramVector, geometricMaxRadius);
 
-    endRanges = [theta_super(:,1:ceil(pSettings.intApprox * 0.15)), theta_super(:,floor(pSettings.intApprox*0.85):end)];
+    %endRanges = [theta_super(:,1:ceil(pSettings.intApprox * 0.2)), theta_super(:,floor(pSettings.intApprox*0.8):end)];
     
-    [timePart, radiusPart] = fTimeMinReal(endRanges, d_minimum, paramVector, pSettings.a_initial);
+    [timePart, radiusPart] = fTimeMinReal(theta_super, d_minimum, paramVector, pSettings.a_initial);
 
     if (timePart < 0) || (radiusPart < 0)
         y0_1 = timePart;
@@ -171,33 +200,34 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
             d_minimum = d_minimum * pSettings.dAdjustment + 1e-15;
         end
 
-        [timePart, radiusPart] = fTimeMinReal(endRanges, d_minimum, paramVector, pSettings.a_initial);
-        
-        y1_1 = timePart;
-        y1_2 = radiusPart;
-        x1 = d_minimum;
+        [timePart, radiusPart] = fTimeMinReal(theta_super, d_minimum, paramVector, pSettings.a_initial);
 
-        k1 = (y1_1-y0_1)/(x1-x0);
-        k2 = (y1_2-y0_2)/(x1-x0);
-
-        %Where does the troublesome time part reach 0.1
-        d_minimum_1 = (0.1 - y1_1)/k1 + x1;
-        d_minimum_2 = (0.01 - y1_2)/k2 + x1;
-
-        if radiusPart < 0
-            d_minimum = max(d_minimum_1, d_minimum_2);
-        else
-            d_minimum = d_minimum_1;
+        if (timePart < 0) || (radiusPart < 0)
+            y1_1 = timePart;
+            y1_2 = radiusPart;
+            x1 = d_minimum;
+    
+            k1 = (y1_1-y0_1)/(x1-x0);
+            k2 = (y1_2-y0_2)/(x1-x0);
+    
+            %Where does the troublesome time part reach 0.1
+            d_minimum_1 = (0.1 - y1_1)/k1 + x1;
+            d_minimum_2 = (0.01 - y1_2)/k2 + x1;
+    
+            if radiusPart < 0
+                d_minimum = max(d_minimum_1, d_minimum_2);
+            else
+                d_minimum = d_minimum_1;
+            end
         end
-
     end
 
     %Calculate the maximum value for d
     d_maximum = fFindRadiusFunction(paramVector, geometricMinRadius);
 
-    middleRange = theta_super(:,floor(pSettings.intApprox*0.4):ceil(pSettings.intApprox*0.6));
+    %middleRange = theta_super(:,floor(pSettings.intApprox*0.4):ceil(pSettings.intApprox*0.6));
 
-    [timePart, radiusPart] = fTimeMinReal(middleRange, d_maximum, paramVector, pSettings.a_initial);
+    [timePart, radiusPart] = fTimeMinReal(theta_super, d_maximum, paramVector, pSettings.a_initial);
 
     if (timePart < 0) || (radiusPart < 0)
         y0_1 = timePart;
@@ -210,19 +240,20 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
             d_maximum = d_maximum / pSettings.dAdjustment - 1e-15;
         end
 
-        [timePart, ~] = fTimeMinReal(endRanges, d_maximum, paramVector, pSettings.a_initial);
-        
-        y1_1 = timePart;
-        x1 = d_maximum;
+        [timePart, ~] = fTimeMinReal(theta_super, d_maximum, paramVector, pSettings.a_initial);
 
-        k1 = (y1_1-y0_1)/(x1-x0);
-        %k2 = (y1_2-y0_2)/(x1-x0);
-
-        %Where does the troublesome time part reach 0.1
-        d_maximum_1 = (0.1 - y1_1)/k1 + x1;
-
-        d_maximum = d_maximum_1;
-
+        if (timePart < 0) || (radiusPart < 0)
+            y1_1 = timePart;
+            x1 = d_maximum;
+    
+            k1 = (y1_1-y0_1)/(x1-x0);
+            %k2 = (y1_2-y0_2)/(x1-x0);
+    
+            %Where does the troublesome time part reach 0.1
+            d_maximum_1 = (0.1 - y1_1)/k1 + x1;
+    
+            d_maximum = d_maximum_1;
+        end
     end
 
     [timePart, radiusPart] = fTimeMinReal(theta_super, (d_minimum + d_maximum) / 2, paramVector, pSettings.a_initial);
@@ -240,14 +271,14 @@ end
 %% Function for finding the d-coefficient where orbit reaches r (at theta_f/2)
 function [d_sol] = fFindRadiusFunction(paramVector, rTarget)
 
-    mju = paramVector(1);
-    gamma1 = paramVector(2);
-    gamma2 = paramVector(3);
-    theta_f = paramVector(4);
-    theta1_dot = paramVector(5);
-    theta2_dot = paramVector(6);
-    r1 = paramVector(7);
-    r2 = paramVector(8);
+    mju = paramVector.mju;
+    gamma1 = paramVector.gamma1;
+    gamma2 = paramVector.gamma2;
+    theta_f = paramVector.theta_f;
+    theta1_dot = paramVector.theta1_dot;
+    theta2_dot = paramVector.theta2_dot;
+    r1 = paramVector.r1;
+    r2 = paramVector.r2;
 
     d_sol = (64*(1/rTarget - 1/r1 + (theta_f^6*(((5*(mju/(r1^3*theta1_dot^2) - 1)*theta_f^2)/r1 - (10*tan(gamma1)*theta_f)/r1 + 10/r1 - 10/r2)/theta_f^6 - ((4*tan(gamma2))/r2 - (4*tan(gamma1))/r1 + (4*theta_f*(mju/(r1^3*theta1_dot^2) - 1))/r1)/theta_f^5 + ((mju/(r1^3*theta1_dot^2) - 1)/r1 + 1/r2 - mju/(r2^4*theta2_dot^2))/(2*theta_f^4)))/64 + (theta_f^4*(((15*(mju/(r1^3*theta1_dot^2) - 1)*theta_f^2)/(2*r1) - (15*tan(gamma1)*theta_f)/r1 + 15/r1 - 15/r2)/theta_f^4 - ((5*tan(gamma2))/r2 - (5*tan(gamma1))/r1 + (5*theta_f*(mju/(r1^3*theta1_dot^2) - 1))/r1)/theta_f^3 + ((mju/(r1^3*theta1_dot^2) - 1)/r1 + 1/r2 - mju/(r2^4*theta2_dot^2))/(2*theta_f^2)))/16 - (theta_f^5*(((12*(mju/(r1^3*theta1_dot^2) - 1)*theta_f^2)/r1 - (24*tan(gamma1)*theta_f)/r1 + 24/r1 - 24/r2)/theta_f^5 - ((9*tan(gamma2))/r2 - (9*tan(gamma1))/r1 + (9*theta_f*(mju/(r1^3*theta1_dot^2) - 1))/r1)/theta_f^4 + ((mju/(r1^3*theta1_dot^2) - 1)/r1 + 1/r2 - mju/(r2^4*theta2_dot^2))/theta_f^3))/32 + (theta_f*tan(gamma1))/(2*r1) - (theta_f^2*(mju/(r1^3*theta1_dot^2) - 1))/(8*r1)))/theta_f^3;
  
@@ -285,7 +316,7 @@ function [nu] = nuFromTime(T, n, e)
             nu = 2*pi + 2*atan(tan(E/2)*sqrt((1+e)/(1-e)));
         end
     
-         if M <= pi
+        if M <= pi
             E2 = 2*atan(tan(M/2)/sqrt((1+e)/(1-e)));
         else
             E2 = 2*pi + 2*atan(tan(M/2)/sqrt((1+e)/(1-e)));
@@ -296,16 +327,25 @@ function [nu] = nuFromTime(T, n, e)
         fnm1 = E2 - e*sin(E2) - M;
         xn = nu;
         fn = E - e*sin(E) - M;
-    
-        while abs(fn) > 0.001
-            xnp1 = xn - fn * (xn-xnm1) / (fn-fnm1);
+
+%         minFn = 2*pi;
+%         bestXn = 0;
+        iter = 0;
+        while (abs(fn) > 0.001) && (iter < 100)
+            xnp1 = mod(xn - fn * (xn-xnm1) / (fn-fnm1), 2*pi);
             fnm1 = fn;
             xnm1 = xn;
             xn = xnp1;
             fn = nuSolver(xnp1, T, n, e);
+
+            iter = iter + 1;
+%             if abs(fn) < abs(minFn)
+%                 minFn = fn;
+%                 bestXn = xn;
+%             end
         end
 
-        nu = xn;
+        nu = xn;%bestXn;
 
     end
 
@@ -315,44 +355,25 @@ end
 %% Solve the bounds of the d-coefficient from part of the time function
 function [timeImgPart, radiusImgPart] = fTimeMinReal(theta, d, paramVector, a_initial)
 
-    theta1 = theta(1,:);
-    theta2 = theta(2,:);
-    theta3 = theta(3,:);
-    theta4 = theta(4,:);
-    theta5 = theta(5,:);
-    theta6 = theta(6,:);
-
-    mju = paramVector(1);
-    gamma1 = paramVector(2);
-    gamma2 = paramVector(3);
-    theta_f = paramVector(4);
-    theta1_dot = paramVector(5);
-    theta2_dot = paramVector(6);
-    r1 = paramVector(7);
-    r2 = paramVector(8);
- 
-    %syms theta d
-
-    a = 1/r1;
-    b = -tan(gamma1) / r1;
-    c = 1/(2*r1) * (mju / (r1^3 * theta1_dot^2) - 1);
+    theta_f = paramVector.theta_f;
+    r2 = paramVector.r2;
     
-    efg_Mat_1 = [30*theta_f^2  -10*theta_f^3  theta_f^4;
-                -48*theta_f     18*theta_f^2 -2*theta_f^3; 
-                 20            -8*theta_f     theta_f^2];
-    
+    a = paramVector.a;
+    b = paramVector.b;
+    c = paramVector.c;
+                
     efg_Mat_2 = [1/r2 - (a + b*theta_f + c*theta_f^2 + d*theta_f^3);
-                -tan(gamma2)/r2 - (b + 2*c*theta_f + 3*d*theta_f^2); 
-                mju/(r2^4*theta2_dot^2) - (1/r2 + 2*c + 6*d*theta_f)];
+                -tan(paramVector.gamma2)/r2 - (b + 2*c*theta_f + 3*d*theta_f^2); 
+                paramVector.mju/(r2^4*paramVector.theta2_dot^2) - (1/r2 + 2*c + 6*d*theta_f)];
     
-    efg = 1/(2*theta_f^6) * efg_Mat_1 * efg_Mat_2;
+    efg = 1/(2*theta_f^6) * paramVector.efg_Mat_1 * efg_Mat_2;
     
     e = efg(1);
     f = efg(2);
     g = efg(3);
 
-    radiusImgPart = min(a_initial*(a + b.*theta1 + c.*theta2 + d.*theta3 + e.*theta4 + f.*theta5 + g.*theta6));
-    timeImgPart = min(a_initial*(a + 2.*c + (6.*d + b).*theta1 + (12.*e + c).*theta2 + (20.*f + d).*theta3 + (30.*g + e).*theta4 + f.*theta5 + g.*theta6));
+    radiusImgPart = min(a_initial*(a + b.*theta(1,:) + c.*theta(2,:) + d.*theta(3,:) + e.*theta(4,:) + f.*theta(5,:) + g.*theta(6,:)));
+    timeImgPart = min(a_initial*(a + 2.*c + (6.*d + b).*theta(1,:) + (12.*e + c).*theta(2,:) + (20.*f + d).*theta(3,:) + (30.*g + e).*theta(4,:) + f.*theta(5,:) + g.*theta(6,:)));
 end
 
 %% For Solving the initial TOF guess 
@@ -413,11 +434,11 @@ function [meetAngleError] = fSolveTofFunction(transferAngle, pSettings, pState)
     if ((0 < cutDist1) && (cutDist1 < r1)) || ((0 < cutDist2) && (cutDist2 < r2))
         theta_f = theta_f + 2*pi;
     else
-        geometricAngle = pi/2 - asin(min(r1,r2)/max(r1,r2));
-        geometricAngle = (geometricAngle + pi * (pSettings.safeTransferAngleMultiplier - 1)) / pSettings.safeTransferAngleMultiplier;
-        if theta_f < geometricAngle
-            theta_f = theta_f + 2*pi;
-        end
+%         geometricAngle = pi/2 - asin(min(r1,r2)/max(r1,r2));
+%         geometricAngle = (geometricAngle + pi * (pSettings.safeTransferAngleMultiplier - 1)) / pSettings.safeTransferAngleMultiplier;
+%         if theta_f < geometricAngle
+%             theta_f = theta_f + 2*pi;
+%         end
     end
 
     meetAngleError = abs(transferAngle - theta_f);

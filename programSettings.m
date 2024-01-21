@@ -40,6 +40,7 @@ classdef programSettings
         tfWindowPixelsY;
         maxDepthN;
         gsPointCount;
+        twLabelCount;
         transferWindowSearchOption;
         option2starts;
         option1pointMultiplier;
@@ -47,7 +48,7 @@ classdef programSettings
         bodyRadius;
         orbit1;
         orbit2;
-        axRelative;
+        viewportLimits;
     end
 end
 

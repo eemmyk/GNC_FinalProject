@@ -8,6 +8,9 @@ classdef programState
         failedOrbits;
         testedOrbits;
         isRunning;
+        axRelative;
+        twMap;
+        twMapInds;
     end
 end
 

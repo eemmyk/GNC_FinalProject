@@ -1,4 +1,4 @@
-function [deltaV_o] = optimalDVSolver(inputVec, pSettings)
+function [deltaV_o] = optimalDVSolver(inputVec, pSettings, twMapInds)
     global d_solution deltaResult theta_super pState; 
 
     if pSettings.solveDate == 1
@@ -35,71 +35,61 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings)
         d_maximum = resultVector(2);
         realOrbit = resultVector(4);
 
-%         figure(7);
-%         hold on;
-%         
+         if ~realOrbit
+            continue
+         end
+    
+        x_min = d_minimum;
+        timeStep_Vec = fTimeFunction(x_min, theta_super, paramVector);
+        f_min = dT * (timeStep_Vec(1) + timeStep_Vec(end)) / 2 + dT * sum(timeStep_Vec(2:end-1)) - tof_current;
+        x_max = d_maximum;
+        timeStep_Vec = fTimeFunction(x_max, theta_super, paramVector);
+        f_max = dT * (timeStep_Vec(1) + timeStep_Vec(end)) / 2 + dT * sum(timeStep_Vec(2:end-1)) - tof_current;
+        
+        crossing = (f_min < 0) ~= (f_max < 0);
+        if ~crossing % || imaginary
+            continue
+        end
+    
+        d_minimum_in = d_minimum;
+        d_maximum_in = d_maximum;
+        
+%         if (d_minimum < 0) ~= (d_maximum < 0)
+%             timeStep_Vec = fTimeFunction(0, theta_super, paramVector);
+%             f_zero = dT * (timeStep_Vec(1) + timeStep_Vec(end)) / 2 + dT * sum(timeStep_Vec(2:end-1)) - tof_current;
+%             if f_zero > 0
+%                 d_minimum_in = 0;
+%                 f_min = f_zero;
+%             else
+%                 d_maximum_in = 0;
+%                 f_max = f_zero;
+%             end
+%         end
 
-%         for d_i = linspace(d_minimum, d_maximum, 1000)
-%             timeStep_Vec = fTimeFunction(d_i, theta_super, paramVector);
-%             f_i = dT * (timeStep_Vec(1) + timeStep_Vec(end)) / 2 + dT * sum(timeStep_Vec(2:end-1)) - tof_current;
-%             plot(d_i, f_i, 'o')
+%         crossing = (f_min < 0) ~= (f_max < 0);
+%         if ~crossing % || imaginary
+%             continue
 %         end
 
 
-     if ~realOrbit
-        continue
-     end
+        tfTimeHandle = @(d_in) transferTimeSolution(d_in, paramVector, pState.tof_current, theta_super);
+        d_solution = fMyFastZero(tfTimeHandle, [d_minimum_in, d_maximum_in], pSettings.opt_tof_fzero);
 
-            x_min = d_minimum;
-            timeStep_Vec = fTimeFunction(x_min, theta_super, paramVector);
-            f_min = dT * (timeStep_Vec(1) + timeStep_Vec(end)) / 2 + dT * sum(timeStep_Vec(2:end-1)) - tof_current;
-            x_max = d_maximum;
-            timeStep_Vec = fTimeFunction(x_max, theta_super, paramVector);
-            f_max = dT * (timeStep_Vec(1) + timeStep_Vec(end)) / 2 + dT * sum(timeStep_Vec(2:end-1)) - tof_current;
-            
-            crossing = (f_min < 0) ~= (f_max < 0);
-            if ~crossing % || imaginary
-                continue
-            end
-
-            d_minimum_in = d_minimum;
-            d_maximum_in = d_maximum;
-            
-            if (d_minimum < 0) ~= (d_maximum < 0)
-                timeStep_Vec = fTimeFunction(0, theta_super, paramVector);
-                f_zero = dT * (timeStep_Vec(1) + timeStep_Vec(end)) / 2 + dT * sum(timeStep_Vec(2:end-1)) - tof_current;
-                if f_zero > 0
-                    d_minimum_in = 0;
-                else
-                    d_maximum_in = 0;
-                end
-            end
-
-
-%          try
-            tfTimeHandle = @(d_in) transferTimeSolution(d_in, paramVector, pState.tof_current, theta_super);
-            d_solution = fMyFastZero(tfTimeHandle, [d_minimum_in, d_maximum_in], pSettings.opt_tof_fzero);
-
-            dT = theta_super(1,2) - theta_super(1,1);
-            deltaV_o_Vec = abs(fJerkFunction(d_solution, theta_super, paramVector));
-            deltaV_o = dT * (deltaV_o_Vec(1) + deltaV_o_Vec(end)) / 2 + dT * sum(deltaV_o_Vec(2:end-1));
-            trueSolution = 1;
-
-%         catch
-%             d_solution = 0;
-%             deltaV_o = 1e24; %A big number
-%         end
+        dT = theta_super(1,2) - theta_super(1,1);
+        deltaV_o_Vec = abs(fJerkFunction(d_solution, theta_super, paramVector));
+        deltaV_o = dT * (deltaV_o_Vec(1) + deltaV_o_Vec(end)) / 2 + dT * sum(deltaV_o_Vec(2:end-1));
+        trueSolution = 1;
 
         if deltaV_o <= localBestDV
             localBestDV = deltaV_o;
-        %else
-            %break
+        else
+            break
         end
 
         if deltaV_o < deltaResult
             %Save best results as globals
             global dateOptimal tof_optimal d_opt;
-            global paramVector_opt
+            global paramVector_opt resultVector_opt
     
             deltaResult = deltaV_o;
             d_opt = d_solution;
@@ -108,29 +98,41 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings)
             tof_optimal = pState.tof_current;
     
             paramVector_opt = paramVector;
+            resultVector_opt = resultVector;
         end
 
     end
 
     if pSettings.plotTransferWindow == 1
-        colorScaleDown = 4;
-
-        R_Multiplier = (3*(localBestDV/pState.initial_DeltaV)^2 - 2*(localBestDV/pState.initial_DeltaV)^3);
-        G_Multiplier = 1-(3*((localBestDV-pState.initial_DeltaV)/(pState.initial_DeltaV * colorScaleDown))^2 - 2*((localBestDV-pState.initial_DeltaV)/(pState.initial_DeltaV * colorScaleDown))^3);
+        
+        if pSettings.transferWindowSearchOption ~= 3
+            colorScaleDown = 4;
     
-        if localBestDV > (1+colorScaleDown)*pState.initial_DeltaV
-            color = [1 0 0];
-        elseif localBestDV > pState.initial_DeltaV
-            color = [1 G_Multiplier^4 0];
-        elseif localBestDV <= pState.initial_DeltaV
-            color = [R_Multiplier^4 1 0];
+            R_Multiplier = (3*(localBestDV/pState.initial_DeltaV)^2 - 2*(localBestDV/pState.initial_DeltaV)^3);
+            G_Multiplier = 1-(3*((localBestDV-pState.initial_DeltaV)/(pState.initial_DeltaV * colorScaleDown))^2 - 2*((localBestDV-pState.initial_DeltaV)/(pState.initial_DeltaV * colorScaleDown))^3);
+        
+            if localBestDV > (1+colorScaleDown)*pState.initial_DeltaV
+                color = [1 0 0];
+            elseif localBestDV > pState.initial_DeltaV
+                color = [1 sqrt(G_Multiplier) 0];
+            elseif localBestDV <= pState.initial_DeltaV
+                color = [R_Multiplier^2 1 0];
+            end
+    
+            color = color.*(0.75 + 0.25 * trueSolution);
+            rectangle('Position',[pState.currentTime-0.5*pSettings.tfWindowPixelsX, pState.tof_current-0.5*pSettings.tfWindowPixelsY, ...
+                       pSettings.tfWindowPixelsX, pSettings.tfWindowPixelsY], 'FaceColor', color, 'EdgeColor', color);
+        else
+            if localBestDV > 2*pState.initial_DeltaV
+                value = 0.01;
+            else
+                value = 0.01 + 1 - localBestDV/(2*pState.initial_DeltaV);
+            end
+            
+            pState.twMap(twMapInds(2), twMapInds(1)) = value * trueSolution;
+
         end
-
-        color = color.*(0.75 + 0.25 * trueSolution);
-
-        rectangle('Position',[pState.currentTime-0.5*pSettings.tfWindowPixelsX, pState.tof_current-0.5*pSettings.tfWindowPixelsY, ...
-                              pSettings.tfWindowPixelsX, pSettings.tfWindowPixelsY], 'FaceColor', color, 'EdgeColor', color);
-                           
+    
     end   
 
     %Reset value
