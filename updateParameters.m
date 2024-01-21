@@ -102,11 +102,11 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
         if ((0 < cutDist1) && (cutDist1 < r1)) || ((0 < cutDist2) && (cutDist2 < r2))
             theta_f = theta_f + 2*pi;
         else
-%             geometricAngle = pi/2 - asin(min(r1,r2)/max(r1,r2));
-%             geometricAngle = (geometricAngle + pi * (pSettings.safeTransferAngleMultiplier - 1)) / pSettings.safeTransferAngleMultiplier;
-%             if theta_f < geometricAngle
-%                 theta_f = theta_f + 2*pi;
-%             end
+            geometricAngle = pi/2 - asin(min(r1,r2)/max(r1,r2));
+            geometricAngle = (geometricAngle + pi * (pSettings.safeTransferAngleMultiplier - 1)) / pSettings.safeTransferAngleMultiplier;
+            if theta_f < geometricAngle
+                theta_f = theta_f + 2*pi;
+            end
         end
     end
     
@@ -158,9 +158,9 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
       
         alpha1 = acos((2*r1^2 - 2*r1*r2*cos(theta_f)) / (2*r1*objectDistance));
 
-        coord_A = tan(theta1+gamma1+pi/2);
+        coord_A = tan(theta1-gamma1+pi/2);
         coord_B = tan(theta2+gamma2+pi/2);
-        coord_C = -tan(theta1+gamma1+pi/2)*cos(theta1)*r1+sin(theta1)*r1;
+        coord_C = -tan(theta1-gamma1+pi/2)*cos(theta1)*r1+sin(theta1)*r1;
         coord_D = -tan(theta2+gamma2+pi/2)*cos(theta2)*r2+sin(theta2)*r2;
         
         x_max = (coord_D - coord_C) / (coord_A - coord_B);
@@ -172,6 +172,14 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
 
         geometricMinRadius = sin(alpha1) * r1;
         geometricMinRadius = max(geometricMinRadius, pSettings.rMin);
+
+
+%         figure(3)
+%         hold on
+%         rectangle('Position',[-geometricMinRadius, -geometricMinRadius, 2*geometricMinRadius, 2*geometricMinRadius],'Curvature',[1 1])
+%         rectangle('Position',[-geometricMaxRadius, -geometricMaxRadius, 2*geometricMaxRadius, 2*geometricMaxRadius],'Curvature',[1 1])
+
+
         
     else
         geometricMaxRadius = pSettings.rMax;
@@ -212,7 +220,7 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
     
             %Where does the troublesome time part reach 0.1
             d_minimum_1 = (0.1 - y1_1)/k1 + x1;
-            d_minimum_2 = (0.01 - y1_2)/k2 + x1;
+            d_minimum_2 = (0.1 - y1_2)/k2 + x1;
     
             if radiusPart < 0
                 d_minimum = max(d_minimum_1, d_minimum_2);
@@ -434,11 +442,11 @@ function [meetAngleError] = fSolveTofFunction(transferAngle, pSettings, pState)
     if ((0 < cutDist1) && (cutDist1 < r1)) || ((0 < cutDist2) && (cutDist2 < r2))
         theta_f = theta_f + 2*pi;
     else
-%         geometricAngle = pi/2 - asin(min(r1,r2)/max(r1,r2));
-%         geometricAngle = (geometricAngle + pi * (pSettings.safeTransferAngleMultiplier - 1)) / pSettings.safeTransferAngleMultiplier;
-%         if theta_f < geometricAngle
-%             theta_f = theta_f + 2*pi;
-%         end
+        geometricAngle = pi/2 - asin(min(r1,r2)/max(r1,r2));
+        geometricAngle = (geometricAngle + pi * (pSettings.safeTransferAngleMultiplier - 1)) / pSettings.safeTransferAngleMultiplier;
+        if theta_f < geometricAngle
+            theta_f = theta_f + 2*pi;
+        end
     end
 
     meetAngleError = abs(transferAngle - theta_f);

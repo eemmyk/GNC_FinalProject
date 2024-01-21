@@ -47,11 +47,10 @@ rMin = bodyRadius + 1000000 * 1e3; %[km] Sun
 
 %% Orbital parameters
 seed = floor(rand() * 1000000);
-rng(761982);  % Cool Seeds: 761982
+rng(seed);  % Cool Seeds: Good looking: 761982     Some issue to fix: 34158
 %--First Orbit Parameters--
 %Semimajor axis
-%a_initial= 6800*1000;
-a_initial = (0.1 + 10*rand())*150*10^9;
+a_initial = (0.3 + 7*rand())*150*10^9;
 %Period of the orbit
 P1 = 2*pi/sqrt(mju/a_initial^3);
 %Time of last perigee pass
@@ -63,8 +62,7 @@ omega1 = rand() * 2 * pi;
 
 %--Second Orbit Parameters--
 %Semimajor axis
-%a_final = 384748*1000;
-a_final = (0.1 + 10*rand())*150*10^9;
+a_final = (0.3 + 7*rand())*150*10^9;
 %Period of the orbit
 P2 = 2*pi/sqrt(mju/a_final^3);
 %Time of last perigee pass
@@ -87,15 +85,15 @@ maxDepthN = 2;
 TOF_average = (2*N + 1)*pi*sqrt((a_initial+a_final)^3/(8*mju));
 
 %Limits for TOF in relation to first guess
-TofLowMult = 0.0;
-TofHighMult = 5;
+TofLowMult = 0.2;
+TofHighMult = 6;
 TofLimLow = TofLowMult * TOF_average;
 TofLimHigh = TofHighMult * TOF_average;
 %--Adjustment Parameters--
 %How much the calculated TOF is increased
 TOF_corrMult = 1;
 %How much d-coefficients are changed to find new solutions
-dAdjustment = 1.05;
+dAdjustment = 1.025;
 
 %Multiplier to increase the geometric minimum angle
 safeTransferAngleMultiplier = 1;
@@ -114,11 +112,13 @@ optimizeDATE = 1;
 %Accuracies of approximation
 intApprox = 100;
 plotAccuracy = 500;
+fzero_d_accuracy = 10^floor(log10(0.0001 / max(a_initial*(1+e1), a_final*(1+e2))));
+fzero_f_accuracy = min(P1, P2) / 1000000;
 
 %Doesn't change, but here not to be a hardcoded value
 theta_0 = 0;
 
-% CHANGED - Target will be at random point along 2nd orbit
+%Seconds forwrd from current date
 initialTime = 0;
 
 %Impossible time to trigger parameter generation on first run
@@ -135,7 +135,7 @@ dateSearchSpan = max(P1,P2); %0.5 * lcm(years1, years2) * 365 * 86400;
 %Linear for option 1
 %Linear for option 2
 %Squared for option 3
-gsPointCount = 64;
+gsPointCount = 100;
 
 %Which approach to global search is taken
 %Option 1: Global search
@@ -166,7 +166,7 @@ sgtitle(sprintf("Initial Time: %s - Seed: %0.f", secToTime(initialTime, 1), rng(
 %Maximize window
 set(gcf,'WindowState','maximized')
 
-if visualizeTransferWindow == 1
+if (visualizeTransferWindow == 1) && (optimizeDATE == 1)
     % Orbital viewport figure
     figure(3);
     windowSize = get(gcf, 'Position');
@@ -175,9 +175,10 @@ if visualizeTransferWindow == 1
 
     viewportWindow = tiledlayout(1, 1, 'Padding', 'tight', 'TileSpacing', 'tight');
     nexttile(viewportWindow);
-    axHandle = gca;
     xlabel("Distance from central body [m]");
     ylabel("Distance from central body [m]");
+
+    axHandle = gca;
 end
 
 %Is the live plotting running
@@ -188,7 +189,7 @@ cmap = zeros(100, 3);
 dv_v = linspace(1, 0, 100);
 dv_i = 0.5;
 
-cmap(1,:) = [0.75, 0, 0];
+cmap(1,:) = [0.90, 0, 0];
 
 for i = 2:100
     dv = dv_v(i);
@@ -213,8 +214,11 @@ twMapInds = [1, 1];
 %How many labels does the transfer window have
 twLabelCount = 10;
 
+%How thick are the lines in the deltaV bar plot
+dvLineWidth = 40;
+
 %% Define some optimization options here for speeeeeeeeed!
-opt_tof_fzero = 1e-18; % This is different due to the custom fzero function
+opt_tof_fzero = [fzero_d_accuracy, fzero_f_accuracy]; % This is different due to the custom fzero function
 opt_tof_fzero_acc = optimset('TolX', 1e-18);%, 'TolFun', 1e-15, 'TolCon', 1e-15, 'TolX', 1e-15);
 opt_nu_fzero = optimset('TolFun', 1e-3, 'TolX', 1e-3, 'Display', 'off');
 opt_tf_angle = optimset('TolFun', 1e-3, 'Display', 'off');
@@ -240,13 +244,14 @@ nu = linspace(0, 2*pi, plotAccuracy);
 orbit1 = [cos(nu+omega1) * p1 ./ (1+e1*cos(nu)); sin(nu+omega1) * p1 ./ (1+e1*cos(nu))];
 orbit2 = [cos(nu+omega2) * p2 ./ (1+e2*cos(nu)); sin(nu+omega2) * p2 ./ (1+e2*cos(nu))];
 
-%Update viewport limits based on orbit
-if visualizeTransferWindow == 1
-    allX = [orbit1(1,:), orbit2(1,:)];
-    allY = [orbit1(2,:), orbit2(2,:)];
-    extraDist = (a_final + a_initial) / 4;
-    viewportLimits = [min([allX allY]) - extraDist, max([allX allY]) + extraDist, min([allX allY]) - extraDist, max([allX allY]) + extraDist];
-end
+%Update viewport limits based on orbits
+allX = [orbit1(1,:), orbit2(1,:)];
+allY = [orbit1(2,:), orbit2(2,:)];
+extraDist = (a_final + a_initial) / 4;
+portSideLen = max([allX allY]) - min([allX allY]) + 2*extraDist;
+portCenter = [(min(allX) + max(allX)) / 2, (min(allY) + max(allY)) / 2];
+%viewportLimits = [min([allX allY]) - extraDist, max([allX allY]) + extraDist, min([allX allY]) - extraDist, max([allX allY]) + extraDist];
+viewportLimits = [portCenter(1)-portSideLen / 2, portCenter(1)+portSideLen / 2, portCenter(2)-portSideLen / 2, portCenter(2)+portSideLen / 2];    
 
 %% Create and update global setting and state classes
 
@@ -353,6 +358,8 @@ if optimizeTOF == 1
             pState.N = pState.N + 1;
             updateParameters(1, pSettings);
 
+            r1 = paramVector.r1;
+            r2 = paramVector.r2;
             theta_f = paramVector.theta_f;
             theta1 = paramVector.theta1;
             theta2 = paramVector.theta2;
@@ -368,6 +375,9 @@ if optimizeTOF == 1
     %Plot results of TOF solved trajectory
     nexttile(infoWindow, [3, 3]);
     hold on;
+
+    xlabel("Distance from central body [m]");
+    ylabel("Distance from central body [m]");
 
     plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
     plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
@@ -405,7 +415,7 @@ if optimizeTOF == 1
         d_maximum = resultVector(2);
         TOF_estimation = resultVector(3);
 
-        theta_vec_plot = linspace(theta_0, theta_f, plotAccuracy);
+        theta_vec_plot = linspace(0, theta_f, 100);
         theta_vec_super = fGetThetaSuper(theta_vec_plot);
     
 
@@ -443,16 +453,9 @@ if optimizeTOF == 1
     TOF_estimation = resultVector(3);
 
     legend("Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
-    xlabel("Distance from central body [m]");
-    ylabel("Distance from central body [m]");
-    
-    xlims = xlim;
-    ylims = ylim;
-    newLimits = [min(xlims(1), ylims(1)), max(xlims(2), ylims(2))];
-    xlim(newLimits);
-    ylim(newLimits);
-    axis square
 
+    xlim(viewportLimits(1:2));
+    ylim(viewportLimits(3:4));
 end
 %% Delta V optimization for fixed starting point + result plotting
 if optimizeDV == 1
@@ -490,6 +493,9 @@ if optimizeDV == 1
     nexttile(infoWindow, [3, 3]);
     hold on;
     
+    xlabel("Distance from central body [m]");
+    ylabel("Distance from central body [m]");
+    
     plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
     plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
     rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
@@ -505,15 +511,9 @@ if optimizeDV == 1
         
     title(sprintf("DeltaV optimized trajectory\nTransfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s", secToTime(initialTime, 1), secToTime(time_t, 0), deltaV_opt));
     legend("Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
-    xlabel("Distance from central body [m]");
-    ylabel("Distance from central body [m]");
 
-    xlims = xlim;
-    ylims = ylim;
-    newLimits = [min(xlims(1), ylims(1)), max(xlims(2), ylims(2))];
-    xlim(newLimits);
-    ylim(newLimits);
-    axis square
+    xlim(viewportLimits(1:2));
+    ylim(viewportLimits(3:4));
 end
 %% Optimize the transfer date for deltaV + result plotting
 if optimizeDATE == 1
@@ -527,6 +527,8 @@ if optimizeDATE == 1
 
     %Befor changing figure
     nexttile(infoWindow, [3 3]);
+    xlabel("Distance from central body [m]");
+    ylabel("Distance from central body [m]");
     orbitAx = gca;
 
     if visualizeTransferWindow == 1
@@ -550,13 +552,8 @@ if optimizeDATE == 1
         cb.Ticks = [0, 0.5, 1];
         cb.TickLabels = [{sprintf('More %cV', 916)}, {sprintf('Same %cV', 916)}, {sprintf('Less %cV', 916)}];
         
-%         if pSettings.transferWindowSearchOption ~= 3
-            xlim([initialTime, initialTime + dateSearchSpan])
-            ylim([TofLimLow, TofLimHigh])       
-%         else
-%             xlim([0.5, pSettings.gsPointCount + 0.5])
-%             ylim([0.5, pSettings.gsPointCount + 0.5])
-%         end
+        xlim([initialTime, initialTime + dateSearchSpan])
+        ylim([TofLimLow, TofLimHigh])       
 
         tof_vec = linspace(TofLimLow, TofLimHigh, pSettings.twLabelCount);
         ylims = ylim;
@@ -675,40 +672,54 @@ if optimizeDATE == 1
 
     title(orbitAx, sprintf("Full transfer window solution\nTransfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s",secToTime(dateOptimal, 1), secToTime(time_t, 0), deltaV_date));
     legend(orbitAx, "Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
-    xlabel(orbitAx,"Distance from central body [m]");
-    ylabel(orbitAx,"Distance from central body [m]");
     
-    %axis equal    
-    xlims = orbitAx.XLim;
-    ylims = orbitAx.YLim;
-    newLimits = [min(xlims(1), ylims(1)), max(xlims(2), ylims(2))];
-    orbitAx.XLim = newLimits;
-    orbitAx.YLim = newLimits;
-    axis(orbitAx, 'square')
+    orbitAx.XLim = viewportLimits(1:2);
+    orbitAx.YLim = viewportLimits(3:4);
 end
 
 %% Plotting thrust curves and deltaV results
 nexttile(infoWindow, [subYCount, 2]);
-bar(1, resultsDeltaVs./1000)
+hold on
+ylabel("deltaV [km/s]");
+xticks([]);
+xticklabels([]);
+deltaInd = 1;
+successValues = size(resultsDeltaVs);
+lineXpos = linspace(0, 1, successValues(2));
+newXLim = [lineXpos(1)-0.25, lineXpos(end)+0.25];
+xlim(newXLim);
 
 legendTexts = {};
 if (optimizeTOF == 1) && (solutionFound == 1)
+    legendTexts(end+1) = {''};
     legendTexts(end+1) = {'TOF solution'};
+    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0.1, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth*1.1, 'Color', 'black');
+    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0.1, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth);
+    deltaInd = deltaInd+1;
 end
 if optimizeDV == 1
+    legendTexts(end+1) = {''};
     legendTexts(end+1) = {'deltaV Optimized TOF'};
+    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0.1, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth*1.1, 'Color', 'black');
+    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0.1, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth);
+    deltaInd = deltaInd+1;
 end
 if optimizeDATE == 1
+    legendTexts(end+1) = {''};
     legendTexts(end+1) = {'deltaV Optimized Window'};
+    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0.1, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth*1.1, 'Color', 'black');
+    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0.1, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth);
 end
 
 title(sprintf("Comparision of total deltaV values"));
-legend(legendTexts);  
-ylabel("deltaV [km/s]");
+legend(legendTexts);
 
 
-nexttile([2 subXCount*3])
+nexttile(infoWindow, [2 subXCount*3])
 hold on;
+xlabel("theta");
+ylabel("thurst [mN]");
+
 legendTexts = {};
 if optimizeTOF == 1
     % Plot results of tof optimized trajectory
@@ -728,12 +739,10 @@ end
 
 title(sprintf("Comparision of thrust curves for all solutions"));
 legend(legendTexts);  
-xlabel("theta");
-ylabel("thurst [mN]");
 
 
 %% Set up figures and handles
-if visualizeTransferWindow == 1    
+if (visualizeTransferWindow == 1) && (optimizeDATE == 1)    
     % Set up the hover callback function
     set(twFig, 'WindowButtonMotionFcn', @(src, event) hoverCallback(src, event, pSettings, axHandle));
 end
@@ -767,7 +776,6 @@ function [theta_super] = fGetThetaSuper(theta_vec)
     theta_vec6 = theta_vec5.*theta_vec;
 
     theta_super = [theta_vec1; theta_vec2; theta_vec3; theta_vec4; theta_vec5; theta_vec6];
-
 end
 
 %% Zoom callback function
@@ -803,14 +811,9 @@ function zoomCallback(~, eventData, pSettings)
     cla;
     %Maximize window
     set(gcf,'WindowState','maximized')
-    
-%     if pSettings.transferWindowSearchOption ~= 3
-        xlim([initialTime, initialTime + dateSearchSpan])
-        ylim([TofLimLow, TofLimHigh])       
-%     else
-%         xlim([0.5, pSettings.gsPointCount + 0.5])
-%         ylim([0.5, pSettings.gsPointCount + 0.5])
-%     end
+
+    xlim([initialTime, initialTime + dateSearchSpan])
+    ylim([TofLimLow, TofLimHigh])       
 
     tof_vec = linspace(TofLimLow, TofLimHigh, pSettings.twLabelCount);
     ylims = ylim;
@@ -887,7 +890,7 @@ end
 %% Hover callback function
 function hoverCallback(obj, ~, pSettings, axHandle)
     global pState; %theta_super
-    global d_opt paramVector paramVector_opt deltaResult; %resultVector_opt
+    global d_opt paramVector paramVector_opt deltaResult;
 
     if pState.isRunning == 0
         pState.isRunning = 1;
@@ -910,12 +913,12 @@ function hoverCallback(obj, ~, pSettings, axHandle)
 
         pState.currentTime = xmin + relativePos(1) * xSpan;
         pState.tof_current = ymin + relativePos(2) * ySpan;
+        cla(axHandle);
 
         deltaResult = Inf;
         pSettings.solveDate = 1;
         dv_mouse = optimalDVSolver([pState.currentTime, pState.tof_current], pSettings, []);
 
-        cla(axHandle);
         hold on;
         theta_f = paramVector_opt.theta_f;
         r1 = paramVector_opt.r1;
@@ -924,6 +927,8 @@ function hoverCallback(obj, ~, pSettings, axHandle)
         theta2 = paramVector_opt.theta2;
         nu2_i = paramVector_opt.nu2_i;
         r2_i = paramVector_opt.r2_i;
+
+        
 
         plot(axHandle, pSettings.orbit1(1,:), pSettings.orbit1(2,:), 'LineStyle',':', LineWidth=2);
         plot(axHandle, pSettings.orbit2(1,:), pSettings.orbit2(2,:), 'LineStyle',':', LineWidth=2);
@@ -971,7 +976,7 @@ function hoverCallback(obj, ~, pSettings, axHandle)
         axHandle.XLim = pSettings.viewportLimits(1:2);
         axHandle.YLim = pSettings.viewportLimits(3:4);
         
-        axis(axHandle, 'square');
+        %axis(axHandle, 'square');
 
         pState.isRunning = 0;
     end

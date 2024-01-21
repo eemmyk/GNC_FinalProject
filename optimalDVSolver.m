@@ -46,11 +46,51 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings, twMapInds)
         timeStep_Vec = fTimeFunction(x_max, theta_super, paramVector);
         f_max = dT * (timeStep_Vec(1) + timeStep_Vec(end)) / 2 + dT * sum(timeStep_Vec(2:end-1)) - tof_current;
         
+
+        %%%
+    
+%         figure(4)
+%         hold on
+% 
+%         r1 = paramVector.r1;
+%         r2 = paramVector.r2;
+%         theta_f = paramVector.theta_f;
+%         theta1 = paramVector.theta1;
+%         theta2 = paramVector.theta2;
+%         nu2_i = paramVector.nu2_i;
+%         r2_i = paramVector.r2_i;
+% 
+%         plot(pSettings.orbit1(1,:), pSettings.orbit1(2,:), 'LineStyle',':', LineWidth=2);
+%         plot(pSettings.orbit2(1,:), pSettings.orbit2(2,:), 'LineStyle',':', LineWidth=2);
+%         
+%         plot(cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
+%         plot(cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+%         plot(cos(pSettings.omega2 + nu2_i) * r2_i, sin(pSettings.omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')
+% 
+%         theta_vec_plot = linspace(0, theta_f, 100);
+%         %theta_vec_super = fGetThetaSuper(theta_vec_plot);
+%     
+% 
+%         fprintf("Inital Time of Flight guess not achievable\n")
+% 
+%         x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum*1.01, theta_super, paramVector);
+%         y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum*1.01, theta_super, paramVector);
+%         time_max = trapz(theta_vec_plot, fTimeFunction(d_minimum*1.01, theta_super, paramVector)) - tof_current;
+%         plot(x, y, "Color", [0.5 0.9 0.5]);
+% 
+%         x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_super, paramVector);
+%         y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_super, paramVector);
+%         time_min = trapz(theta_vec_plot, fTimeFunction(d_maximum, theta_super, paramVector)) - tof_current;
+%         plot(x, y, "Color", [0.5 0.9 0.5]);
+
+%%%%%
+
+
         crossing = (f_min < 0) ~= (f_max < 0);
         if ~crossing % || imaginary
             continue
         end
-    
+        
         d_minimum_in = d_minimum;
         d_maximum_in = d_maximum;
         
@@ -126,7 +166,7 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings, twMapInds)
             if localBestDV > 2*pState.initial_DeltaV
                 value = 0.01;
             else
-                value = 0.01 + 1 - localBestDV/(2*pState.initial_DeltaV);
+                value = 0.01 + 1 - (localBestDV/(2*pState.initial_DeltaV));
             end
             
             pState.twMap(twMapInds(2), twMapInds(1)) = value * trueSolution;

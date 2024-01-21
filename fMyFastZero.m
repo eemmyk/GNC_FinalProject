@@ -1,8 +1,12 @@
-function [b,fval] = fMyFastZero(FunFcn,x,tol,varargin)
+function [b,fval] = fMyFastZero(FunFcn,x,tols,varargin)
 
 % Initialization
 fcount = 0;
 iter = 0;
+
+tol = tols(1);
+tolf = tols(2);
+
 
 a = x(1);
 b = x(2);
@@ -86,6 +90,13 @@ while fb ~= 0 && a ~= b
         b = b + toler;
     end
     fb = FunFcn(b,varargin{:});
+
+    %Additional TolFun exit check
+    tolerf = 2.0*tolf*max(abs(b),1.0);
+    if abs(fb) < tolerf
+        break
+    end
+    
     fcount = fcount + 1;
     iter = iter + 1;
 end % Main loop
