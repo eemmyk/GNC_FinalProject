@@ -78,7 +78,10 @@ function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings
 
     if theta_tilde < 0
         theta_tilde = theta_tilde + 2*pi;
+    elseif theta_tilde > 2*pi
+        theta_tilde = theta_tilde - 2*pi;
     end
+   
 
     gamma2 = asin(pSettings.e2 * sin(nu2) / sqrt(1+2*pSettings.e2*cos(nu2) + pSettings.e2^2));
     r2 = pSettings.p2 / (1+pSettings.e2*cos(nu2));    
@@ -425,6 +428,8 @@ function [meetAngleError] = fSolveTofFunction(transferAngle, pSettings, pState)
 
     if theta_tilde < 0
         theta_tilde = theta_tilde + 2*pi;
+    elseif theta_tilde > 2*pi
+        theta_tilde = theta_tilde - 2*pi;
     end
     
     theta_f = 2.*pi.*pState.N + theta_tilde;

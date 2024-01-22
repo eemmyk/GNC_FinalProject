@@ -47,7 +47,7 @@ rMin = bodyRadius + 1000000 * 1e3; %[km] Sun
 
 %% Orbital parameters
 seed = floor(rand() * 1000000);
-rng(seed);  % Cool Seeds: Good looking: 761982     Some issue to fix: 34158
+rng(3750);  % Cool Seeds: Good looking: 761982    Good looking: 13     Some issue to fix: 34158
 %--First Orbit Parameters--
 %Semimajor axis
 a_initial = (0.3 + 7*rand())*150*10^9;
@@ -135,7 +135,7 @@ dateSearchSpan = max(P1,P2); %0.5 * lcm(years1, years2) * 365 * 86400;
 %Linear for option 1
 %Linear for option 2
 %Squared for option 3
-gsPointCount = 100;
+gsPointCount = 32;
 
 %Which approach to global search is taken
 %Option 1: Global search
@@ -185,13 +185,14 @@ end
 isRunning = 0;
 
 %Create colormap
+cbResolution = 200;
 cmap = zeros(100, 3);
-dv_v = linspace(1, 0, 100);
+dv_v = linspace(1, 0, cbResolution);
 dv_i = 0.5;
 
 cmap(1,:) = [0.90, 0, 0];
 
-for i = 2:100
+for i = 2:cbResolution
     dv = dv_v(i);
     R_Multiplier = (3.*(dv./dv_i).^2 - 2.*(dv./dv_i).^3);
     G_Multiplier = 1-(3.*((dv-dv_i)./(dv_i)).^2 - 2.*((dv-dv_i)./(dv_i)).^3);
@@ -223,7 +224,7 @@ opt_tof_fzero_acc = optimset('TolX', 1e-18);%, 'TolFun', 1e-15, 'TolCon', 1e-15,
 opt_nu_fzero = optimset('TolFun', 1e-3, 'TolX', 1e-3, 'Display', 'off');
 opt_tf_angle = optimset('TolFun', 1e-3, 'Display', 'off');
 opt_d_lim_fzero = optimset('TolFun', 1e2, 'TolX', 1e-15, 'Display', 'off');
-opt_dv_fminsearch = optimset('TolFun',1e2, 'TolX', min(P1, P2)/1000);
+opt_dv_fminsearch = optimset('TolFun',1e1, 'TolX', min(P1, P2)/1000);
 opt_dv_global = optimset('TolFun',1e2, 'TolX', 1e4);
 opt_minTheta_fbnd = optimset('TolFun', 1e-2, 'TolX', 1e-2);
 opt_d_bounds_fzero = optimset('TolFun', 1e-3);
@@ -465,10 +466,14 @@ if optimizeDV == 1
     %Initialize best values
     deltaResult = Inf;
 
-    for tof_start = [TofLimLow, TOF_estimation, TofLimHigh]
-        dvHandle = @(tof_in) optimalDVSolver(tof_in, pSettings, []);
-        tf_fuelOptimal = fminsearch(dvHandle, tof_start, opt_dv_fminsearch);
-    end
+    dvHandle = @(tof_in) optimalDVSolver(tof_in, pSettings, []);
+    tf_fuelOptimal = fminsearch(dvHandle, TOF_estimation, opt_dv_fminsearch);
+
+%     for tof_start = [TofLimLow, TOF_estimation, TofLimHigh]
+%         dvHandle = @(tof_in) optimalDVSolver(tof_in, pSettings, []);
+%         tf_fuelOptimal = fminsearch(dvHandle, tof_start, opt_dv_fminsearch);
+% %         tf_fuelOptimal = fminbnd(dvHandle, TofLimLow, TofLimHigh, opt_dv_fminsearch);
+%     end
 
     %Update local variables to the optimal solution
     theta_f_opt = paramVector_opt.theta_f;
