@@ -24,9 +24,7 @@ function [resultVector_o, paramVector_o, theta_super] = updateParameters(updateT
 
         TOF_estimation = (2*pState.N*pi + bestTheta)*sqrt(((r1+r2) * pSettings.TOF_corrMult)^3/(8*pSettings.mju)) + sqrt((abs(r1-r2))^3/(8*pSettings.mju));
         pState.tof_current = TOF_estimation;
-        resultVector = [0, 0, TOF_estimation, 0];
-
-
+        pState.initial_tof = TOF_estimation;
     end
 
     if pState.previousTime ~= pState.currentTime
@@ -278,7 +276,7 @@ function [resultVector_o, paramVector_o, theta_super] = updateParameters(updateT
         realOrbit = 1;
     end
 
-    resultVector = [d_minimum, d_maximum, resultVector(3), realOrbit];
+    resultVector = [d_minimum, d_maximum, realOrbit];
     resultVector_o = resultVector;
     paramVector_o = paramVector;
 end
