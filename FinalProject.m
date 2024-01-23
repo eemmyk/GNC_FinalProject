@@ -139,7 +139,7 @@ dateSearchSpan = max(P1,P2); %0.5 * lcm(years1, years2) * 365 * 86400;
 %Linear for option 1
 %Linear for option 2
 %Squared for option 3
-gsPointCount = 128;
+gsPointCount = 64;
 
 %Which approach to global search is taken
 %Option 1: Global search
@@ -363,23 +363,23 @@ if optimizeTOF == 1
             solutionFound = 1;
             break;
         catch
-            solutionFound = 0;
             pState.N = pState.N + 1;
             [resultVector, paramVector] = updateParameters(1, pSettings);
-
-            r1 = paramVector.r1;
-            r2 = paramVector.r2;
-            theta_f = paramVector.theta_f;
-            theta1 = paramVector.theta1;
-            theta2 = paramVector.theta2;
-            nu2_i = paramVector.nu2_i;
-            r2_i = paramVector.r2_i;
-          
-            d_minimum = resultVector(1);
-            d_maximum = resultVector(2);
-            TOF_estimation = pState.initial_tof;
         end
     end
+
+    pState.N = startN;
+
+    r1 = paramVector.r1;
+    r2 = paramVector.r2;
+    theta1 = paramVector.theta1;
+    theta2 = paramVector.theta2;
+    nu2_i = paramVector.nu2_i;
+    r2_i = paramVector.r2_i;
+  
+    d_minimum = resultVector(1);
+    d_maximum = resultVector(2);
+    TOF_estimation = pState.initial_tof;
 
     %Plot results of TOF solved trajectory
     nexttile(infoWindow, [3, 3]);
@@ -413,6 +413,7 @@ if optimizeTOF == 1
         title(sprintf("TOF solution trajectory\nTarget TOF: %s\nAchieved TOF: %s\nRequired deltaV: %.0f m/s", secToTime(TOF_estimation, 0, []), secToTime(time_t, 0, []), deltaV_tof));
    
     else
+        
         %Reset revolutions
         pState.N = startN;
         [resultVector, paramVector] = updateParameters(1, pSettings);
@@ -423,10 +424,10 @@ if optimizeTOF == 1
         d_minimum = resultVector(1);
         d_maximum = resultVector(2);
         TOF_estimation = pState.initial_tof;
+
         theta_vec_plot = linspace(0, theta_f, plotAccuracy);
         theta_vec_super = fGetThetaSuper(theta_vec_plot);
         dT = theta_vec_super(1,2) - theta_vec_super(1,1);
-
 
         fprintf("Inital Time of Flight guess not achievable\n")
 
@@ -445,21 +446,6 @@ if optimizeTOF == 1
         thrustCurve_tof = [0;0];
 
     end
-
-    pState.N = startN;
-    [resultVector, paramVector] = updateParameters(1, pSettings);
-
-    theta_f = paramVector.theta_f;
-    r1 = paramVector.r1;
-    r2 = paramVector.r2;
-    theta1 = paramVector.theta1;
-    theta2 = paramVector.theta2;
-    nu2_i = paramVector.nu2_i;
-    r2_i = paramVector.r2_i;
-    
-    d_minimum = resultVector(1);
-    d_maximum = resultVector(2);
-    TOF_estimation = pState.initial_tof;
 
     legend("Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
 
@@ -542,7 +528,7 @@ if optimizeDATE == 1
     if visualizeTransferWindow == 1
         twFig = figure(2);
         transferWindow = tiledlayout(1, 1, 'Padding', 'tight', 'TileSpacing', 'tight');
-        nexttile
+        nexttile;
 
         % Set up the zoom callback function
         set(zoom, 'ActionPostCallback', @(src, event) zoomCallback(src, event, pSettings));

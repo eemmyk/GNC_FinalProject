@@ -1,12 +1,8 @@
 function [resultVector_o, paramVector_o, theta_super] = updateParameters(updateTOF, pSettings)
-    global pState;
-
-    %Fuck this
-    global paramVector
-
-    global currentGuessVector;
+    global pState paramVector;
 
     if updateTOF
+        global currentGuessVector
         %Initial guesses for parameters
         r1 = pSettings.a_initial;
         r2 = pSettings.a_final;
@@ -25,6 +21,8 @@ function [resultVector_o, paramVector_o, theta_super] = updateParameters(updateT
         TOF_estimation = (2*pState.N*pi + bestTheta)*sqrt(((r1+r2) * pSettings.TOF_corrMult)^3/(8*pSettings.mju)) + sqrt((abs(r1-r2))^3/(8*pSettings.mju));
         pState.tof_current = TOF_estimation;
         pState.initial_tof = TOF_estimation;
+        paramVector.mju = pSettings.mju;
+
     end
 
     if pState.previousTime ~= pState.currentTime
@@ -136,7 +134,6 @@ function [resultVector_o, paramVector_o, theta_super] = updateParameters(updateT
 
     theta_super = [theta_vec1; theta_vec2; theta_vec3; theta_vec4; theta_vec5; theta_vec6];
 
-    paramVector.mju = pSettings.mju;
     paramVector.gamma1 = gamma1;
     paramVector.gamma2 = gamma2;
     paramVector.theta_f = theta_f;
