@@ -2,7 +2,7 @@ function [resultVector_o, paramVector_o, theta_super] = updateParameters(updateT
     global pState;
 
     %Fuck this
-    global resultVector paramVector
+    global paramVector
 
     global currentGuessVector;
 
