@@ -139,7 +139,7 @@ dateSearchSpan = max(P1,P2); %0.5 * lcm(years1, years2) * 365 * 86400;
 %Linear for option 1
 %Linear for option 2
 %Squared for option 3
-gsPointCount = 512;
+gsPointCount = 128;
 
 %Which approach to global search is taken
 %Option 1: Global search
@@ -423,7 +423,6 @@ if optimizeTOF == 1
         d_minimum = resultVector(1);
         d_maximum = resultVector(2);
         TOF_estimation = pState.initial_tof;
-        
         theta_vec_plot = linspace(0, theta_f, plotAccuracy);
         theta_vec_super = fGetThetaSuper(theta_vec_plot);
         dT = theta_vec_super(1,2) - theta_vec_super(1,1);
