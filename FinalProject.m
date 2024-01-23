@@ -320,6 +320,7 @@ pSettings.baseDate = baseDate;
 
 pState.currentTime = initialTime;
 pState.tof_current = 0; %Default as 0
+pState.initial_tof = 0; %Default as 0
 pState.previousTime = previousTime;
 pState.N = N;
 pState.initial_DeltaV = initial_DeltaV;
@@ -343,7 +344,7 @@ r2_i = paramVector.r2_i;
 
 d_minimum = resultVector(1);
 d_maximum = resultVector(2);
-TOF_estimation = resultVector(3);
+TOF_estimation = pState.initial_tof;
 
 %% TOF optimization + result plotting
 if optimizeTOF == 1 
@@ -376,7 +377,7 @@ if optimizeTOF == 1
           
             d_minimum = resultVector(1);
             d_maximum = resultVector(2);
-            TOF_estimation = resultVector(3);
+            TOF_estimation = pState.initial_tof;
         end
     end
 
@@ -421,8 +422,8 @@ if optimizeTOF == 1
         
         d_minimum = resultVector(1);
         d_maximum = resultVector(2);
-        TOF_estimation = resultVector(3);
-
+        TOF_estimation = pState.initial_tof;
+        
         theta_vec_plot = linspace(0, theta_f, plotAccuracy);
         theta_vec_super = fGetThetaSuper(theta_vec_plot);
         dT = theta_vec_super(1,2) - theta_vec_super(1,1);
@@ -459,7 +460,7 @@ if optimizeTOF == 1
     
     d_minimum = resultVector(1);
     d_maximum = resultVector(2);
-    TOF_estimation = resultVector(3);
+    TOF_estimation = pState.initial_tof;
 
     legend("Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
 
@@ -815,9 +816,9 @@ function zoomCallback(~, eventData, pSettings)
     %Initialize best values
     deltaResult = Inf;
     
-    %Reset current Time
-    TOF_estimation = resultVector(3);
-    pState.tof_current = TOF_estimation;
+%     %Reset current Time
+%     TOF_estimation = pState.initial_tof;
+%     pState.tof_current = TOF_estimation;
     figure(2);
     cla;
     %Maximize window
