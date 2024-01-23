@@ -33,7 +33,7 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings, twMapInds)
 
         d_minimum = resultVector(1);
         d_maximum = resultVector(2);
-        realOrbit = resultVector(4);
+        realOrbit = resultVector(3);
 
          if ~realOrbit
             continue
