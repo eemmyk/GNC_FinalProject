@@ -19,12 +19,13 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings, twMapInds)
         N_end = N_start;
     end
 
-    pState.testedOrbits = pState.testedOrbits + 1;
     
     d_solution = 0;
     deltaV_o = 1e24; %A big number
 
     for N_current = N_start:N_end
+        
+        pState.testedOrbits = pState.testedOrbits + 1;
         
         pState.N = N_current;
         [resultVector, paramVector, theta_super] = updateParameters(0, pSettings);
@@ -121,6 +122,7 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings, twMapInds)
 
         deltaV_o = fJerkFunction(d_solution, theta_super, dT, paramVector);
         trueSolution = 1;
+        pState.successfulOrbits = pState.successfulOrbits + 1;
 
         if deltaV_o <= localBestDV
             localBestDV = deltaV_o;
@@ -181,9 +183,6 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings, twMapInds)
     %Reset value
     pState.N = N_start;
     
-    if trueSolution == 0
-        pState.failedOrbits = pState.failedOrbits + 1;
-    end
 end
 
 % function root = myFzero(func, x0, x1, tol, max_iter)

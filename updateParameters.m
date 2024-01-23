@@ -7,13 +7,13 @@ function [resultVector_o, paramVector_o, theta_super] = updateParameters(updateT
         r1 = pSettings.a_initial;
         r2 = pSettings.a_final;
 
-        currentGuessVector = [r1 r2 Inf 0, 0, 0];
+        currentGuessVector = [r1 r2 Inf 0, 0, 0, 0, 0];
 
         tofHandle = @(angle) fSolveTofFunction(angle, pSettings, pState);
-        fminbnd(tofHandle, 0, 2.5*pi, pSettings.opt_tf_angle);
+        fminbnd(tofHandle, 0, 2.5*pi + pState.N*2*pi, pSettings.opt_tf_angle);
 
-        r1 = currentGuessVector(1);
-        r2 = currentGuessVector(2);
+        r1 = currentGuessVector(7);
+        r2 = currentGuessVector(8);
         bestTheta = currentGuessVector(4);
         paramVector.theta1 = currentGuessVector(5);
         paramVector.theta2 = currentGuessVector(6);
@@ -470,10 +470,12 @@ function [meetAngleError] = fSolveTofFunction(transferAngle, pSettings, pState)
         currentGuessVector(4) = transferAngle;
         currentGuessVector(5) = theta1;
         currentGuessVector(6) = theta2;
+        currentGuessVector(7) = r1;
+        currentGuessVector(8) = r2;
     end
+
 
     currentGuessVector(1) = r1;
     currentGuessVector(2) = r2;
-
 
 end

@@ -6,7 +6,7 @@ classdef programState
         previousTime;
         N;
         initial_DeltaV;
-        failedOrbits;
+        successfulOrbits;
         testedOrbits;
         isRunning;
         axRelative;
