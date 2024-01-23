@@ -1,11 +1,4 @@
-function [timeStep] = fTimeFunction(d, theta, paramVector)
-
-%     theta(1,:) = theta(1,:);
-%     theta(2,:) = theta(2,:);
-%     theta(3,:) = theta(3,:);
-%     theta(4,:) = theta(4,:);
-%     theta(5,:) = theta(5,:);
-%     theta(6,:) = theta(6,:);
+function [time_t_f] = fTimeFunction(d, theta, dT, paramVector)
 
     theta_f = paramVector.theta_f;
     r2 = paramVector.r2;
@@ -26,5 +19,7 @@ function [timeStep] = fTimeFunction(d, theta, paramVector)
     
     r = 1 ./ (a + b.*theta(1,:) + c.*theta(2,:) + d.*theta(3,:) + e.*theta(4,:) + f.*theta(5,:) + g.*theta(6,:));
 
-    timeStep = (r.^2./sqrt(paramVector.mju)) .* sqrt((1./r + 2.*c + 6.*d.*theta(1,:) + 12.*e.*theta(2,:) + 20.*f.*theta(3,:) + 30.*g.*theta(4,:))); 
+    timeStep_Vec = (r.^2./sqrt(paramVector.mju)) .* sqrt((1./r + 2.*c + 6.*d.*theta(1,:) + 12.*e.*theta(2,:) + 20.*f.*theta(3,:) + 30.*g.*theta(4,:))); 
+
+    time_t_f = dT * (timeStep_Vec(1) + timeStep_Vec(end)) / 2 + dT * sum(timeStep_Vec(2:end-1));
 end

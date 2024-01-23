@@ -1,5 +1,5 @@
-function [resultVector_o, paramVector_o, theta_super] = updateParameters(updateTOF, pSettings)
-    global pState;
+function [resultVector_o, paramVector_o] = updateParameters(updateTOF, pSettings)
+    global theta_super pState;
 
     %Fuck this
     global resultVector paramVector
@@ -36,7 +36,14 @@ function [resultVector_o, paramVector_o, theta_super] = updateParameters(updateT
             e = pSettings.e1;
             nu_guess = paramVector.theta1 - pSettings.omega1;
 
+%             figure(4)
+%             hold on
+%             for T_nu = linspace(0.985*pSettings.P1, pSettings.P1, 100)
+
             nu1_i = nuFromTime(T_nu, n, e, nu_guess);
+            
+%             plot(T_nu, nu1_i, 'o')
+%             end
         else
             nu1_i = 0;
         end
@@ -117,7 +124,7 @@ function [resultVector_o, paramVector_o, theta_super] = updateParameters(updateT
         end
     end
     
-    theta_vec = pSettings.approxSpace.*theta_f;
+    theta_vec = linspace(pSettings.theta_0, theta_f, pSettings.intApprox);
     
     %Pre power the long vector instead of doing it many times
     theta_vec1 = theta_vec;
@@ -343,8 +350,21 @@ function [nu] = nuFromTime(T, n, e, nu_guess)
         xn = nu;
         fn = E - e*sin(E) - M;
 
+        if f
 
-       
+%         if abs(fnm1) < abs(fn)
+%             f_inter = fn;
+%             x_inter = xn;
+% 
+%             fn = fnm1;
+%             xn = xnm1;
+% 
+%             fnm1 = f_inter;
+%             xnm1 = x_inter;
+%         end
+        
+
+
         iter = 0;
         while (abs(fn) > 0.001) && (iter < 100)
             xnp1 = mod(xn - fn * (xn-xnm1) / (fn-fnm1), 2*pi);
@@ -354,16 +374,6 @@ function [nu] = nuFromTime(T, n, e, nu_guess)
             fn = nuSolver(xnp1, T, n, e);
 
             iter = iter + 1;
-
-            if iter == 50
-                if abs(fnm1) < abs(fn)
-                    fn = nuSolver(nu_guess, T, n, e);
-                    xn = nu_guess;
-                else
-                    fnm1 = nuSolver(nu_guess, T, n, e);
-                    xnm1 = nu_guess;            
-                end
-            end
 %             if abs(fn) < abs(minFn)
 %                 minFn = fn;
 %                 bestXn = xn;

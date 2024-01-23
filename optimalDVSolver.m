@@ -1,5 +1,5 @@
 function [deltaV_o] = optimalDVSolver(inputVec, pSettings, twMapInds)
-    global d_solution deltaResult theta_super pState; 
+    global deltaResult pState; 
 
     if pSettings.solveDate == 1
         pState.currentTime = inputVec(1);
@@ -27,7 +27,7 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings, twMapInds)
     for N_current = N_start:N_end
         
         pState.N = N_current;
-        [resultVector, paramVector] = updateParameters(0, pSettings);
+        [resultVector, paramVector, theta_super] = updateParameters(0, pSettings);
         dT = theta_super(1,2) - theta_super(1,1);
         tof_current = pState.tof_current;
 
@@ -39,12 +39,11 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings, twMapInds)
             continue
          end
     
+        %Calculate minimum and maximum time of flight
         x_min = d_minimum;
-        timeStep_Vec = fTimeFunction(x_min, theta_super, paramVector);
-        f_min = dT * (timeStep_Vec(1) + timeStep_Vec(end)) / 2 + dT * sum(timeStep_Vec(2:end-1)) - tof_current;
+        f_min = fTimeFunction(x_min, theta_super, dT, paramVector) - tof_current;
         x_max = d_maximum;
-        timeStep_Vec = fTimeFunction(x_max, theta_super, paramVector);
-        f_max = dT * (timeStep_Vec(1) + timeStep_Vec(end)) / 2 + dT * sum(timeStep_Vec(2:end-1)) - tof_current;
+        f_max = fTimeFunction(x_max, theta_super, dT, paramVector) - tof_current;
         
 
         %%%
@@ -87,51 +86,54 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings, twMapInds)
 
 
         crossing = (f_min < 0) ~= (f_max < 0);
-        if ~crossing % || imaginary
+        %imaginary = ~isreal(f_min) || ~isreal(f_max);
+
+        if ~crossing %|| imaginary
             continue
         end
         
         d_minimum_in = d_minimum;
         d_maximum_in = d_maximum;
         
-%         if (d_minimum < 0) ~= (d_maximum < 0)
-%             timeStep_Vec = fTimeFunction(0, theta_super, paramVector);
-%             f_zero = dT * (timeStep_Vec(1) + timeStep_Vec(end)) / 2 + dT * sum(timeStep_Vec(2:end-1)) - tof_current;
-%             if f_zero > 0
-%                 d_minimum_in = 0;
-%                 f_min = f_zero;
+        if (d_minimum < 0) ~= (d_maximum < 0)
+            f_zero = fTimeFunction(0, theta_super, dT, paramVector) - tof_current;
+%             if ~isreal(f_zero)
+%                 continue
 %             else
-%                 d_maximum_in = 0;
-%                 f_max = f_zero;
-%             end
-%         end
+            if (f_zero > 0) && (f_min > 0)
+                d_minimum_in = 0;
+                f_min = f_zero;
+            else
+                d_maximum_in = 0;
+                f_max = f_zero;
+            end
+        end
 
-%         crossing = (f_min < 0) ~= (f_max < 0);
-%         if ~crossing % || imaginary
-%             continue
-%         end
+        crossing = (f_min < 0) ~= (f_max < 0);
+        if ~crossing
+            continue
+        end
 
 
-        tfTimeHandle = @(d_in) transferTimeSolution(d_in, paramVector, pState.tof_current, theta_super);
-        d_solution = fMyFastZero(tfTimeHandle, [d_minimum_in, d_maximum_in], pSettings.opt_tof_fzero);
+        % Customisted to be specific to transferTimeSolution-function
+        % Parameters are passed directly to the function instead of through a handle
+        d_solution = fMyFastZero(@transferTimeSolution, [d_minimum_in, d_maximum_in], [f_min, f_max], pSettings.opt_tof_fzero, paramVector, pState.tof_current, theta_super);
 
-        dT = theta_super(1,2) - theta_super(1,1);
-        deltaV_o_Vec = abs(fJerkFunction(d_solution, theta_super, paramVector));
-        deltaV_o = dT * (deltaV_o_Vec(1) + deltaV_o_Vec(end)) / 2 + dT * sum(deltaV_o_Vec(2:end-1));
+        deltaV_o = fJerkFunction(d_solution, theta_super, dT, paramVector);
         trueSolution = 1;
 
         if deltaV_o <= localBestDV
             localBestDV = deltaV_o;
         else
             break
-        end
+        end 
 
-        if deltaV_o < deltaResult
+        if localBestDV < deltaResult
             %Save best results as globals
             global dateOptimal tof_optimal d_opt;
             global paramVector_opt resultVector_opt
     
-            deltaResult = deltaV_o;
+            deltaResult = localBestDV;
             d_opt = d_solution;
     
             dateOptimal = pState.currentTime;
@@ -142,6 +144,7 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings, twMapInds)
         end
 
     end
+
 
     if pSettings.plotTransferWindow == 1
         

@@ -18,6 +18,7 @@ classdef programSettings
         p1;
         p2;
         intApprox;
+        approxSpace;
         plotAccuracy;
         theta_0;
         safeTransferAngleMultiplier;
@@ -49,6 +50,7 @@ classdef programSettings
         orbit1;
         orbit2;
         viewportLimits;
+        baseDate;
     end
 end
 

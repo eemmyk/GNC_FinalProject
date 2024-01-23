@@ -83,7 +83,6 @@ while fb ~= 0 && a ~= b
     else
         b = b + toler;
     end
-
     fb = FunFcn(b, paramVector, tof_current, theta_super);
 
     %Additional TolFun exit check

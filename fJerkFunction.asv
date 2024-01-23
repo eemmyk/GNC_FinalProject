@@ -1,4 +1,4 @@
-function [dV_o] = fJerkFunction(d, theta, dT, paramVector)
+function [jerk_vec] = fJerkFunction(d, theta, paramVector)
 
     theta_f = paramVector.theta_f;
     r2 = paramVector.r2;
@@ -25,9 +25,9 @@ function [dV_o] = fJerkFunction(d, theta, dT, paramVector)
     thetaDotFunction = (sqrt(paramVector.mju)./rsq) ./ sqrt((1./r + 2.*c + 6.*d.*theta(1,:) + 12.*e.*theta(2,:) + 20.*f.*theta(3,:) + 30.*g.*theta(4,:)));
     thrustFunction = -paramVector.mju ./ (2.*rsq.*r.*cos(gamma)) .* (6.*d + 24.*e.*theta(1,:) + 60.*f.*theta(2,:) + 120.*g.*theta(3,:) - tan(gamma)./r) ./ (1./r + 2.*c + 6.*d.*theta(1,:) + 12.*e.*theta(2,:) + 20.*f.*theta(3,:) + 30.*g.*theta(4,:)).^2;
     
-    acc_vec = abs(thrustFunction./thetaDotFunction);
-
-    dV_o = dT * (acc_vec(1) + acc_vec(end)) / 2 + dT * sum(acc_vec(2:end-1));
+    jerk_vec = thrustFunction./thetaDotFunction;
+    
+    deltaV_o = dT * (deltaV_o_Vec(1) + deltaV_o_Vec(end)) / 2 + dT * sum(deltaV_o_Vec(2:end-1));
 
 end
 

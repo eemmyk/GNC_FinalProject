@@ -1,13 +1,11 @@
 %% Shape-Based Approach to Low-Thrust Rendezvous Trajectory Design
+tic;
 clear;
 close all;
 
 %% Declaring globals
- 
-global deltaResult resultVector;
-global d_solution dateOptimal tof_optimal;
-global d_opt pState;
-global paramVector paramVector_opt;
+global pState;
+global paramVector paramVector_opt d_opt dateOptimal tof_optimal deltaResult;
 
 %% Global variable vector structures
 %I know this should be a class....
@@ -47,7 +45,13 @@ rMin = bodyRadius + 1000000 * 1e3; %[km] Sun
 
 %% Orbital parameters
 seed = floor(rand() * 1000000);
-rng(3750);  % Cool Seeds: Good looking: 761982    Good looking: 13     Some issue to fix: 34158
+rng(311);  % Cool Seeds: Good looking: 761982    Good looking: 13     Some issue to fix: 34158     NuPredict Issue: 438758      DV optim issues: 313
+
+%Save current date and seed to a file
+baseDate = datetime('now','Format','dd-MMM-yyyy');
+seedFile = fopen("seedList.txt", "a");
+fprintf(seedFile, "Seed: %.0f - Date: %s\n", rng().Seed, string(baseDate));
+
 %--First Orbit Parameters--
 %Semimajor axis
 a_initial = (0.3 + 7*rand())*150*10^9;
@@ -135,7 +139,7 @@ dateSearchSpan = max(P1,P2); %0.5 * lcm(years1, years2) * 365 * 86400;
 %Linear for option 1
 %Linear for option 2
 %Squared for option 3
-gsPointCount = 32;
+gsPointCount = 512;
 
 %Which approach to global search is taken
 %Option 1: Global search
@@ -161,7 +165,7 @@ subXCount = optimizeTOF + optimizeDV + optimizeDATE;
 subYCount = 5;
 figure(1);
 infoWindow = tiledlayout(subYCount, subXCount*3 + 2, 'Padding', 'tight', 'TileSpacing', 'tight');
-sgtitle(sprintf("Initial Time: %s - Seed: %0.f", secToTime(initialTime, 1), rng().Seed));
+sgtitle(sprintf("Initial Time: %s - Seed: %0.f", secToTime(initialTime, 1, baseDate), rng().Seed));
 
 %Maximize window
 set(gcf,'WindowState','maximized')
@@ -175,10 +179,12 @@ if (visualizeTransferWindow == 1) && (optimizeDATE == 1)
 
     viewportWindow = tiledlayout(1, 1, 'Padding', 'tight', 'TileSpacing', 'tight');
     nexttile(viewportWindow);
+
     xlabel("Distance from central body [m]");
     ylabel("Distance from central body [m]");
 
-    axHandle = gca;
+    axHandle = gca;    
+    hold(axHandle, 'on');
 end
 
 %Is the live plotting running
@@ -278,6 +284,7 @@ pSettings.P2 = P2;
 pSettings.p1 = p1;
 pSettings.p2 = p2;
 pSettings.intApprox = intApprox;
+pSettings.approxSpace = linspace(0, 1, intApprox);
 pSettings.plotAccuracy = plotAccuracy;
 pSettings.theta_0 = theta_0;
 pSettings.safeTransferAngleMultiplier = safeTransferAngleMultiplier;
@@ -309,6 +316,7 @@ pSettings.bodyRadius = bodyRadius;
 pSettings.orbit1 = orbit1;
 pSettings.orbit2 = orbit2;
 pSettings.viewportLimits = viewportLimits;
+pSettings.baseDate = baseDate;
 
 pState.currentTime = initialTime;
 pState.tof_current = 0; %Default as 0
@@ -323,7 +331,7 @@ pState.twMap = twMap;
 pState.twMapInds = twMapInds;
 
 %% Calculate all the rest of orbital parameters for the coming simulation
-updateParameters(1, pSettings);
+[resultVector, paramVector] = updateParameters(1, pSettings);
 
 theta_f = paramVector.theta_f;
 r1 = paramVector.r1;
@@ -337,8 +345,6 @@ d_minimum = resultVector(1);
 d_maximum = resultVector(2);
 TOF_estimation = resultVector(3);
 
-theta_vec_plot = linspace(theta_0, theta_f, plotAccuracy);
-
 %% TOF optimization + result plotting
 if optimizeTOF == 1 
     solutionFound = 0;
@@ -349,6 +355,7 @@ if optimizeTOF == 1
             %TOF solution
             theta_vec_plot = linspace(theta_0, theta_f, plotAccuracy);
             theta_vec_super = fGetThetaSuper(theta_vec_plot);
+            dT = theta_vec_super(1,2) - theta_vec_super(1,1);
             
             tfTimeHandle = @(d_in) transferTimeSolution(d_in, paramVector, pState.tof_current, theta_vec_super);
             d_solution = fzero(tfTimeHandle, [d_minimum, d_maximum], opt_tof_fzero_acc);
@@ -357,7 +364,7 @@ if optimizeTOF == 1
         catch
             solutionFound = 0;
             pState.N = pState.N + 1;
-            updateParameters(1, pSettings);
+            [resultVector, paramVector] = updateParameters(1, pSettings);
 
             r1 = paramVector.r1;
             r2 = paramVector.r2;
@@ -392,22 +399,22 @@ if optimizeTOF == 1
     if solutionFound == 1
         thrustCurve_tof = [theta_vec_plot; fThrustFunction(d_solution, theta_vec_super, paramVector)];    
     
-        deltaV_tof = trapz(theta_vec_plot, abs(fJerkFunction(d_solution, theta_vec_super, paramVector)));
+        deltaV_tof = fJerkFunction(d_solution, theta_vec_super, dT, paramVector);
         pState.initial_DeltaV = deltaV_tof;
         resultsDeltaVs(end+1) = deltaV_tof;
         
-        time_t = trapz(theta_vec_plot, fTimeFunction(d_solution, theta_vec_super, paramVector));
+        time_t = fTimeFunction(d_solution, theta_vec_super, dT, paramVector);
    
         x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_super, paramVector);
         y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_super, paramVector);
         plot(x, y, "Color", [0.2 0.7 0.2]);
 
-        title(sprintf("TOF solution trajectory\nTarget TOF: %s\nAchieved TOF: %s\nRequired deltaV: %.0f m/s", secToTime(TOF_estimation, 0), secToTime(time_t, 0), deltaV_tof));
+        title(sprintf("TOF solution trajectory\nTarget TOF: %s\nAchieved TOF: %s\nRequired deltaV: %.0f m/s", secToTime(TOF_estimation, 0, []), secToTime(time_t, 0, []), deltaV_tof));
    
     else
         %Reset revolutions
         pState.N = startN;
-        updateParameters(1, pSettings);
+        [resultVector, paramVector] = updateParameters(1, pSettings);
 
         theta_f = paramVector.theta_f;
         theta1 = paramVector.theta1;
@@ -416,30 +423,31 @@ if optimizeTOF == 1
         d_maximum = resultVector(2);
         TOF_estimation = resultVector(3);
 
-        theta_vec_plot = linspace(0, theta_f, 100);
+        theta_vec_plot = linspace(0, theta_f, plotAccuracy);
         theta_vec_super = fGetThetaSuper(theta_vec_plot);
-    
+        dT = theta_vec_super(1,2) - theta_vec_super(1,1);
+
 
         fprintf("Inital Time of Flight guess not achievable\n")
 
         x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_vec_super, paramVector);
         y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_vec_super, paramVector);
-        time_max = trapz(theta_vec_plot, fTimeFunction(d_minimum, theta_vec_super, paramVector));
+        time_max = fTimeFunction(d_minimum, theta_vec_super, dT, paramVector);
         plot(x, y, "Color", [0.5 0.9 0.5]);
 
         x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_vec_super, paramVector);
         y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_vec_super, paramVector);
-        time_min = trapz(theta_vec_plot, fTimeFunction(d_maximum, theta_vec_super, paramVector));
+        time_min = fTimeFunction(d_maximum, theta_vec_super, dT, paramVector);
         plot(x, y, "Color", [0.5 0.9 0.5]);
 
-        title(sprintf("Inital Time of Flight guess not achievable\nTarget TOF: %s\nMinimum Achieved TOF: %s\nMaximum Achieved TOF: %s", secToTime(TOF_estimation, 0), secToTime(time_min, 0), secToTime(time_max, 0)));
+        title(sprintf("Inital Time of Flight guess not achievable\nTarget TOF: %s\nMinimum Achieved TOF: %s\nMaximum Achieved TOF: %s", secToTime(TOF_estimation, 0, []), secToTime(time_min, 0, []), secToTime(time_max, 0, [])));
         
         thrustCurve_tof = [0;0];
 
     end
 
     pState.N = startN;
-    updateParameters(1, pSettings);
+    [resultVector, paramVector] = updateParameters(1, pSettings);
 
     theta_f = paramVector.theta_f;
     r1 = paramVector.r1;
@@ -469,12 +477,6 @@ if optimizeDV == 1
     dvHandle = @(tof_in) optimalDVSolver(tof_in, pSettings, []);
     tf_fuelOptimal = fminsearch(dvHandle, TOF_estimation, opt_dv_fminsearch);
 
-%     for tof_start = [TofLimLow, TOF_estimation, TofLimHigh]
-%         dvHandle = @(tof_in) optimalDVSolver(tof_in, pSettings, []);
-%         tf_fuelOptimal = fminsearch(dvHandle, tof_start, opt_dv_fminsearch);
-% %         tf_fuelOptimal = fminbnd(dvHandle, TofLimLow, TofLimHigh, opt_dv_fminsearch);
-%     end
-
     %Update local variables to the optimal solution
     theta_f_opt = paramVector_opt.theta_f;
     r1_opt = paramVector_opt.r1;
@@ -486,14 +488,15 @@ if optimizeDV == 1
 
     theta_vec_plot = linspace(theta_0, theta_f_opt, plotAccuracy);
     theta_vec_super = fGetThetaSuper(theta_vec_plot);
+    dT = theta_vec_super(1,2) - theta_vec_super(1,1);
     
     thrustCurve_dV = [theta_vec_plot; fThrustFunction(d_opt, theta_vec_super, paramVector_opt)]; 
     
-    deltaV_opt = trapz(theta_vec_plot, abs(fJerkFunction(d_opt, theta_vec_super, paramVector_opt)));
+    deltaV_opt = fJerkFunction(d_opt, theta_vec_super, dT, paramVector_opt);
     pState.initial_DeltaV = deltaV_opt;
     resultsDeltaVs(end+1) = deltaV_opt;
 
-    time_t = trapz(theta_vec_plot, fTimeFunction(d_opt, theta_vec_super, paramVector_opt));
+    time_t = fTimeFunction(d_opt, theta_vec_super, dT, paramVector_opt);
     
     nexttile(infoWindow, [3, 3]);
     hold on;
@@ -514,7 +517,7 @@ if optimizeDV == 1
    
     plot(x, y, "Color", [0.2 0.7 0.2]);
         
-    title(sprintf("DeltaV optimized trajectory\nTransfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s", secToTime(initialTime, 1), secToTime(time_t, 0), deltaV_opt));
+    title(sprintf("DeltaV optimized trajectory\nTransfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s", secToTime(initialTime, 1, baseDate), secToTime(time_t, 0, []), deltaV_opt));
     legend("Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
 
     xlim(viewportLimits(1:2));
@@ -569,7 +572,7 @@ if optimizeDATE == 1
         date_coords = linspace(xlims(1), xlims(2), pSettings.twLabelCount);
 
         xticks(date_coords);
-        xticklabels(string(secToTime(date_vec, 1)));
+        xticklabels(string(secToTime(date_vec, 1, baseDate)));
 
         yticks(tof_coords);
         tickTexts = cell(1, pSettings.twLabelCount);
@@ -651,13 +654,14 @@ if optimizeDATE == 1
 
     theta_vec_plot = linspace(theta_0, theta_f_opt, plotAccuracy);
     theta_vec_super = fGetThetaSuper(theta_vec_plot);
+    dT = theta_vec_super(1,2) - theta_vec_super(1,1);
 
     thrustCurve_date = [theta_vec_plot; fThrustFunction(d_opt, theta_vec_super, paramVector_opt)]; 
 
-    deltaV_date = trapz(theta_vec_plot, abs(fJerkFunction(d_opt, theta_vec_super, paramVector_opt)));
+    deltaV_date = fJerkFunction(d_opt, theta_vec_super, dT, paramVector_opt);
     resultsDeltaVs(end+1) = deltaV_date;
 
-    time_t = trapz(theta_vec_plot, fTimeFunction(d_opt, theta_vec_super, paramVector_opt));
+    time_t = fTimeFunction(d_opt, theta_vec_super, dT, paramVector_opt);
 
     hold(orbitAx, 'on') 
     
@@ -675,7 +679,7 @@ if optimizeDATE == 1
    
     plot(orbitAx, x, y, "Color", [0.2 0.7 0.2]);
 
-    title(orbitAx, sprintf("Full transfer window solution\nTransfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s",secToTime(dateOptimal, 1), secToTime(time_t, 0), deltaV_date));
+    title(orbitAx, sprintf("Full transfer window solution\nTransfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s",secToTime(dateOptimal, 1, baseDate), secToTime(time_t, 0, []), deltaV_date));
     legend(orbitAx, "Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
     
     orbitAx.XLim = viewportLimits(1:2);
@@ -698,22 +702,22 @@ legendTexts = {};
 if (optimizeTOF == 1) && (solutionFound == 1)
     legendTexts(end+1) = {''};
     legendTexts(end+1) = {'TOF solution'};
-    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0.1, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth*1.1, 'Color', 'black');
-    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0.1, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth);
+    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth*1.1, 'Color', 'black');
+    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth);
     deltaInd = deltaInd+1;
 end
 if optimizeDV == 1
     legendTexts(end+1) = {''};
     legendTexts(end+1) = {'deltaV Optimized TOF'};
-    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0.1, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth*1.1, 'Color', 'black');
-    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0.1, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth);
+    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth*1.1, 'Color', 'black');
+    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth);
     deltaInd = deltaInd+1;
 end
 if optimizeDATE == 1
     legendTexts(end+1) = {''};
     legendTexts(end+1) = {'deltaV Optimized Window'};
-    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0.1, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth*1.1, 'Color', 'black');
-    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0.1, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth);
+    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth*1.1, 'Color', 'black');
+    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth);
 end
 
 title(sprintf("Comparision of total deltaV values"));
@@ -752,10 +756,12 @@ if (visualizeTransferWindow == 1) && (optimizeDATE == 1)
     set(twFig, 'WindowButtonMotionFcn', @(src, event) hoverCallback(src, event, pSettings, axHandle));
 end
 
+toc;
+
+%% START OF FUNCTIONS
 %% Second to time conversion
-function [timestring] = secToTime(secs, outputDate)
+function [timestring] = secToTime(secs, outputDate, baseDate)
     if outputDate == 1
-        baseDate = datetime('now','Format','dd-MMM-yyyy');
         timestring = baseDate + seconds(secs);
 
     else
@@ -829,7 +835,7 @@ function zoomCallback(~, eventData, pSettings)
     date_coords = linspace(xlims(1), xlims(2), pSettings.twLabelCount);
 
     xticks(date_coords);
-    xticklabels(string(secToTime(date_vec, 1)));
+    xticklabels(string(secToTime(date_vec, 1, pSettings.baseDate)));
 
     yticks(tof_coords);
     tickTexts = cell(1, pSettings.twLabelCount);
@@ -896,6 +902,7 @@ end
 function hoverCallback(obj, ~, pSettings, axHandle)
     global pState; %theta_super
     global d_opt paramVector paramVector_opt deltaResult;
+    global tfP obP1 obP2_1 obP2_2;
 
     if pState.isRunning == 0
         pState.isRunning = 1;
@@ -904,6 +911,12 @@ function hoverCallback(obj, ~, pSettings, axHandle)
 
         if pState.axRelative == [0, 0, 0, 0]
             pState.axRelative = get(obj.CurrentAxes, 'Position');
+        
+            plot(axHandle, pSettings.orbit1(1,:), pSettings.orbit1(2,:), 'LineStyle',':', LineWidth=2);
+            plot(axHandle, pSettings.orbit2(1,:), pSettings.orbit2(2,:), 'LineStyle',':', LineWidth=2);
+
+            rectangle(axHandle, 'Position',[-pSettings.bodyRadius, -pSettings.bodyRadius, 2*pSettings.bodyRadius, 2*pSettings.bodyRadius], ...
+                     'Curvature',[1 1], 'FaceColor',"yellow")
         end
 
         %Get the cursor position
@@ -918,13 +931,16 @@ function hoverCallback(obj, ~, pSettings, axHandle)
 
         pState.currentTime = xmin + relativePos(1) * xSpan;
         pState.tof_current = ymin + relativePos(2) * ySpan;
-        cla(axHandle);
+
+        delete(tfP);
+        delete(obP1);
+        delete(obP2_1);
+        delete(obP2_2);
 
         deltaResult = Inf;
         pSettings.solveDate = 1;
         dv_mouse = optimalDVSolver([pState.currentTime, pState.tof_current], pSettings, []);
 
-        hold on;
         theta_f = paramVector_opt.theta_f;
         r1 = paramVector_opt.r1;
         r2 = paramVector_opt.r2;
@@ -933,31 +949,24 @@ function hoverCallback(obj, ~, pSettings, axHandle)
         nu2_i = paramVector_opt.nu2_i;
         r2_i = paramVector_opt.r2_i;
 
-        
-
-        plot(axHandle, pSettings.orbit1(1,:), pSettings.orbit1(2,:), 'LineStyle',':', LineWidth=2);
-        plot(axHandle, pSettings.orbit2(1,:), pSettings.orbit2(2,:), 'LineStyle',':', LineWidth=2);
 
         if dv_mouse < 1e24
             theta_vec_plot = linspace(pSettings.theta_0, theta_f, pSettings.plotAccuracy);
             theta_super_plot = fGetThetaSuper(theta_vec_plot);
+            dT = theta_super_plot(1,2) - theta_super_plot(1,1);
 
-            plot(axHandle, cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
-            plot(axHandle, cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
-            plot(axHandle, cos(pSettings.omega2 + nu2_i) * r2_i, sin(pSettings.omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')      
+            obP1 = plot(axHandle, cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g');
+            obP2_1 = plot(axHandle, cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r');
+            obP2_2 = plot(axHandle, cos(pSettings.omega2 + nu2_i) * r2_i, sin(pSettings.omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')   ;   
     
             x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_opt, theta_super_plot, paramVector_opt);
             y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_opt, theta_super_plot, paramVector_opt);
-            plot(axHandle, x, y, "Color", [0.2 0.7 0.2]);
+            tfP = plot(axHandle, x, y, "Color", [0.2 0.7 0.2]);
 
-            rectangle(axHandle, 'Position',[-pSettings.bodyRadius, -pSettings.bodyRadius, 2*pSettings.bodyRadius, 2*pSettings.bodyRadius], ...
-                     'Curvature',[1 1], 'FaceColor',"yellow")
 
-            dT = theta_super_plot(1,2) - theta_super_plot(1,1);
-            dVstep_Vec = abs(fJerkFunction(d_opt, theta_super_plot, paramVector_opt));
-            deltaV_tof = dT * (dVstep_Vec(1) + dVstep_Vec(end)) / 2 + dT * sum(dVstep_Vec(2:end-1));
+            deltaV_tof = fJerkFunction(d_opt, theta_super_plot, dT, paramVector_opt);
 
-            title(axHandle, sprintf("Transfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s", secToTime(pState.currentTime, 1), secToTime(pState.tof_current, 0), deltaV_tof));
+            title(axHandle, sprintf("Transfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s", secToTime(pState.currentTime, 1, pSettings.baseDate), secToTime(pState.tof_current, 0, []), deltaV_tof));
         
         else
             r1 = paramVector.r1;
@@ -967,14 +976,11 @@ function hoverCallback(obj, ~, pSettings, axHandle)
             nu2_i = paramVector.nu2_i;
             r2_i = paramVector.r2_i;
 
-            plot(axHandle, cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
-            plot(axHandle, cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
-            plot(axHandle, cos(pSettings.omega2 + nu2_i) * r2_i, sin(pSettings.omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')   
+            obP1 = plot(axHandle, cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g');
+            obP2_1 = plot(axHandle, cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r');
+            obP2_2 = plot(axHandle, cos(pSettings.omega2 + nu2_i) * r2_i, sin(pSettings.omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k');   
             
-            rectangle(axHandle, 'Position',[-pSettings.bodyRadius, -pSettings.bodyRadius, 2*pSettings.bodyRadius, 2*pSettings.bodyRadius], ...
-                     'Curvature',[1 1], 'FaceColor',"yellow")
-
-            title(axHandle, sprintf("Transfer date: %s\nUsed TOF: %s\nNo solution found", secToTime(pState.currentTime, 1), secToTime(pState.tof_current, 0)));
+            title(axHandle, sprintf("Transfer date: %s\nUsed TOF: %s\nNo solution found", secToTime(pState.currentTime, 1, pSettings.baseDate), secToTime(pState.tof_current, 0, [])));
         end
 
         % Set axes limits
