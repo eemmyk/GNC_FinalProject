@@ -7,28 +7,6 @@ close all;
 global pState;
 global paramVector paramVector_opt d_opt dateOptimal tof_optimal deltaResult;
 
-%% Global variable vector structures
-%I know this should be a class....
-%UPDATE: it's now a class
-% --paramVector(_opt) structure--
-% 1:  mju
-% 2:  gamma1(_opt)
-% 3:  gamma2(_opt)
-% 4:  theta_f(_opt)
-% 5:  theta1_dot(_opt)
-% 6:  theta2_dot(_opt)
-% 7:  r1(_opt)
-% 8:  r2(_opt)
-% 9:  theta1(_opt)
-% 10: theta2(_opt)
-% 11: nu2_i(_opt)
-% 12: r2_i(_opt)
-% 13: a(_opt)
-% 14: b(_opt)
-% 15: c(_opt)
-% 16: efg_Mat_1(1,:)(_opt)
-% 19: efg_Mat_1(2,:)(_opt)
-% 22: efg_Mat_1(3,:)(_opt)
 %% Central body information
 
 %Gravitational parameter
@@ -139,7 +117,7 @@ dateSearchSpan = max(P1,P2); %0.5 * lcm(years1, years2) * 365 * 86400;
 %Linear for option 1
 %Linear for option 2
 %Squared for option 3
-gsPointCount = 128;
+gsPointCount = 64;
 
 %Which approach to global search is taken
 %Option 1: Global search
@@ -737,10 +715,11 @@ nexttile(infoWindow, [2 subXCount*3])
 hold on;
 xlabel("theta");
 ylabel("thurst [mN]");
+maxThetaValue =  max([thrustCurve_tof(1, end), thrustCurve_dV(1, end), thrustCurve_date(1, end)]);
+plot([0, maxThetaValue], [0, 0], 'Color', 'black', 'LineStyle',':')
+xlim([0, maxThetaValue+0.5])
 
-plot([0, max([thrustCurve_tof(1, end), thrustCurve_dV(1, end), thrustCurve_date(1, end)])], [0, 0], 'Color', 'black', 'LineStyle',':')
-
-if optimizeTOF == 1
+if (optimizeTOF == 1) && (solutionFound == 1)
     % Plot results of tof optimized trajectory
     plot(thrustCurve_tof(1, :), 1000*m*thrustCurve_tof(2, :), 'LineWidth', 2, 'Color', [0.9, 0.8, 0.0]);
     tctx1 = text(thrustCurve_tof(1, end), 1000*m*thrustCurve_tof(2, end), 'Estimated TOF', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle');
@@ -973,8 +952,8 @@ function hoverCallback(obj, ~, pSettings, axHandle)
             obP2_1 = plot(axHandle, cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r');
             obP2_2 = plot(axHandle, cos(pSettings.omega2 + nu2_i) * r2_i, sin(pSettings.omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')   ;   
     
-            x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_opt, theta_super_plot, paramVector_opt);
-            y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_opt, theta_super_plot, paramVector_opt);
+            x = real(cos(theta_vec_plot+theta1) .* fRadiusFunction(d_opt, theta_super_plot, paramVector_opt));
+            y = real(sin(theta_vec_plot+theta1) .* fRadiusFunction(d_opt, theta_super_plot, paramVector_opt));
             tfP = plot(axHandle, x, y, "Color", [0.2 0.7 0.2]);
 
 
