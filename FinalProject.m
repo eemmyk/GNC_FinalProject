@@ -10,16 +10,16 @@ global paramVector paramVector_opt d_opt dateOptimal tof_optimal deltaResult;
 %% Central body information
 
 %Gravitational parameter
-%mju = 3.986004418*10^14; %Earth
-mju = 1.32712440018*10^20; %Sun
+mju = 3.986004418*10^14; %Earth
+%mju = 1.32712440018*10^20; %Sun
 
 %How large is the central body
-%bodyRadius = 6371 * 1e3; %[km] Earth
-bodyRadius = 696340 * 1e3; %[km] Sun
+bodyRadius = 6371 * 1e3; %[km] Earth
+%bodyRadius = 696340 * 1e3; %[km] Sun
 
 %Minimum allowed radius
-%rMin = bodyRadius + 250 * 1e3; %[km] Earth
-rMin = bodyRadius + 1000000 * 1e3; %[km] Sun
+rMin = bodyRadius + 250 * 1e3; %[km] Earth
+%rMin = bodyRadius + 1000000 * 1e3; %[km] Sun
 
 %% Orbital parameters
 seed = floor(rand() * 1000000);
@@ -32,25 +32,25 @@ fprintf(seedFile, "Seed: %.0f - Date: %s\n", rng().Seed, string(baseDate));
 
 %--First Orbit Parameters--
 %Semimajor axis
-a_initial = (0.3 + 7*rand())*150*10^9;
+a_initial = rMin + (0.1 + 7*rand())*rMin;
 %Period of the orbit
 P1 = 2*pi/sqrt(mju/a_initial^3);
 %Time of last perigee pass
 Tp1 = rand() * P1;
 %Eccentricity
-e1 = rand() * 0.95;
+e1 = rand() * 0.25;
 %Argument of perigee
 omega1 = rand() * 2 * pi;
 
 %--Second Orbit Parameters--
 %Semimajor axis
-a_final = (0.3 + 7*rand())*150*10^9;
+a_final = rMin + (0.3 + 7*rand())*rMin;
 %Period of the orbit
 P2 = 2*pi/sqrt(mju/a_final^3);
 %Time of last perigee pass
 Tp2 = rand() * P2;
 %Eccentricity
-e2 = rand() * 0.95;
+e2 = rand() * 0.25;
 %Argument of perigee
 omega2 = rand() * 2 * pi;
 
@@ -87,9 +87,10 @@ rMax = 10*max(a_initial, a_final);
 m = 32; %kg
 
 %Solve TOF, optimize deltaV and/or optimize transfer date
-optimizeTOF = 1;
-optimizeDV = 1;
-optimizeDATE = 1;
+optimizeTOF = 0;
+optimizeDV = 0;
+optimizeDATE = 0;
+optimizeSwarm = 1;
 
 %Accuracies of approximation
 intApprox = 100;
@@ -117,7 +118,7 @@ dateSearchSpan = max(P1,P2); %0.5 * lcm(years1, years2) * 365 * 86400;
 %Linear for option 1
 %Linear for option 2
 %Squared for option 3
-gsPointCount = 64;
+gsPointCount = 32;
 
 %Which approach to global search is taken
 %Option 1: Global search
@@ -561,7 +562,7 @@ if optimizeDATE == 1
         yticks(tof_coords);
         tickTexts = cell(1, pSettings.twLabelCount);
         for i = 1:pSettings.twLabelCount
-            tickTexts(i) =  {sprintf("%.2f y", tof_vec(i) / (365.25 * 86400))};
+            tickTexts(i) =  {sprintf("%.2f h", tof_vec(i) / (3600))};
         end
         yticklabels(tickTexts);
     end
