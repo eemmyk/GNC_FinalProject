@@ -23,7 +23,7 @@ rMin = bodyRadius + 250 * 1e3; %[km] Earth
 
 %% Orbital parameters
 seed = floor(rand() * 1000000);
-rng(seed);  % Cool Seeds: Good looking: 761982    Good looking: 13     Some issue to fix: 34158     NuPredict Issue: 438758      DV optim issues: 313
+rng(313);  % Cool Seeds: Good looking: 761982    Good looking: 13     Some issue to fix: 34158     NuPredict Issue: 438758      DV optim issues: 313
 
 %Save current date and seed to a file
 baseDate = datetime('now','Format','dd-MMM-yyyy');
@@ -87,7 +87,7 @@ rMax = 10*max(a_initial, a_final);
 m = 32; %kg
 
 %Solve TOF, optimize deltaV and/or optimize transfer date
-optimizeTOF = 0;
+optimizeTOF = 1;
 optimizeDV = 0;
 optimizeDATE = 0;
 optimizeSwarm = 1;
@@ -671,6 +671,119 @@ if optimizeDATE == 1
     orbitAx.XLim = viewportLimits(1:2);
     orbitAx.YLim = viewportLimits(3:4);
 end
+
+%% Find solutions for a swarm of satellites
+if optimizeSwarm
+    %global resultVector_opt
+
+    extraOrbitChecks = 5;
+    datePointCount = 20;
+
+    deployNuVector = [0.1, 0.12, 0.14, 0.16, 0.18, 0.1, 0.12, 0.14, 0.16, 0.18, 0.1, 0.12, 0.14, 0.16, 0.18, 0.1, 0.12, 0.14, 0.16, 0.18, 0.1, 0.12, 0.14, 0.16, 0.18, 0.1, 0.12, 0.14, 0.16, 0.18] .* 2 * pi;
+    targetNuVector = [0.2, 0.4, 0.6, 0.8, 1.0, 0.2, 0.4, 0.6, 0.8, 1.0, 0.2, 0.4, 0.6, 0.8, 1.0, 0.2, 0.4, 0.6, 0.8, 1.0, 0.2, 0.4, 0.6, 0.8, 1.0, 0.2, 0.4, 0.6, 0.8, 1.0, 0.2, 0.4, 0.6, 0.8, 1.0] .* 2 * pi;
+   
+    nuCount = size(deployNuVector);
+    nuCount = nuCount(2);
+
+
+
+    pSettings.solveDate = 1;
+    pSettings.plotTransferWindow = 0;
+
+%             optimalDVSolver([pState.currentTime, pState.tof_current], pSettings, pState.twMapInds);
+%             pState.twMapInds(2) = pState.twMapInds(2) + 1;
+%         
+%             pState.twMapInds(1) = pState.twMapInds(1) + 1;
+%             pState.twMapInds(2) = 1;
+
+    tofMatrix = zeros(nuCount, datePointCount, extraOrbitChecks);
+    tofMatNuInd = 1;
+    tofMatDateInd = 1;
+
+    dateVector = linspace(initialTime, initialTime + dateSearchSpan, datePointCount);
+
+    for nuEnd = targetNuVector
+        for date = dateVector
+
+            if nuEnd <= pi
+                E = 2*atan(tan(nuEnd/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+            else
+                E = 2*pi + 2*atan(tan(nuEnd/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+            end
+        
+            timeSincePerigee = (E-pSettings.e2*sin(E)) / pSettings.n2;
+            requiredTOF = timeSincePerigee - mod(date, pSettings.P2);
+            tofVector = requiredTOF + (0:extraOrbitChecks-1) .* pSettings.P2;
+            tofMatrix(tofMatNuInd, tofMatDateInd, :) = tofVector;
+            tofMatDateInd = tofMatDateInd + 1;
+        end
+        tofMatNuInd = tofMatNuInd + 1;
+        tofMatDateInd = 1;
+    end
+
+    figure(4)
+    transferWindow = tiledlayout(1, 1, 'Padding', 'tight', 'TileSpacing', 'tight');
+    nexttile;
+    hold on;
+    
+    xlabel("Distance from central body [m]");
+    ylabel("Distance from central body [m]");
+
+    plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
+    plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
+
+    rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
+
+    pState.currentTime = initialTime;
+    resultMatrix = zeros(nuCount, nuCount);
+
+    for swarmIndTarget = 1:nuCount
+        nuEnd = targetNuVector(swarmIndTarget);
+        for swarmIndDeploy = 1:nuCount  
+            nuStart = deployNuVector(swarmIndDeploy);
+
+            deltaResult = Inf;
+
+            for dateInd = 1:datePointCount
+                    date = dateVector(dateInd);
+                for tofInd = 1:extraOrbitChecks
+                    tof = tofMatrix(swarmIndTarget, dateInd, tofInd);
+
+                    optimalSwarmDVSolver([date, tof, nuStart, nuEnd], pSettings, []);
+                end
+            end
+
+            resultMatrix(swarmIndDeploy, swarmIndTarget) = deltaResult;
+
+            theta_f_opt = paramVector_opt.theta_f;
+            r1_opt = paramVector_opt.r1;
+            r2_opt = paramVector_opt.r2;
+            theta1_opt = paramVector_opt.theta1;
+            theta2_opt = paramVector_opt.theta2;
+%             nu2_i = paramVector_opt.nu2_i;
+%             r2_i = paramVector_opt.r2_i;
+            
+%             d_minimum = resultVector_opt(1);
+%             d_maximum = resultVector_opt(2);
+%             TOF_estimation = pState.initial_tof;
+
+            theta_vec_plot = linspace(theta_0, theta_f_opt, plotAccuracy);
+            theta_vec_super = fGetThetaSuper(theta_vec_plot);
+            dT = theta_vec_super(1,2) - theta_vec_super(1,1);
+
+            plot(cos(theta1_opt) * r1_opt, sin(theta1_opt) * r1_opt,'or', 'MarkerSize',5,'MarkerFaceColor','g')
+            plot(cos(theta2_opt) * r2_opt, sin(theta2_opt) * r2_opt,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+
+            x = cos(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_super, paramVector_opt);
+            y = sin(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_super, paramVector_opt);
+            plot(x, y, "Color", [0.2 0.7 0.2]);
+                 
+        end
+    end
+end
+
+resultMatrix
+
 
 %% Plotting thrust curves and deltaV results
 nexttile(infoWindow, [subYCount, 2]);
