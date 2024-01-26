@@ -1,7 +1,27 @@
-function [resultVector_o, paramVector_o, theta_super] = updateSwarmParameters(nu1, nu2, pSettings)
+function [resultVector_o, paramVector_o, theta_super] = updateSwarmParameters(nu1_i, nu2_f, pSettings)
     global pState paramVector;
 
     if pState.previousTime ~= pState.currentTime
+
+        if nu1_i <= pi
+            E = 2*atan(tan(nu1_i/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+        else
+            E = 2*pi + 2*atan(tan(nu1_i/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+        end
+
+        timeSincePerigee = (E-pSettings.e2*sin(E)) / pSettings.n2;
+
+        T_nu = mod(pState.currentTime - timeSincePerigee, pSettings.P1);
+        if T_nu ~= 0        
+            n = pSettings.n1;
+            e = pSettings.e1;
+            nu_guess = paramVector.theta1 - pSettings.omega1;
+
+            nu1 = nuFromTime(T_nu, n, e, nu_guess);
+        else
+            nu1 = 0;
+        end
+
         theta1 = nu1 + pSettings.omega1;
         gamma1 = asin(pSettings.e1 * sin(nu1) / sqrt(1+2*pSettings.e1*cos(nu1) + pSettings.e1^2));
         r1 = pSettings.p1 / (1+pSettings.e1*cos(nu1));
@@ -12,8 +32,28 @@ function [resultVector_o, paramVector_o, theta_super] = updateSwarmParameters(nu
         r1 = paramVector.r1;
         theta1 = paramVector.theta1;
     end
+
     pState.previousTime = pState.currentTime;
-    
+
+    if nu2_f <= pi
+        E = 2*atan(tan(nu1_i/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+    else
+        E = 2*pi + 2*atan(tan(nu1_i/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+    end
+
+    timeSincePerigee = (E-pSettings.e2*sin(E)) / pSettings.n2;
+
+    T_nu = mod(pState.currentTime + pState.tof_current - timeSincePerigee, pSettings.P2);
+    if T_nu ~= 0        
+        n = pSettings.n2;
+        e = pSettings.e2;
+        nu_guess = paramVector.theta2 - pSettings.omega2;
+
+        nu2 = nuFromTime(T_nu, n, e, nu_guess);
+    else
+        nu2 = 0;
+    end
+
     theta2 = nu2 + pSettings.omega2;    
     theta_tilde = theta2 - theta1;
 
@@ -237,3 +277,78 @@ function [timeImgPart, radiusImgPart] = fTimeMinReal(theta, d, paramVector, a_in
     timeImgPart = min(a_initial*(a + 2.*c + (6.*d + b).*theta(1,:) + (12.*e + c).*theta(2,:) + (20.*f + d).*theta(3,:) + (30.*g + e).*theta(4,:) + f.*theta(5,:) + g.*theta(6,:)));
 end
 
+function [nu] = nuFromTime(T, n, e, nu_guess)
+
+    M = n*T;
+    nu = M;
+
+    if e ~= 0
+    
+        root = sqrt(-e^3 * (-8 + 24*e - 24*e^2 + 8*e^3 - 9*e*M^2));
+    
+        nom = -2*e + 2*e^2 + (3*M*e^2 + root)^(2/3);
+        denom = e * (3*M*e^2 + root)^(1/3);
+    
+        E =  nom/denom;
+        
+        if E <= pi
+            nu = 2*atan(tan(E/2)*sqrt((1+e)/(1-e)));
+        else
+            nu = 2*pi + 2*atan(tan(E/2)*sqrt((1+e)/(1-e)));
+        end
+    
+        if M <= pi
+            E2 = 2*atan(tan(M/2)/sqrt((1+e)/(1-e)));
+        else
+            E2 = 2*pi + 2*atan(tan(M/2)/sqrt((1+e)/(1-e)));
+        end
+
+
+        xnm1 = M;
+        fnm1 = E2 - e*sin(E2) - M;
+        xn = nu;
+        fn = E - e*sin(E) - M;
+
+
+       
+        iter = 0;
+        while (abs(fn) > 0.001) && (iter < 100)
+            xnp1 = mod(xn - fn * (xn-xnm1) / (fn-fnm1), 2*pi);
+            fnm1 = fn;
+            xnm1 = xn;
+            xn = xnp1;
+            fn = nuSolver(xnp1, T, n, e);
+
+            iter = iter + 1;
+
+            if iter == 50
+                if abs(fnm1) < abs(fn)
+                    fn = nuSolver(nu_guess, T, n, e);
+                    xn = nu_guess;
+                else
+                    fnm1 = nuSolver(nu_guess, T, n, e);
+                    xnm1 = nu_guess;            
+                end
+            end
+%             if abs(fn) < abs(minFn)
+%                 minFn = fn;
+%                 bestXn = xn;
+%             end
+        end
+
+        nu = xn;%bestXn;
+
+    end
+
+end
+
+%% Solve nu around an orbit at a given time T
+function [angleError] = nuSolver(nu_time, T, n, e)
+    if nu_time <= pi
+        E = 2*atan(tan(nu_time/2)/sqrt((1+e)/(1-e)));
+    else
+        E = 2*pi + 2*atan(tan(nu_time/2)/sqrt((1+e)/(1-e)));
+    end
+
+    angleError = E-e*sin(E) - n*T;
+end

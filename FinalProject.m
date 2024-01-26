@@ -23,7 +23,7 @@ rMin = bodyRadius + 250 * 1e3; %[km] Earth
 
 %% Orbital parameters
 seed = floor(rand() * 1000000);
-rng(313);  % Cool Seeds: Good looking: 761982    Good looking: 13     Some issue to fix: 34158     NuPredict Issue: 438758      DV optim issues: 313
+rng(seed);  % Cool Seeds: Good looking: 761982    Good looking: 13     Some issue to fix: 34158     NuPredict Issue: 438758      DV optim issues: 313
 
 %Save current date and seed to a file
 baseDate = datetime('now','Format','dd-MMM-yyyy');
@@ -32,27 +32,27 @@ fprintf(seedFile, "Seed: %.0f - Date: %s\n", rng().Seed, string(baseDate));
 
 %--First Orbit Parameters--
 %Semimajor axis
-a_initial = rMin + (0.1 + 7*rand())*rMin;
+a_initial = 6800e3;%rMin + (0.1 + 3*rand())*rMin;
 %Period of the orbit
 P1 = 2*pi/sqrt(mju/a_initial^3);
 %Time of last perigee pass
-Tp1 = rand() * P1;
+Tp1 = 0;%rand() * P1;
 %Eccentricity
-e1 = rand() * 0.25;
+e1 = 0;%rand() * 0.25;
 %Argument of perigee
-omega1 = rand() * 2 * pi;
+omega1 = 0;%rand() * 2 * pi;
 
 %--Second Orbit Parameters--
 %Semimajor axis
-a_final = rMin + (0.3 + 7*rand())*rMin;
+a_final = 42500e3;%rMin + (3 + 7*rand())*rMin;
 %Period of the orbit
 P2 = 2*pi/sqrt(mju/a_final^3);
 %Time of last perigee pass
-Tp2 = rand() * P2;
+Tp2 = 0;%rand() * P2;
 %Eccentricity
-e2 = rand() * 0.25;
+e2 = 0;%rand() * 0.25;
 %Argument of perigee
-omega2 = rand() * 2 * pi;
+omega2 = 0;%rand() * 2 * pi;
 
 %% Program settings
 %Number of additional rotations around central body
@@ -87,7 +87,7 @@ rMax = 10*max(a_initial, a_final);
 m = 32; %kg
 
 %Solve TOF, optimize deltaV and/or optimize transfer date
-optimizeTOF = 1;
+optimizeTOF = 0;
 optimizeDV = 0;
 optimizeDATE = 0;
 optimizeSwarm = 1;
@@ -112,7 +112,7 @@ previousTime = -1;
 %Testing out lcm to always find interesting values
 years1 = ceil(P1/(365*86400));
 years2 = ceil(P2/(365*86400));
-dateSearchSpan = max(P1,P2); %0.5 * lcm(years1, years2) * 365 * 86400;
+dateSearchSpan = 5 * max(P1,P2); %0.5 * lcm(years1, years2) * 365 * 86400;
 
 %How many initial points the global search starts with
 %Linear for option 1
@@ -248,6 +248,8 @@ viewportLimits = [portCenter(1)-portSideLen / 2, portCenter(1)+portSideLen / 2, 
 pSettings = programSettings;
 pState = programState;
 paramVector = paramClass;
+paramVector.theta1 = 0;
+paramVector.theta2 = 0;
 
 pSettings.mju = mju;
 pSettings.rMin = rMin;
@@ -676,50 +678,129 @@ end
 if optimizeSwarm
     %global resultVector_opt
 
-    extraOrbitChecks = 5;
+    leadNuPointCountPerOrbit = 10;
     datePointCount = 20;
+    extraOrbitChecks = 4;
 
-    deployNuVector = [0.1, 0.12, 0.14, 0.16, 0.18, 0.1, 0.12, 0.14, 0.16, 0.18, 0.1, 0.12, 0.14, 0.16, 0.18, 0.1, 0.12, 0.14, 0.16, 0.18, 0.1, 0.12, 0.14, 0.16, 0.18, 0.1, 0.12, 0.14, 0.16, 0.18] .* 2 * pi;
-    targetNuVector = [0.2, 0.4, 0.6, 0.8, 1.0, 0.2, 0.4, 0.6, 0.8, 1.0, 0.2, 0.4, 0.6, 0.8, 1.0, 0.2, 0.4, 0.6, 0.8, 1.0, 0.2, 0.4, 0.6, 0.8, 1.0, 0.2, 0.4, 0.6, 0.8, 1.0, 0.2, 0.4, 0.6, 0.8, 1.0] .* 2 * pi;
+    satelliteCount = 20;
+
+    deployTime = initialTime;
+    targetTime = 1e5;
+
+    deployNuVector = linspace(0, 0.3, satelliteCount) .* 2 * pi;
+    targetNuVector = linspace(0, 1 - 1/satelliteCount, satelliteCount) .* 2 * pi;
    
     nuCount = size(deployNuVector);
     nuCount = nuCount(2);
 
-
+    %swarmSettings = swarmClass;
 
     pSettings.solveDate = 1;
     pSettings.plotTransferWindow = 0;
 
-%             optimalDVSolver([pState.currentTime, pState.tof_current], pSettings, pState.twMapInds);
-%             pState.twMapInds(2) = pState.twMapInds(2) + 1;
-%         
-%             pState.twMapInds(1) = pState.twMapInds(1) + 1;
-%             pState.twMapInds(2) = 1;
-
-    tofMatrix = zeros(nuCount, datePointCount, extraOrbitChecks);
+    tofMatrix = zeros(nuCount, datePointCount, leadNuPointCountPerOrbit * extraOrbitChecks);
     tofMatNuInd = 1;
     tofMatDateInd = 1;
+    leadNuIndex = 1;
 
     dateVector = linspace(initialTime, initialTime + dateSearchSpan, datePointCount);
+    leadNuVector = linspace(0, 2*pi, leadNuPointCountPerOrbit);
 
     for nuEnd = targetNuVector
         for date = dateVector
-
             if nuEnd <= pi
-                E = 2*atan(tan(nuEnd/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+                E0 = 2*atan(tan(nuEnd/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
             else
-                E = 2*pi + 2*atan(tan(nuEnd/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+                E0 = 2*pi + 2*atan(tan(nuEnd/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
             end
-        
-            timeSincePerigee = (E-pSettings.e2*sin(E)) / pSettings.n2;
-            requiredTOF = timeSincePerigee - mod(date, pSettings.P2);
-            tofVector = requiredTOF + (0:extraOrbitChecks-1) .* pSettings.P2;
-            tofMatrix(tofMatNuInd, tofMatDateInd, :) = tofVector;
+            timeSincePerigee = (E0-pSettings.e2*sin(E0)) / pSettings.n2;
+            for leadNu = leadNuVector
+                if leadNu >= pi
+                    E = 2*pi + 2*atan(tan(leadNu/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+                elseif leadNu <= -pi
+                    E = -2*pi + 2*atan(tan(leadNu/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+                else
+                    E = 2*atan(tan(leadNu/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+                end
+                leadTime = ((E-pSettings.e2*sin(E)) - (E0-pSettings.e2*sin(E0)))/ pSettings.n2 + timeSincePerigee;
+
+                requiredTOF = timeSincePerigee - mod(targetTime + date, pSettings.P2) + leadTime;
+                tofVector = requiredTOF + (0:extraOrbitChecks-1) .* pSettings.P2;
+                tofMatrix(tofMatNuInd, tofMatDateInd, (leadNuIndex : leadNuIndex + extraOrbitChecks - 1)) = tofVector;
+                leadNuIndex = leadNuIndex + extraOrbitChecks;
+            end
             tofMatDateInd = tofMatDateInd + 1;
-        end
+            leadNuIndex = 1;
+        end   
         tofMatNuInd = tofMatNuInd + 1;
         tofMatDateInd = 1;
     end
+
+    tofMatrix;
+
+ 
+    pState.currentTime = initialTime;
+    resultMatrix = zeros(nuCount, nuCount);
+    dateResultMatrix = zeros(nuCount, nuCount);
+    tofResultMatrix = zeros(nuCount, nuCount);
+    paramResultMatrix = zeros(nuCount, nuCount, 16);
+    efgResultMatrix = zeros(nuCount, nuCount, 9);
+
+    for swarmIndTarget = 1:nuCount
+        nuEnd = targetNuVector(swarmIndTarget);
+        for swarmIndDeploy = 1:nuCount
+            fprintf("Finding orbits: <strong>%.1f%%</strong>\n", 100 * ((swarmIndTarget-1) * nuCount + swarmIndDeploy)/(nuCount * nuCount));
+            nuStart = deployNuVector(swarmIndDeploy);
+
+            deltaResult = Inf;
+
+            for dateInd = 1:datePointCount
+                date = dateVector(dateInd);
+                for tofInd = 1:leadNuPointCountPerOrbit * extraOrbitChecks
+                    tof = tofMatrix(swarmIndTarget, dateInd, tofInd);
+                    optimalSwarmDVSolver([date, tof, nuStart, nuEnd], pSettings, []);
+                end
+            end
+
+            resultMatrix(swarmIndDeploy, swarmIndTarget) = deltaResult;
+            dateResultMatrix(swarmIndDeploy, swarmIndTarget) = dateOptimal;
+            tofResultMatrix(swarmIndDeploy, swarmIndTarget) = tof_optimal;
+            efgResultMatrix(swarmIndDeploy, swarmIndTarget, :) = [paramVector_opt.efg_Mat_1(1, :), paramVector_opt.efg_Mat_1(2, :), paramVector_opt.efg_Mat_1(3, :)];
+
+            mju_result = paramVector_opt.mju;
+            gamma1_result = paramVector_opt.gamma1;
+            gamma2_result = paramVector_opt.gamma2;
+            theta_f_result = paramVector_opt.theta_f;
+            theta1_dot_result = paramVector_opt.theta1_dot;
+            theta2_dot_result = paramVector_opt.theta2_dot;
+            r1_result = paramVector_opt.r1;
+            r2_result = paramVector_opt.r2;
+            theta1_result = paramVector_opt.theta1;
+            theta2_result = paramVector_opt.theta2;
+            nu2_i_result = paramVector_opt.nu2_i;
+            r2_i_result = paramVector_opt.r2_i;
+            a_result = paramVector_opt.a;
+            b_result = paramVector_opt.b;
+            c_result = paramVector_opt.c;
+            d_result = d_opt;
+
+            paramResultMatrix(swarmIndDeploy, swarmIndTarget, :) = [mju_result, gamma1_result, gamma2_result, theta_f_result, theta1_dot_result, theta2_dot_result, r1_result, r2_result, theta1_result, theta2_result, nu2_i_result, r2_i_result, a_result, b_result, c_result, d_result];
+   
+        end
+    end
+
+    %resultMatrix
+    %dateResultMatrix
+    %tofResultMatrix
+    
+    [assignment, cost] = fMunkresAlgorithm(resultMatrix);
+    
+    requiredDeltaVs = zeros(nuCount, 1);
+    for resultInd = 1:nuCount
+        requiredDeltaVs(resultInd) = resultMatrix(assignment(resultInd), resultInd);
+    end
+    
+    sum(requiredDeltaVs);
 
     figure(4)
     transferWindow = tiledlayout(1, 1, 'Padding', 'tight', 'TileSpacing', 'tight');
@@ -734,126 +815,137 @@ if optimizeSwarm
 
     rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
 
-    pState.currentTime = initialTime;
-    resultMatrix = zeros(nuCount, nuCount);
+    intermediateParamClass = paramClass;
+    efg_Mat_1 = zeros(3,3);
 
-    for swarmIndTarget = 1:nuCount
-        nuEnd = targetNuVector(swarmIndTarget);
-        for swarmIndDeploy = 1:nuCount  
-            nuStart = deployNuVector(swarmIndDeploy);
+    for targetInd = 1:nuCount
+        deployInd = assignment(targetInd);
+        fprintf("Object %.0f: Required %cV %.0f m/s, Launch date: %s, TOF: %s\n", deployInd, 916, resultMatrix(deployInd, targetInd), secToTime(dateResultMatrix(deployInd, targetInd), 1, pSettings.baseDate), secToTime(tofResultMatrix(deployInd, targetInd), 0, []));
 
-            deltaResult = Inf;
+        paramResultVector = paramResultMatrix(deployInd, targetInd, :);
 
-            for dateInd = 1:datePointCount
-                    date = dateVector(dateInd);
-                for tofInd = 1:extraOrbitChecks
-                    tof = tofMatrix(swarmIndTarget, dateInd, tofInd);
+        mju_result = paramResultVector(1);
+        gamma1_result = paramResultVector(2);
+        gamma2_result = paramResultVector(3);
+        theta_f_result = paramResultVector(4);
+        theta1_dot_result = paramResultVector(5);
+        theta2_dot_result = paramResultVector(6);
+        r1_result = paramResultVector(7);
+        r2_result = paramResultVector(8);
+        theta1_result = paramResultVector(9);
+        theta2_result = paramResultVector(10);
+        nu2_i_result = paramResultVector(11);
+        r2_i_result = paramResultVector(12);
+        a_result = paramResultVector(13);
+        b_result = paramResultVector(14);
+        c_result = paramResultVector(15);
+        d_result = paramResultVector(16);
 
-                    optimalSwarmDVSolver([date, tof, nuStart, nuEnd], pSettings, []);
-                end
-            end
+        efgVector = reshape(efgResultMatrix(deployInd, targetInd, :), [1,9]);
+        efg_Mat_1_result = [efgVector(1:3); efgVector(4:6); efgVector(7:9)];
+        
 
-            resultMatrix(swarmIndDeploy, swarmIndTarget) = deltaResult;
+        intermediateParamClass.mju = mju_result;
+        intermediateParamClass.gamma1 = gamma1_result;
+        intermediateParamClass.gamma2 = gamma2_result;
+        intermediateParamClass.theta_f = theta_f_result;
+        intermediateParamClass.theta1_dot = theta1_dot_result;
+        intermediateParamClass.theta2_dot = theta2_dot_result;
+        intermediateParamClass.r1 = r1_result;
+        intermediateParamClass.r2 = r2_result;
+        intermediateParamClass.theta1 = theta1_result;
+        intermediateParamClass.theta2 = theta2_result;
+        intermediateParamClass.a = a_result;
+        intermediateParamClass.b = b_result;
+        intermediateParamClass.c = c_result;
+        intermediateParamClass.efg_Mat_1 = efg_Mat_1_result;
 
-            theta_f_opt = paramVector_opt.theta_f;
-            r1_opt = paramVector_opt.r1;
-            r2_opt = paramVector_opt.r2;
-            theta1_opt = paramVector_opt.theta1;
-            theta2_opt = paramVector_opt.theta2;
-%             nu2_i = paramVector_opt.nu2_i;
-%             r2_i = paramVector_opt.r2_i;
-            
-%             d_minimum = resultVector_opt(1);
-%             d_maximum = resultVector_opt(2);
-%             TOF_estimation = pState.initial_tof;
 
-            theta_vec_plot = linspace(theta_0, theta_f_opt, plotAccuracy);
-            theta_vec_super = fGetThetaSuper(theta_vec_plot);
-            dT = theta_vec_super(1,2) - theta_vec_super(1,1);
+        theta_vec_plot = linspace(theta_0, theta_f_result, plotAccuracy);
+        theta_vec_super = fGetThetaSuper(theta_vec_plot);
+        dT = theta_vec_super(1,2) - theta_vec_super(1,1);
 
-            plot(cos(theta1_opt) * r1_opt, sin(theta1_opt) * r1_opt,'or', 'MarkerSize',5,'MarkerFaceColor','g')
-            plot(cos(theta2_opt) * r2_opt, sin(theta2_opt) * r2_opt,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+        plot(cos(theta1_result) * r1_result, sin(theta1_result) * r1_result,'or', 'MarkerSize',5,'MarkerFaceColor','g')
+        plot(cos(theta2_result) * r2_result, sin(theta2_result) * r2_result,'or', 'MarkerSize',5,'MarkerFaceColor','r')
 
-            x = cos(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_super, paramVector_opt);
-            y = sin(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_super, paramVector_opt);
-            plot(x, y, "Color", [0.2 0.7 0.2]);
-                 
-        end
+        x = cos(theta_vec_plot+theta1_result) .* fRadiusFunction(d_result, theta_vec_super, intermediateParamClass);
+        y = sin(theta_vec_plot+theta1_result) .* fRadiusFunction(d_result, theta_vec_super, intermediateParamClass);
+        plot(x, y, "Color", [0.2 0.7 0.2]);
+             
     end
 end
 
-resultMatrix
-
 
 %% Plotting thrust curves and deltaV results
-nexttile(infoWindow, [subYCount, 2]);
-hold on
-ylabel("deltaV [km/s]");
-xticks([]);
-xticklabels([]);
-deltaInd = 1;
-successValues = size(resultsDeltaVs);
-lineXpos = linspace(0, 1, successValues(2));
-newXLim = [lineXpos(1)-0.25, lineXpos(end)+0.25];
-xlim(newXLim);
-
-if (optimizeTOF == 1) && (solutionFound == 1)
-    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth*1.1, 'Color', 'black');
-    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth, 'Color', [0.9, 0.8, 0.0]);
-    dvtx1 = text(lineXpos(deltaInd), resultsDeltaVs(deltaInd) / 1100, 'Estimated TOF', 'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', 'Rotation', 90);
-    set(dvtx1, 'FontSize', 12, 'FontWeight', 'bold')
-
-    deltaInd = deltaInd+1;
+if subXCount > 0
+    nexttile(infoWindow, [subYCount, 2]);
+    hold on
+    ylabel("deltaV [km/s]");
+    xticks([]);
+    xticklabels([]);
+    deltaInd = 1;
+    successValues = size(resultsDeltaVs);
+    lineXpos = linspace(0, 1, successValues(2));
+    newXLim = [lineXpos(1)-0.25, lineXpos(end)+0.25];
+    xlim(newXLim);
+    
+    if (optimizeTOF == 1) && (solutionFound == 1)
+        plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth*1.1, 'Color', 'black');
+        plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth, 'Color', [0.9, 0.8, 0.0]);
+        dvtx1 = text(lineXpos(deltaInd), resultsDeltaVs(deltaInd) / 1100, 'Estimated TOF', 'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', 'Rotation', 90);
+        set(dvtx1, 'FontSize', 12, 'FontWeight', 'bold')
+    
+        deltaInd = deltaInd+1;
+    end
+    
+    if optimizeDV == 1 
+        plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth*1.1, 'Color', 'black');
+        plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth, 'Color', [0.9, 0.0, 0.0]);
+        dvtx2 = text(lineXpos(deltaInd), resultsDeltaVs(deltaInd) / 1100, 'Free TOF', 'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', 'Rotation', 90);
+        set(dvtx2, 'FontSize', 12, 'FontWeight', 'bold')
+    
+        deltaInd = deltaInd+1;
+    end
+    
+    if optimizeDATE == 1
+        plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth*1.1, 'Color', 'black');
+        plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth, 'Color', [0.2, 0.2, 0.9]);
+        dvtx3 = text(lineXpos(deltaInd), resultsDeltaVs(deltaInd) / 1100, 'Transfer window', 'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', 'Rotation', 90);
+        set(dvtx3, 'FontSize', 12, 'FontWeight', 'bold')
+    end
+    
+    title(sprintf("Comparision of total deltaV values"));
+    
+    
+    nexttile(infoWindow, [2 subXCount*3])
+    hold on;
+    xlabel("theta");
+    ylabel("thurst [mN]");
+    maxThetaValue =  max([thrustCurve_tof(1, end), thrustCurve_dV(1, end), thrustCurve_date(1, end)]);
+    plot([0, maxThetaValue], [0, 0], 'Color', 'black', 'LineStyle',':')
+    xlim([0, maxThetaValue+0.5])
+    
+    if (optimizeTOF == 1) && (solutionFound == 1)
+        % Plot results of tof optimized trajectory
+        plot(thrustCurve_tof(1, :), 1000*m*thrustCurve_tof(2, :), 'LineWidth', 2, 'Color', [0.9, 0.8, 0.0]);
+        tctx1 = text(thrustCurve_tof(1, end), 1000*m*thrustCurve_tof(2, end), 'Estimated TOF', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle');
+        set(tctx1, 'FontSize', 12, 'FontWeight', 'bold')
+    end
+    if optimizeDV == 1
+        % Plot results of dV optimized trajectory
+        plot(thrustCurve_dV(1, :), 1000*m*thrustCurve_dV(2, :), 'LineWidth', 2, 'Color', [0.9, 0.0, 0.0]);
+        tctx2 = text(thrustCurve_dV(1, end), 1000*m*thrustCurve_dV(2, end), 'Free TOF', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle');
+        set(tctx2, 'FontSize', 12, 'FontWeight', 'bold')
+    end
+    if optimizeDATE == 1
+        % Plot results of date optimized trajectory
+        plot(thrustCurve_date(1, :), 1000*m*thrustCurve_date(2, :), 'LineWidth', 2, 'Color', [0.2, 0.2, 0.9]);
+        tctx3 = text(thrustCurve_date(1, end), 1000*m*thrustCurve_date(2, end), 'Transfer Window', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle');
+        set(tctx3, 'FontSize', 12, 'FontWeight', 'bold')
+    end
+    
+    title(sprintf("Comparision of thrust curves for all solutions"));
 end
-
-if optimizeDV == 1 
-    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth*1.1, 'Color', 'black');
-    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth, 'Color', [0.9, 0.0, 0.0]);
-    dvtx2 = text(lineXpos(deltaInd), resultsDeltaVs(deltaInd) / 1100, 'Free TOF', 'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', 'Rotation', 90);
-    set(dvtx2, 'FontSize', 12, 'FontWeight', 'bold')
-
-    deltaInd = deltaInd+1;
-end
-
-if optimizeDATE == 1
-    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth*1.1, 'Color', 'black');
-    plot([lineXpos(deltaInd), lineXpos(deltaInd)],[0, resultsDeltaVs(deltaInd) / 1000], 'LineWidth', dvLineWidth, 'Color', [0.2, 0.2, 0.9]);
-    dvtx3 = text(lineXpos(deltaInd), resultsDeltaVs(deltaInd) / 1100, 'Transfer window', 'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', 'Rotation', 90);
-    set(dvtx3, 'FontSize', 12, 'FontWeight', 'bold')
-end
-
-title(sprintf("Comparision of total deltaV values"));
-
-
-nexttile(infoWindow, [2 subXCount*3])
-hold on;
-xlabel("theta");
-ylabel("thurst [mN]");
-maxThetaValue =  max([thrustCurve_tof(1, end), thrustCurve_dV(1, end), thrustCurve_date(1, end)]);
-plot([0, maxThetaValue], [0, 0], 'Color', 'black', 'LineStyle',':')
-xlim([0, maxThetaValue+0.5])
-
-if (optimizeTOF == 1) && (solutionFound == 1)
-    % Plot results of tof optimized trajectory
-    plot(thrustCurve_tof(1, :), 1000*m*thrustCurve_tof(2, :), 'LineWidth', 2, 'Color', [0.9, 0.8, 0.0]);
-    tctx1 = text(thrustCurve_tof(1, end), 1000*m*thrustCurve_tof(2, end), 'Estimated TOF', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle');
-    set(tctx1, 'FontSize', 12, 'FontWeight', 'bold')
-end
-if optimizeDV == 1
-    % Plot results of dV optimized trajectory
-    plot(thrustCurve_dV(1, :), 1000*m*thrustCurve_dV(2, :), 'LineWidth', 2, 'Color', [0.9, 0.0, 0.0]);
-    tctx2 = text(thrustCurve_dV(1, end), 1000*m*thrustCurve_dV(2, end), 'Free TOF', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle');
-    set(tctx2, 'FontSize', 12, 'FontWeight', 'bold')
-end
-if optimizeDATE == 1
-    % Plot results of date optimized trajectory
-    plot(thrustCurve_date(1, :), 1000*m*thrustCurve_date(2, :), 'LineWidth', 2, 'Color', [0.2, 0.2, 0.9]);
-    tctx3 = text(thrustCurve_date(1, end), 1000*m*thrustCurve_date(2, end), 'Transfer Window', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle');
-    set(tctx3, 'FontSize', 12, 'FontWeight', 'bold')
-end
-
-title(sprintf("Comparision of thrust curves for all solutions"));
-
 
 %% Set up figures and handles
 if (visualizeTransferWindow == 1) && (optimizeDATE == 1)    

@@ -9,7 +9,7 @@ function [deltaV_o] = optimalSwarmDVSolver(inputVec, pSettings, twMapInds)
     end
 
     nu1 = inputVec(3);
-    nu2 = inputVec(3);
+    nu2 = inputVec(4);
 
     trueSolution = 0;
     N_start = pState.N;
