@@ -145,13 +145,15 @@ thrustCurve_date = [];
 
 %Configure subplots
 subXCount = optimizeTOF + optimizeDV + optimizeDATE;
-subYCount = 5;
-figure(1);
-infoWindow = tiledlayout(subYCount, subXCount*3 + 2, 'Padding', 'tight', 'TileSpacing', 'tight');
-sgtitle(sprintf("Initial Time: %s - Seed: %0.f", secToTime(initialTime, 1, baseDate), rng().Seed));
-
-%Maximize window
-set(gcf,'WindowState','maximized')
+if subXCount > 0
+    subYCount = 5;
+    figure(1);
+    infoWindow = tiledlayout(subYCount, subXCount*3 + 2, 'Padding', 'tight', 'TileSpacing', 'tight');
+    sgtitle(sprintf("Initial Time: %s - Seed: %0.f", secToTime(initialTime, 1, baseDate), rng().Seed));
+    
+    %Maximize window
+    set(gcf,'WindowState','maximized')
+end
 
 if (visualizeTransferWindow == 1) && (optimizeDATE == 1)
     % Orbital viewport figure
@@ -678,11 +680,11 @@ end
 if optimizeSwarm
     %global resultVector_opt
 
-    leadNuPointCountPerOrbit = 10;
+    leadNuPointCountPerOrbit = 20;
     datePointCount = 20;
-    extraOrbitChecks = 4;
+    extraOrbitChecks = 1;
 
-    satelliteCount = 20;
+    satelliteCount = 25;
 
     deployTime = initialTime;
     targetTime = 1e5;
@@ -697,36 +699,40 @@ if optimizeSwarm
 
     pSettings.solveDate = 1;
     pSettings.plotTransferWindow = 0;
+    pSettings.useMultiorbitFilling = 0;
 
     tofMatrix = zeros(nuCount, datePointCount, leadNuPointCountPerOrbit * extraOrbitChecks);
+    %perigeeTimeMatrix = zeros(nuCount, datePointCount);
     tofMatNuInd = 1;
     tofMatDateInd = 1;
     leadNuIndex = 1;
 
     dateVector = linspace(initialTime, initialTime + dateSearchSpan, datePointCount);
-    leadNuVector = linspace(0, 2*pi, leadNuPointCountPerOrbit);
+    leadNuVector = linspace(-pi, pi, leadNuPointCountPerOrbit);
 
     for nuEnd = targetNuVector
+        if nuEnd <= pi
+            E0 = 2*atan(tan(nuEnd/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+        else
+            E0 = 2*pi + 2*atan(tan(nuEnd/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+        end
         for date = dateVector
-            if nuEnd <= pi
-                E0 = 2*atan(tan(nuEnd/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
-            else
-                E0 = 2*pi + 2*atan(tan(nuEnd/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
-            end
-            timeSincePerigee = (E0-pSettings.e2*sin(E0)) / pSettings.n2;
-            for leadNu = leadNuVector
-                if leadNu >= pi
-                    E = 2*pi + 2*atan(tan(leadNu/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
-                elseif leadNu <= -pi
-                    E = -2*pi + 2*atan(tan(leadNu/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+%             timeSincePerigee = (E0-pSettings.e2*sin(E0)) / pSettings.n2;
+            for leadOffset = leadNuVector
+                nuLead = nuEnd + leadOffset;
+                if nuLead >= pi
+                    E = 2*pi + 2*atan(tan(nuLead/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+                elseif nuLead <= -pi
+                    E = -2*pi + 2*atan(tan(nuLead/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
                 else
-                    E = 2*atan(tan(leadNu/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+                    E = 2*atan(tan(nuLead/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
                 end
-                leadTime = ((E-pSettings.e2*sin(E)) - (E0-pSettings.e2*sin(E0)))/ pSettings.n2 + timeSincePerigee;
+                leadTime = ((E-pSettings.e2*sin(E)) - (E0-pSettings.e2*sin(E0)))/ pSettings.n2;
 
-                requiredTOF = timeSincePerigee - mod(targetTime + date, pSettings.P2) + leadTime;
-                tofVector = requiredTOF + (0:extraOrbitChecks-1) .* pSettings.P2;
-                tofMatrix(tofMatNuInd, tofMatDateInd, (leadNuIndex : leadNuIndex + extraOrbitChecks - 1)) = tofVector;
+                %perigeeTimeMatrix(tofMatNuInd, tofMatDateInd) = timeSincePerigee + leadTime;
+                requiredTOF = mod(targetTime + leadTime - date, pSettings.P2);
+                tofVector = requiredTOF + (0:extraOrbitChecks) .* pSettings.P2;
+                tofMatrix(tofMatNuInd, tofMatDateInd, (leadNuIndex : leadNuIndex + extraOrbitChecks)) = tofVector;
                 leadNuIndex = leadNuIndex + extraOrbitChecks;
             end
             tofMatDateInd = tofMatDateInd + 1;
@@ -735,75 +741,49 @@ if optimizeSwarm
         tofMatNuInd = tofMatNuInd + 1;
         tofMatDateInd = 1;
     end
-
-    tofMatrix;
-
  
     pState.currentTime = initialTime;
-    resultMatrix = zeros(nuCount, nuCount);
-    dateResultMatrix = zeros(nuCount, nuCount);
-    tofResultMatrix = zeros(nuCount, nuCount);
-    paramResultMatrix = zeros(nuCount, nuCount, 16);
-    efgResultMatrix = zeros(nuCount, nuCount, 9);
 
-    for swarmIndTarget = 1:nuCount
-        nuEnd = targetNuVector(swarmIndTarget);
-        for swarmIndDeploy = 1:nuCount
-            fprintf("Finding orbits: <strong>%.1f%%</strong>\n", 100 * ((swarmIndTarget-1) * nuCount + swarmIndDeploy)/(nuCount * nuCount));
-            nuStart = deployNuVector(swarmIndDeploy);
+    swarmParams = swarmParamClass;
 
-            deltaResult = Inf;
-
-            for dateInd = 1:datePointCount
-                date = dateVector(dateInd);
-                for tofInd = 1:leadNuPointCountPerOrbit * extraOrbitChecks
-                    tof = tofMatrix(swarmIndTarget, dateInd, tofInd);
-                    optimalSwarmDVSolver([date, tof, nuStart, nuEnd], pSettings, []);
-                end
-            end
-
-            resultMatrix(swarmIndDeploy, swarmIndTarget) = deltaResult;
-            dateResultMatrix(swarmIndDeploy, swarmIndTarget) = dateOptimal;
-            tofResultMatrix(swarmIndDeploy, swarmIndTarget) = tof_optimal;
-            efgResultMatrix(swarmIndDeploy, swarmIndTarget, :) = [paramVector_opt.efg_Mat_1(1, :), paramVector_opt.efg_Mat_1(2, :), paramVector_opt.efg_Mat_1(3, :)];
-
-            mju_result = paramVector_opt.mju;
-            gamma1_result = paramVector_opt.gamma1;
-            gamma2_result = paramVector_opt.gamma2;
-            theta_f_result = paramVector_opt.theta_f;
-            theta1_dot_result = paramVector_opt.theta1_dot;
-            theta2_dot_result = paramVector_opt.theta2_dot;
-            r1_result = paramVector_opt.r1;
-            r2_result = paramVector_opt.r2;
-            theta1_result = paramVector_opt.theta1;
-            theta2_result = paramVector_opt.theta2;
-            nu2_i_result = paramVector_opt.nu2_i;
-            r2_i_result = paramVector_opt.r2_i;
-            a_result = paramVector_opt.a;
-            b_result = paramVector_opt.b;
-            c_result = paramVector_opt.c;
-            d_result = d_opt;
-
-            paramResultMatrix(swarmIndDeploy, swarmIndTarget, :) = [mju_result, gamma1_result, gamma2_result, theta_f_result, theta1_dot_result, theta2_dot_result, r1_result, r2_result, theta1_result, theta2_result, nu2_i_result, r2_i_result, a_result, b_result, c_result, d_result];
-   
-        end
-    end
-
-    %resultMatrix
-    %dateResultMatrix
-    %tofResultMatrix
+    swarmParams.leadNuPointCountPerOrbit = leadNuPointCountPerOrbit;
+    swarmParams.datePointCount = datePointCount;
+    swarmParams.extraOrbitChecks = extraOrbitChecks;
+    swarmParams.deployNuVector = deployNuVector;
+    swarmParams.targetNuVector = targetNuVector;
+    swarmParams.nuCount = nuCount;
+    swarmParams.dateVector = dateVector;
+    swarmParams.leadNuVector = leadNuVector;
+    swarmParams.tofMatrix = tofMatrix;
+    %swarmParams.perigeeTimeMatrix = perigeeTimeMatrix;
     
+    
+    %Find best solution for each combination orbit in the swarm
+    [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, efgResultMatrix] = optimalSwarmDVSolver(swarmParams, pSettings,[]);
+    
+    %Find the optimal combination of the orbits using the Hungarian /
+    %Munkres Algorithm. Not my implementation. Credit to Yi Cao at Cranfield University
     [assignment, cost] = fMunkresAlgorithm(resultMatrix);
     
+        
+%     sortedInds = sort([assignment; (1:nuCount)], 1);
+
     requiredDeltaVs = zeros(nuCount, 1);
     for resultInd = 1:nuCount
         requiredDeltaVs(resultInd) = resultMatrix(assignment(resultInd), resultInd);
     end
     
-    sum(requiredDeltaVs);
+%     sum1 = sum(requiredDeltaVs)
+
+%     requiredDeltaVs = zeros(nuCount, 1);
+%     for resultInd = 1:nuCount
+%         requiredDeltaVs(resultInd) = resultMatrix(resultInd, sortedInds(resultInd));
+%     end
+%     
+%     sum2 = sum(requiredDeltaVs)
 
     figure(4)
-    transferWindow = tiledlayout(1, 1, 'Padding', 'tight', 'TileSpacing', 'tight');
+    tiledlayout(1, 1, 'Padding', 'tight', 'TileSpacing', 'tight');
     nexttile;
     hold on;
     
@@ -818,9 +798,11 @@ if optimizeSwarm
     intermediateParamClass = paramClass;
     efg_Mat_1 = zeros(3,3);
 
+
     for targetInd = 1:nuCount
         deployInd = assignment(targetInd);
-        fprintf("Object %.0f: Required %cV %.0f m/s, Launch date: %s, TOF: %s\n", deployInd, 916, resultMatrix(deployInd, targetInd), secToTime(dateResultMatrix(deployInd, targetInd), 1, pSettings.baseDate), secToTime(tofResultMatrix(deployInd, targetInd), 0, []));
+
+            fprintf("Object %.0f:\tRequired %cV %.0f m/s, Launch date: %s, TOF: %s\n", deployInd, 916, resultMatrix(deployInd, targetInd), secToTime(dateResultMatrix(deployInd, targetInd), 1, pSettings.baseDate), secToTime(tofResultMatrix(deployInd, targetInd), 0, []));
 
         paramResultVector = paramResultMatrix(deployInd, targetInd, :);
 
@@ -844,7 +826,6 @@ if optimizeSwarm
         efgVector = reshape(efgResultMatrix(deployInd, targetInd, :), [1,9]);
         efg_Mat_1_result = [efgVector(1:3); efgVector(4:6); efgVector(7:9)];
         
-
         intermediateParamClass.mju = mju_result;
         intermediateParamClass.gamma1 = gamma1_result;
         intermediateParamClass.gamma2 = gamma2_result;
@@ -873,7 +854,75 @@ if optimizeSwarm
         plot(x, y, "Color", [0.2 0.7 0.2]);
              
     end
+
+    figure(5)
+    tiledlayout(1, 1, 'Padding', 'tight', 'TileSpacing', 'tight');
+    nexttile;
+    hold on;
+    
+    xlabel("Distance from central body [m]");
+    ylabel("Distance from central body [m]");
+
+    for time = linspace(initialTime, initialTime + 1.1*dateSearchSpan, pSettings.plotAccuracy)
+
+        hold off
+        plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
+        hold on
+        plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
+    
+        rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
+
+        for targetInd = 1:nuCount
+            deployInd = assignment(targetInd);
+
+            if time > dateResultMatrix(deployInd, targetInd)
+    
+                %fprintf("Object %.0f:\tRequired %cV %.0f m/s, Launch date: %s, TOF: %s\n", deployInd, 916, resultMatrix(deployInd, targetInd), secToTime(dateResultMatrix(deployInd, targetInd), 1, pSettings.baseDate), secToTime(tofResultMatrix(deployInd, targetInd), 0, []));
+        
+                pState.tof_current = tofResultMatrix(deployInd, targetInd);
+                pState.currentTime = time;
+
+                [~, paramVector, ~] = updateSwarmParameters(deployNuVector(deployInd), targetNuVector(targetInd), pSettings);
+
+%                 paramResultVector = paramResultMatrix(deployInd, targetInd, :);
+        
+%                 mju_result = paramVector;
+%                 gamma1_result = paramVector;
+%                 gamma2_result = paramVector;
+%                 theta_f_result = paramVector;
+%                 theta1_dot_result = paramVector;
+%                 theta2_dot_result = paramVector;
+%                 r1_result = paramVector;
+                r2_result = paramVector.r2;
+%                 theta1_result = paramVector;
+                theta2_result = paramVector.theta2;
+%                 nu2_i_result = paramVector;
+%                 r2_i_result = paramVector;
+%                 a_result = paramVector;
+%                 b_result = paramVector;
+%                 c_result = paramVector;
+%                 efg_Mat_1_result = paramVector;
+                
+                %d_result = paramResultVector(16);
+        
+%                 theta_vec_plot = linspace(theta_0, theta_f_result, plotAccuracy);
+%                 theta_vec_super = fGetThetaSuper(theta_vec_plot);
+%                 dT = theta_vec_super(1,2) - theta_vec_super(1,1);
+        
+                %plot(cos(theta1_result) * r1_result, sin(theta1_result) * r1_result,'or', 'MarkerSize',5,'MarkerFaceColor','g')
+                plot(cos(theta2_result) * r2_result, sin(theta2_result) * r2_result,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+        
+%                 x = cos(theta_vec_plot+theta1_result) .* fRadiusFunction(d_result, theta_vec_super, paramVector_o);
+%                 y = sin(theta_vec_plot+theta1_result) .* fRadiusFunction(d_result, theta_vec_super, paramVector_o);
+%                 plot(x, y, "Color", [0.2 0.7 0.2]);
+
+            end
+        end
+        pause(0);
+
+    end
 end
+
 
 
 %% Plotting thrust curves and deltaV results
@@ -957,18 +1006,49 @@ toc;
 
 %% START OF FUNCTIONS
 %% Second to time conversion
-function [timestring] = secToTime(secs, outputDate, baseDate)
+function [timeString] = secToTime(secs, outputDate, baseDate)
     if outputDate == 1
-        timestring = baseDate + seconds(secs);
+        timeString = baseDate + seconds(secs);
 
     else
+        
+        timeStringLimit = 3;
+        timeStringCount = 0;
+        timeString = "";
+
         years = floor(secs / (365.25 * 86400));
         secs = secs - years * (365.25 * 86400);
+        if (years > 0) && (timeStringCount < timeStringLimit)
+            timeString = append(timeString, sprintf("%.0f y ",years));
+            timeStringCount = timeStringCount + 1; 
+        end
+
         days = floor(secs / 86400);
         secs = secs - days * 86400;
-        hours = floor(secs / 3600);
+        if (days > 0) && (timeStringCount < timeStringLimit)
+            timeString = append(timeString, sprintf("%.0f d ",days));
+            timeStringCount = timeStringCount + 1; 
+        end
 
-        timestring = sprintf("%.0f y %.0f d %.0f h", years, days, hours);
+        hours = floor(secs / 3600);
+        secs = secs - hours * 3600;
+        if (hours > 0) && (timeStringCount < timeStringLimit)
+            timeString = append(timeString, sprintf("%.0f h ",hours));
+            timeStringCount = timeStringCount + 1; 
+        end
+
+        minutes = floor(secs / 60);
+        if (minutes > 0) && (timeStringCount < timeStringLimit)
+            timeString = append(timeString, sprintf("%.0f m ",minutes));
+            timeStringCount = timeStringCount + 1; 
+        end
+
+        secs = secs - minutes * 60;
+        if (secs > 0) && (timeStringCount < timeStringLimit)
+            timeString = append(timeString, sprintf("%.0f s ",secs));
+            timeStringCount = timeStringCount + 1; 
+        end
+
     end
 
 end
