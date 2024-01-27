@@ -32,7 +32,7 @@ fprintf(seedFile, "Seed: %.0f - Date: %s\n", rng().Seed, string(baseDate));
 
 %--First Orbit Parameters--
 %Semimajor axis
-a_initial = 6800e3;%rMin + (0.1 + 3*rand())*rMin;
+a_initial = 6900e3;%rMin + (0.1 + 3*rand())*rMin;
 %Period of the orbit
 P1 = 2*pi/sqrt(mju/a_initial^3);
 %Time of last perigee pass
@@ -44,15 +44,15 @@ omega1 = 0;%rand() * 2 * pi;
 
 %--Second Orbit Parameters--
 %Semimajor axis
-a_final = 42500e3;%rMin + (3 + 7*rand())*rMin;
+a_final = 42164e3;%rMin + (3 + 7*rand())*rMin;
 %Period of the orbit
 P2 = 2*pi/sqrt(mju/a_final^3);
 %Time of last perigee pass
 Tp2 = 0;%rand() * P2;
 %Eccentricity
-e2 = 0;%rand() * 0.25;
+e2 = 0.6;%rand() * 0.25;
 %Argument of perigee
-omega2 = 0;%rand() * 2 * pi;
+omega2 = pi/2;%rand() * 2 * pi;
 
 %% Program settings
 %Number of additional rotations around central body
@@ -112,7 +112,7 @@ previousTime = -1;
 %Testing out lcm to always find interesting values
 years1 = ceil(P1/(365*86400));
 years2 = ceil(P2/(365*86400));
-dateSearchSpan = 5 * max(P1,P2); %0.5 * lcm(years1, years2) * 365 * 86400;
+dateSearchSpan = 2 * max(P1,P2); %0.5 * lcm(years1, years2) * 365 * 86400;
 
 %How many initial points the global search starts with
 %Linear for option 1
@@ -684,13 +684,34 @@ if optimizeSwarm
     datePointCount = 20;
     extraOrbitChecks = 1;
 
-    satelliteCount = 25;
+    satelliteCount = 10;
 
-    deployTime = initialTime;
-    targetTime = 1e5;
+    deployTime = 0;%initialTime;
+    targetTime = 0;
 
-    deployNuVector = linspace(0, 0.3, satelliteCount) .* 2 * pi;
-    targetNuVector = linspace(0, 1 - 1/satelliteCount, satelliteCount) .* 2 * pi;
+    deployNuVector = linspace(0, 0.1, satelliteCount) .* (2 * pi);
+
+    %Needs to be generated from a time vector to get true equal spacing on
+    %elliptical orbits
+    targetTimeSpacingVector = linspace(0, (1-1/satelliteCount) * pSettings.P2, satelliteCount);
+
+    
+    targetNuVector = zeros(1, satelliteCount);
+    for ind = 1:satelliteCount
+        T_nu = targetTimeSpacingVector(ind);
+        if T_nu ~= 0        
+            n = pSettings.n2;
+            e = pSettings.e2;
+            nu_guess = 0;
+    
+            nu2 = nuFromTime(T_nu, n, e, nu_guess);
+        else
+            nu2 = 0;
+        end
+        targetNuVector(ind) = nu2;
+    end
+
+    %targetNuVector = linspace(0, 1 - 1/satelliteCount, satelliteCount) .* (2 * pi);
    
     nuCount = size(deployNuVector);
     nuCount = nuCount(2);
@@ -701,7 +722,7 @@ if optimizeSwarm
     pSettings.plotTransferWindow = 0;
     pSettings.useMultiorbitFilling = 0;
 
-    tofMatrix = zeros(nuCount, datePointCount, leadNuPointCountPerOrbit * extraOrbitChecks);
+    tofMatrix = zeros(nuCount, datePointCount, leadNuPointCountPerOrbit * (extraOrbitChecks+1));
     %perigeeTimeMatrix = zeros(nuCount, datePointCount);
     tofMatNuInd = 1;
     tofMatDateInd = 1;
@@ -720,10 +741,14 @@ if optimizeSwarm
 %             timeSincePerigee = (E0-pSettings.e2*sin(E0)) / pSettings.n2;
             for leadOffset = leadNuVector
                 nuLead = nuEnd + leadOffset;
-                if nuLead >= pi
+                if nuLead == pi
+                    E = pi;
+                elseif nuLead > pi
                     E = 2*pi + 2*atan(tan(nuLead/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
-                elseif nuLead <= -pi
-                    E = -2*pi + 2*atan(tan(nuLead/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+                elseif nuLead == -pi
+                    E = -pi;
+                elseif nuLead < -pi
+                    E = 2*pi - 2*atan(tan(nuLead/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
                 else
                     E = 2*atan(tan(nuLead/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
                 end
@@ -733,7 +758,7 @@ if optimizeSwarm
                 requiredTOF = mod(targetTime + leadTime - date, pSettings.P2);
                 tofVector = requiredTOF + (0:extraOrbitChecks) .* pSettings.P2;
                 tofMatrix(tofMatNuInd, tofMatDateInd, (leadNuIndex : leadNuIndex + extraOrbitChecks)) = tofVector;
-                leadNuIndex = leadNuIndex + extraOrbitChecks;
+                leadNuIndex = leadNuIndex + (extraOrbitChecks+1);
             end
             tofMatDateInd = tofMatDateInd + 1;
             leadNuIndex = 1;
@@ -755,6 +780,8 @@ if optimizeSwarm
     swarmParams.dateVector = dateVector;
     swarmParams.leadNuVector = leadNuVector;
     swarmParams.tofMatrix = tofMatrix;
+    swarmParams.deployTime = deployTime;
+    swarmParams.targetTime = targetTime;
     %swarmParams.perigeeTimeMatrix = perigeeTimeMatrix;
     
     
@@ -854,35 +881,47 @@ if optimizeSwarm
         plot(x, y, "Color", [0.2 0.7 0.2]);
              
     end
+    axis equal
+    pause(0);
+
+    % Create a VideoWriter object
+    writerObj = VideoWriter('animated_video.mp4', 'MPEG-4');
+    writerObj.FrameRate = 60;  % Set the frame rate (frames per second)
+    
+    % Open the video file for writing
+    open(writerObj);
 
     figure(5)
-    tiledlayout(1, 1, 'Padding', 'tight', 'TileSpacing', 'tight');
-    nexttile;
+%     tiledlayout(1, 1, 'Padding', 'tight', 'TileSpacing', 'tight');
+%     nexttile;
     hold on;
-    
+
     xlabel("Distance from central body [m]");
     ylabel("Distance from central body [m]");
 
-    for time = linspace(initialTime, initialTime + 1.1*dateSearchSpan, pSettings.plotAccuracy)
+    plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
+    plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2)
 
+    axis manual
+
+    for time = linspace(initialTime, 2 * (initialTime + dateSearchSpan), pSettings.plotAccuracy)
         hold off
         plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
         hold on
         plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
-    
         rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
 
         for targetInd = 1:nuCount
             deployInd = assignment(targetInd);
 
-            if time > dateResultMatrix(deployInd, targetInd)
+            if time > (dateResultMatrix(deployInd, targetInd) + tofResultMatrix(deployInd, targetInd))
     
                 %fprintf("Object %.0f:\tRequired %cV %.0f m/s, Launch date: %s, TOF: %s\n", deployInd, 916, resultMatrix(deployInd, targetInd), secToTime(dateResultMatrix(deployInd, targetInd), 1, pSettings.baseDate), secToTime(tofResultMatrix(deployInd, targetInd), 0, []));
         
-                pState.tof_current = tofResultMatrix(deployInd, targetInd);
+                pState.tof_current = 0;%tofResultMatrix(deployInd, targetInd);
                 pState.currentTime = time;
 
-                [~, paramVector, ~] = updateSwarmParameters(deployNuVector(deployInd), targetNuVector(targetInd), pSettings);
+                [~, paramVector, ~] = updateSwarmParameters(deployNuVector(deployInd), targetNuVector(targetInd), deployTime, targetTime, 1, pSettings);
 
 %                 paramResultVector = paramResultMatrix(deployInd, targetInd, :);
         
@@ -892,9 +931,9 @@ if optimizeSwarm
 %                 theta_f_result = paramVector;
 %                 theta1_dot_result = paramVector;
 %                 theta2_dot_result = paramVector;
-%                 r1_result = paramVector;
+                r1_result = paramVector.r1;
                 r2_result = paramVector.r2;
-%                 theta1_result = paramVector;
+                theta1_result = paramVector.theta1;
                 theta2_result = paramVector.theta2;
 %                 nu2_i_result = paramVector;
 %                 r2_i_result = paramVector;
@@ -902,15 +941,16 @@ if optimizeSwarm
 %                 b_result = paramVector;
 %                 c_result = paramVector;
 %                 efg_Mat_1_result = paramVector;
-                
+
                 %d_result = paramResultVector(16);
         
 %                 theta_vec_plot = linspace(theta_0, theta_f_result, plotAccuracy);
 %                 theta_vec_super = fGetThetaSuper(theta_vec_plot);
 %                 dT = theta_vec_super(1,2) - theta_vec_super(1,1);
-        
-                %plot(cos(theta1_result) * r1_result, sin(theta1_result) * r1_result,'or', 'MarkerSize',5,'MarkerFaceColor','g')
-                plot(cos(theta2_result) * r2_result, sin(theta2_result) * r2_result,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+                
+
+                o1p = plot(cos(theta1_result) * r1_result, sin(theta1_result) * r1_result,'or', 'MarkerSize',5,'MarkerFaceColor','g');
+                o2p = plot(cos(theta2_result) * r2_result, sin(theta2_result) * r2_result,'or', 'MarkerSize',5,'MarkerFaceColor','r');
         
 %                 x = cos(theta_vec_plot+theta1_result) .* fRadiusFunction(d_result, theta_vec_super, paramVector_o);
 %                 y = sin(theta_vec_plot+theta1_result) .* fRadiusFunction(d_result, theta_vec_super, paramVector_o);
@@ -918,9 +958,19 @@ if optimizeSwarm
 
             end
         end
-        pause(0);
+        xlim(viewportLimits(1:2));
+        ylim(viewportLimits(3:4));
 
+        % Capture the frame for the video
+        frame = getframe(gcf);
+        
+        % Write the frame to the video file
+        writeVideo(writerObj, frame);
+
+        pause(0);
     end
+
+    close(writerObj);
 end
 
 
@@ -1270,4 +1320,80 @@ function hoverCallback(obj, ~, pSettings, axHandle)
 
         pState.isRunning = 0;
     end
+end
+
+function [nu] = nuFromTime(T, n, e, nu_guess)
+
+    M = n*T;
+    nu = M;
+
+    if e ~= 0
+    
+        root = sqrt(-e^3 * (-8 + 24*e - 24*e^2 + 8*e^3 - 9*e*M^2));
+    
+        nom = -2*e + 2*e^2 + (3*M*e^2 + root)^(2/3);
+        denom = e * (3*M*e^2 + root)^(1/3);
+    
+        E =  nom/denom;
+        
+        if E <= pi
+            nu = 2*atan(tan(E/2)*sqrt((1+e)/(1-e)));
+        else
+            nu = 2*pi + 2*atan(tan(E/2)*sqrt((1+e)/(1-e)));
+        end
+    
+        if M <= pi
+            E2 = 2*atan(tan(M/2)/sqrt((1+e)/(1-e)));
+        else
+            E2 = 2*pi + 2*atan(tan(M/2)/sqrt((1+e)/(1-e)));
+        end
+
+
+        xnm1 = M;
+        fnm1 = E2 - e*sin(E2) - M;
+        xn = nu;
+        fn = E - e*sin(E) - M;
+
+
+       
+        iter = 0;
+        while (abs(fn) > 0.001) && (iter < 100)
+            xnp1 = mod(xn - fn * (xn-xnm1) / (fn-fnm1), 2*pi);
+            fnm1 = fn;
+            xnm1 = xn;
+            xn = xnp1;
+            fn = nuSolver(xnp1, T, n, e);
+
+            iter = iter + 1;
+
+            if iter == 50
+                if abs(fnm1) < abs(fn)
+                    fn = nuSolver(nu_guess, T, n, e);
+                    xn = nu_guess;
+                else
+                    fnm1 = nuSolver(nu_guess, T, n, e);
+                    xnm1 = nu_guess;            
+                end
+            end
+%             if abs(fn) < abs(minFn)
+%                 minFn = fn;
+%                 bestXn = xn;
+%             end
+        end
+
+        nu = xn;%bestXn;
+
+    end
+
+end
+
+%% Solve nu around an orbit at a given time T
+function [angleError] = nuSolver(nu_time, T, n, e)
+    if nu_time <= pi
+        E = 2*atan(tan(nu_time/2)/sqrt((1+e)/(1-e)));
+    else
+        E = 2*pi + 2*atan(tan(nu_time/2)/sqrt((1+e)/(1-e)));
+    end
+
+    angleError = E-e*sin(E) - n*T;
 end

@@ -1,17 +1,17 @@
-function [resultVector_o, paramVector_o, theta_super] = updateSwarmParameters(nu1_i, nu2_f, pSettings)
+function [resultVector_o, paramVector_o, theta_super] = updateSwarmParameters(nu1_i, nu2_f, deployTime, targetTime, updateAll, pSettings)
     global pState paramVector;
 
-    if pState.previousTime ~= pState.currentTime
+    if (pState.previousTime ~= pState.currentTime) || updateAll
 
         if nu1_i <= pi
-            E = 2*atan(tan(nu1_i/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+            E = 2*atan(tan(nu1_i/2)/sqrt((1+pSettings.e1)/(1-pSettings.e1)));
         else
-            E = 2*pi + 2*atan(tan(nu1_i/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+            E = 2*pi + 2*atan(tan(nu1_i/2)/sqrt((1+pSettings.e1)/(1-pSettings.e1)));
         end
 
-        timeSincePerigee = (E-pSettings.e2*sin(E)) / pSettings.n2;
+        timeSincePerigee = (E-pSettings.e1*sin(E)) / pSettings.n1;
 
-        T_nu = mod(pState.currentTime - timeSincePerigee, pSettings.P1);
+        T_nu = mod(timeSincePerigee - (deployTime - pState.currentTime), pSettings.P1);
         if T_nu ~= 0        
             n = pSettings.n1;
             e = pSettings.e1;
@@ -36,14 +36,14 @@ function [resultVector_o, paramVector_o, theta_super] = updateSwarmParameters(nu
     pState.previousTime = pState.currentTime;
 
     if nu2_f <= pi
-        E = 2*atan(tan(nu1_i/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+        E = 2*atan(tan(nu2_f/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
     else
-        E = 2*pi + 2*atan(tan(nu1_i/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+        E = 2*pi + 2*atan(tan(nu2_f/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
     end
 
     timeSincePerigee = (E-pSettings.e2*sin(E)) / pSettings.n2;
 
-    T_nu = mod(pState.currentTime + pState.tof_current - timeSincePerigee, pSettings.P2);
+    T_nu = mod(timeSincePerigee - (targetTime - pState.currentTime) - pState.tof_current, pSettings.P2);
     if T_nu ~= 0        
         n = pSettings.n2;
         e = pSettings.e2;

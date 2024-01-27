@@ -1,5 +1,5 @@
 function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, efgResultMatrix] = optimalSwarmDVSolver(swarmParams, pSettings, twMapInds)
-    global pState
+    global pState deltaResult
 
     leadNuPointCountPerOrbit = swarmParams.leadNuPointCountPerOrbit;
     datePointCount = swarmParams.datePointCount;
@@ -10,6 +10,8 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
     dateVector = swarmParams.dateVector;
     %leadNuVector = swarmParams.leadNuVector;
     tofMatrix = swarmParams.tofMatrix;
+    deployTime = swarmParams.deployTime;
+    targetTime = swarmParams.targetTime;
 
     resultMatrix = zeros(nuCount, nuCount);
     dateResultMatrix = zeros(nuCount, nuCount);
@@ -62,7 +64,7 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
                         pState.testedOrbits = pState.testedOrbits + 1;
                         
                         pState.N = N_current;
-                        [resultVector, paramVector, theta_super] = updateSwarmParameters(nu1, nu2, pSettings);
+                        [resultVector, paramVector, theta_super] = updateSwarmParameters(nu1, nu2, deployTime, targetTime, 0, pSettings);
                         dT = theta_super(1,2) - theta_super(1,1);
                         tof_current = pState.tof_current;
                 

@@ -9,6 +9,8 @@ classdef swarmParamClass
         dateVector;
         leadNuVector;
         tofMatrix;
+        deployTime;
+        targetTime;
         %perigeeTimeMatrix;
     end
 end
