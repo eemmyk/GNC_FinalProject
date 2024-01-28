@@ -27,7 +27,15 @@ function [resultVector_o, paramVector_o, theta_super] = updateSwarmParameters(Tp
 
     pState.previousTime = pState.currentTime;
 
-    T_nu = mod(Tp2 - (targetTime - pState.currentTime) + pState.tof_current, pSettings.P2);
+    if nu2_f <= pi
+        E = 2*atan(tan(nu2_f/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+    else
+        E = 2*pi + 2*atan(tan(nu2_f/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+    end
+
+    timeSincePerigee = (E-pSettings.e2*sin(E)) / pSettings.n2;
+
+    T_nu = mod(timeSincePerigee - (targetTime - pState.currentTime) + pState.tof_current, pSettings.P2);
     if T_nu ~= 0        
         n = pSettings.n2;
         e = pSettings.e2;

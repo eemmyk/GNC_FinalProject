@@ -32,27 +32,27 @@ fprintf(seedFile, "Seed: %.0f - Date: %s\n", rng().Seed, string(baseDate));
 
 %--First Orbit Parameters--
 %Semimajor axis
-a_initial = 6900e3;%rMin + (0.1 + 3*rand())*rMin;
+a_initial = rMin + (0.2 + 7*rand())*rMin;
 %Period of the orbit
 P1 = 2*pi/sqrt(mju/a_initial^3);
 %Time of last perigee pass
-Tp1 = 0;%rand() * P1;
+Tp1 = rand() * P1;
 %Eccentricity
-e1 = 0;%rand() * 0.25;
+e1 = rand() * 0.95;
 %Argument of perigee
-omega1 = 0;%rand() * 2 * pi;
+omega1 = rand() * 2 * pi;
 
 %--Second Orbit Parameters--
 %Semimajor axis
-a_final = 42164e3;%rMin + (3 + 7*rand())*rMin;
+a_final = rMin + (0.2 + 7*rand())*rMin;
 %Period of the orbit
 P2 = 2*pi/sqrt(mju/a_final^3);
 %Time of last perigee pass
-Tp2 = 0;%rand() * P2;
+Tp2 = rand() * P2;
 %Eccentricity
-e2 = 0.6;%rand() * 0.25;
+e2 = rand() * 0.95;
 %Argument of perigee
-omega2 = pi/2;%rand() * 2 * pi;
+omega2 = rand() * 2 * pi;
 
 %% Program settings
 %Number of additional rotations around central body
@@ -219,6 +219,7 @@ opt_dv_fminsearch = optimset('TolFun',1e1, 'TolX', min(P1, P2)/1000);
 opt_dv_global = optimset('TolFun',1e2, 'TolX', 1e4);
 opt_minTheta_fbnd = optimset('TolFun', 1e-2, 'TolX', 1e-2);
 opt_d_bounds_fzero = optimset('TolFun', 1e-3);
+opt_d_thetaTime_fzero = optimset('TolX', 1e-4);
 
 %% Calculating the orbital parameters
 n1 = sqrt(mju/a_initial^3);
@@ -682,23 +683,24 @@ if optimizeSwarm
 
     leadNuPointCountPerOrbit = 20;
     datePointCount = 20;
-    extraOrbitChecks = 1;
+    extraOrbitChecks = 0;
 
     satelliteCount = 10;
 
     deployTime = 0;%initialTime;
     targetTime = 0;
 
+    %What are the true anomalies of the objects after deployment?
     deployNuVector = linspace(0, 0.1, satelliteCount) .* (2 * pi);
 
     %Needs to be generated from a time vector to get true equal spacing on
     %elliptical orbits
-    targetTimeSpacingVector = linspace(0, (1-1/satelliteCount) * pSettings.P2, satelliteCount);
+    perigeeTimeVectorFinal = linspace(0, (1-1/satelliteCount) * pSettings.P2, satelliteCount);
 
     
     targetNuVector = zeros(1, satelliteCount);
     for ind = 1:satelliteCount
-        T_nu = targetTimeSpacingVector(ind);
+        T_nu = perigeeTimeVectorFinal(ind);
         if T_nu ~= 0        
             n = pSettings.n2;
             e = pSettings.e2;
@@ -722,48 +724,60 @@ if optimizeSwarm
     pSettings.plotTransferWindow = 0;
     pSettings.useMultiorbitFilling = 0;
 
+    perigeeTimeVectorInitial = zeros(1,nuCount);
+
+    TpVectorInd = 1;
+
+    for nuStart = deployNuVector
+        if nuStart <= pi
+            E = 2*atan(tan(nuStart/2)/sqrt((1+pSettings.e1)/(1-pSettings.e1)));
+        else
+            E = 2*pi + 2*atan(tan(nuStart/2)/sqrt((1+pSettings.e1)/(1-pSettings.e1)));
+        end
+        perigeeTimeVectorInitial(TpVectorInd) = (E-pSettings.e1*sin(E)) / pSettings.n1;
+        TpVectorInd = TpVectorInd + 1;
+    end   
+
     tofMatrix = zeros(nuCount, datePointCount, leadNuPointCountPerOrbit * (extraOrbitChecks+1));
-    %perigeeTimeMatrix = zeros(nuCount, datePointCount);
-    tofMatNuInd = 1;
+    nuInd = 1;
     tofMatDateInd = 1;
     leadNuIndex = 1;
 
     dateVector = linspace(initialTime, initialTime + dateSearchSpan, datePointCount);
     leadNuVector = linspace(-pi, pi, leadNuPointCountPerOrbit);
-
-    for nuEnd = targetNuVector
-        if nuEnd <= pi
-            E0 = 2*atan(tan(nuEnd/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
-        else
-            E0 = 2*pi + 2*atan(tan(nuEnd/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
-        end
+    leadTimeVector = linspace(-pSettings.P2 / 2, pSettings.P2 / 2, leadNuPointCountPerOrbit);
+    
+    
+%     for nuEnd = targetNuVector
+    for targetPerigeeTime = perigeeTimeVectorFinal
         for date = dateVector
 %             timeSincePerigee = (E0-pSettings.e2*sin(E0)) / pSettings.n2;
-            for leadOffset = leadNuVector
-                nuLead = nuEnd + leadOffset;
-                if nuLead == pi
-                    E = pi;
-                elseif nuLead > pi
-                    E = 2*pi + 2*atan(tan(nuLead/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
-                elseif nuLead == -pi
-                    E = -pi;
-                elseif nuLead < -pi
-                    E = 2*pi - 2*atan(tan(nuLead/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
-                else
-                    E = 2*atan(tan(nuLead/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
-                end
-                leadTime = ((E-pSettings.e2*sin(E)) - (E0-pSettings.e2*sin(E0)))/ pSettings.n2;
-
+%             for leadOffset = leadNuVector
+            for leadOffset = leadTimeVector
+%                 nuLead = nuEnd + leadOffset;
+%                 if nuLead == pi
+%                     E = pi;
+%                 elseif nuLead > pi
+%                     E = 2*pi + 2*atan(tan(nuLead/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+%                 elseif nuLead == -pi
+%                     E = -pi;
+%                 elseif nuLead < -pi
+%                     E = 2*pi - 2*atan(tan(nuLead/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+%                 else
+%                     E = 2*atan(tan(nuLead/2)/sqrt((1+pSettings.e2)/(1-pSettings.e2)));
+%                 end
+%                 leadTime = (E-pSettings.e2*sin(E)) / pSettings.n2 - perigeeTimeVectorFinal(nuInd);
+                leadTime = leadOffset - perigeeTimeVectorFinal(nuInd);
                 %perigeeTimeMatrix(tofMatNuInd, tofMatDateInd) = timeSincePerigee + leadTime;
                 requiredTOF = mod(targetTime + leadTime - date, pSettings.P2);
                 tofVector = requiredTOF + (0:extraOrbitChecks) .* pSettings.P2;
-                tofMatrix(tofMatNuInd, tofMatDateInd, (leadNuIndex : leadNuIndex + extraOrbitChecks)) = tofVector;
+                tofMatrix(nuInd, tofMatDateInd, (leadNuIndex : leadNuIndex + extraOrbitChecks)) = tofVector;
                 leadNuIndex = leadNuIndex + (extraOrbitChecks+1);
             end
             tofMatDateInd = tofMatDateInd + 1;
             leadNuIndex = 1;
         end   
-        tofMatNuInd = tofMatNuInd + 1;
+        nuInd = nuInd + 1;
         tofMatDateInd = 1;
     end
  
@@ -778,11 +792,13 @@ if optimizeSwarm
     swarmParams.targetNuVector = targetNuVector;
     swarmParams.nuCount = nuCount;
     swarmParams.dateVector = dateVector;
-    swarmParams.leadNuVector = leadNuVector;
+    %swarmParams.leadNuVector = leadNuVector;
     swarmParams.tofMatrix = tofMatrix;
     swarmParams.deployTime = deployTime;
     swarmParams.targetTime = targetTime;
-    %swarmParams.perigeeTimeMatrix = perigeeTimeMatrix;
+
+    swarmParams.perigeeTimeVectorInitial = perigeeTimeVectorInitial;
+    swarmParams.perigeeTimeVectorFinal = perigeeTimeVectorFinal;
     
     
     %Find best solution for each combination orbit in the swarm
@@ -809,91 +825,40 @@ if optimizeSwarm
 %     
 %     sum2 = sum(requiredDeltaVs)
 
-    figure(4)
-    tiledlayout(1, 1, 'Padding', 'tight', 'TileSpacing', 'tight');
-    nexttile;
-    hold on;
-    
-    xlabel("Distance from central body [m]");
-    ylabel("Distance from central body [m]");
-
-    plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
-    plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
-
-    rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
-
-    intermediateParamClass = paramClass;
-    efg_Mat_1 = zeros(3,3);
-
-
     for targetInd = 1:nuCount
         deployInd = assignment(targetInd);
-
-            fprintf("Object %.0f:\tRequired %cV %.0f m/s, Launch date: %s, TOF: %s\n", deployInd, 916, resultMatrix(deployInd, targetInd), secToTime(dateResultMatrix(deployInd, targetInd), 1, pSettings.baseDate), secToTime(tofResultMatrix(deployInd, targetInd), 0, []));
-
-        paramResultVector = paramResultMatrix(deployInd, targetInd, :);
-
-        mju_result = paramResultVector(1);
-        gamma1_result = paramResultVector(2);
-        gamma2_result = paramResultVector(3);
-        theta_f_result = paramResultVector(4);
-        theta1_dot_result = paramResultVector(5);
-        theta2_dot_result = paramResultVector(6);
-        r1_result = paramResultVector(7);
-        r2_result = paramResultVector(8);
-        theta1_result = paramResultVector(9);
-        theta2_result = paramResultVector(10);
-        nu2_i_result = paramResultVector(11);
-        r2_i_result = paramResultVector(12);
-        a_result = paramResultVector(13);
-        b_result = paramResultVector(14);
-        c_result = paramResultVector(15);
-        d_result = paramResultVector(16);
-
-        efgVector = reshape(efgResultMatrix(deployInd, targetInd, :), [1,9]);
-        efg_Mat_1_result = [efgVector(1:3); efgVector(4:6); efgVector(7:9)];
-        
-        intermediateParamClass.mju = mju_result;
-        intermediateParamClass.gamma1 = gamma1_result;
-        intermediateParamClass.gamma2 = gamma2_result;
-        intermediateParamClass.theta_f = theta_f_result;
-        intermediateParamClass.theta1_dot = theta1_dot_result;
-        intermediateParamClass.theta2_dot = theta2_dot_result;
-        intermediateParamClass.r1 = r1_result;
-        intermediateParamClass.r2 = r2_result;
-        intermediateParamClass.theta1 = theta1_result;
-        intermediateParamClass.theta2 = theta2_result;
-        intermediateParamClass.a = a_result;
-        intermediateParamClass.b = b_result;
-        intermediateParamClass.c = c_result;
-        intermediateParamClass.efg_Mat_1 = efg_Mat_1_result;
-
-
-        theta_vec_plot = linspace(theta_0, theta_f_result, plotAccuracy);
-        theta_vec_super = fGetThetaSuper(theta_vec_plot);
-        dT = theta_vec_super(1,2) - theta_vec_super(1,1);
-
-        plot(cos(theta1_result) * r1_result, sin(theta1_result) * r1_result,'or', 'MarkerSize',5,'MarkerFaceColor','g')
-        plot(cos(theta2_result) * r2_result, sin(theta2_result) * r2_result,'or', 'MarkerSize',5,'MarkerFaceColor','r')
-
-        x = cos(theta_vec_plot+theta1_result) .* fRadiusFunction(d_result, theta_vec_super, intermediateParamClass);
-        y = sin(theta_vec_plot+theta1_result) .* fRadiusFunction(d_result, theta_vec_super, intermediateParamClass);
-        plot(x, y, "Color", [0.2 0.7 0.2]);
-             
+        fprintf("Object %.0f:\tRequired %cV %.0f m/s, Launch date: %s, TOF: %s\n", deployInd, 916, resultMatrix(deployInd, targetInd), secToTime(dateResultMatrix(deployInd, targetInd), 1, pSettings.baseDate), secToTime(tofResultMatrix(deployInd, targetInd), 0, []));        
     end
-    axis equal
-    pause(0);
 
-    % Create a VideoWriter object
-    writerObj = VideoWriter('animated_video.mp4', 'MPEG-4');
-    writerObj.FrameRate = 60;  % Set the frame rate (frames per second)
+
+    % Define the desired axis size in pixels
+    axisWidthPixels = 540;
+    axisHeightPixels = 540;
     
-    % Open the video file for writing
-    open(writerObj);
 
-    figure(5)
+    figure(4)
+    figure('Units', 'pixels', 'Position', [1, 1, axisWidthPixels + 40, axisHeightPixels + 40]);
+
+    % Get the figure size in pixels
+    figurePosition = get(gcf, 'Position');
+    figureWidthPixels = figurePosition(3);
+    figureHeightPixels = figurePosition(4);
+    
+    % Calculate the normalized axis size
+    axisWidthNormalized = axisWidthPixels / figureWidthPixels;
+    axisHeightNormalized = axisHeightPixels / figureHeightPixels;
+    
+    % Calculate the normalized axis position (assuming it starts at the lower-left corner)
+    axisLeftNormalized = 0.5 * (figureWidthPixels - axisWidthPixels) / figureWidthPixels;
+    axisBottomNormalized = 0.5 * (figureHeightPixels - axisHeightPixels) / figureHeightPixels;
+    
+
 %     tiledlayout(1, 1, 'Padding', 'tight', 'TileSpacing', 'tight');
 %     nexttile;
+
+    % Set the axis size in pixels
+    axes('Position', [axisLeftNormalized, axisBottomNormalized, axisWidthNormalized, axisHeightNormalized]);
+
     hold on;
 
     xlabel("Distance from central body [m]");
@@ -904,7 +869,17 @@ if optimizeSwarm
 
     axis manual
 
-    for time = linspace(initialTime, 2 * (initialTime + dateSearchSpan), pSettings.plotAccuracy)
+    % Create a VideoWriter object
+    writerObj = VideoWriter('animated_video.mp4', 'MPEG-4');
+    writerObj.FrameRate = 60;  % Set the frame rate (frames per second)
+    
+    % Open the video file for writing
+    open(writerObj);
+
+    intermediateParamClass = paramClass;
+    efg_Mat_1 = zeros(3,3);
+
+    for time = linspace(initialTime - 0.1 * dateSearchSpan, 1.5 * (initialTime + dateSearchSpan), 2*pSettings.plotAccuracy)
         hold off
         plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
         hold on
@@ -914,47 +889,106 @@ if optimizeSwarm
         for targetInd = 1:nuCount
             deployInd = assignment(targetInd);
 
-            if time > (dateResultMatrix(deployInd, targetInd) + tofResultMatrix(deployInd, targetInd))
-    
-                %fprintf("Object %.0f:\tRequired %cV %.0f m/s, Launch date: %s, TOF: %s\n", deployInd, 916, resultMatrix(deployInd, targetInd), secToTime(dateResultMatrix(deployInd, targetInd), 1, pSettings.baseDate), secToTime(tofResultMatrix(deployInd, targetInd), 0, []));
-        
-                pState.tof_current = 0;%tofResultMatrix(deployInd, targetInd);
+            if time < (dateResultMatrix(deployInd, targetInd))% + tofResultMatrix(deployInd, targetInd))
+                pState.tof_current = 0;
                 pState.currentTime = time;
 
-                [~, paramVector, ~] = updateSwarmParameters(deployNuVector(deployInd), targetNuVector(targetInd), deployTime, targetTime, 1, pSettings);
+                Tp1 = perigeeTimeVectorInitial(deployInd);
+                Tp2 = perigeeTimeVectorFinal(targetInd);
+                [~, paramVector, ~] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, 1, pSettings);
 
-%                 paramResultVector = paramResultMatrix(deployInd, targetInd, :);
-        
-%                 mju_result = paramVector;
-%                 gamma1_result = paramVector;
-%                 gamma2_result = paramVector;
-%                 theta_f_result = paramVector;
-%                 theta1_dot_result = paramVector;
-%                 theta2_dot_result = paramVector;
                 r1_result = paramVector.r1;
-                r2_result = paramVector.r2;
                 theta1_result = paramVector.theta1;
+                plot(cos(theta1_result) * r1_result, sin(theta1_result) * r1_result,'or', 'MarkerSize',5,'MarkerFaceColor','g');
+
+            elseif time > (dateResultMatrix(deployInd, targetInd) + tofResultMatrix(deployInd, targetInd))
+                pState.tof_current = 0;
+                pState.currentTime = time;
+
+                Tp1 = perigeeTimeVectorInitial(deployInd);
+                Tp2 = perigeeTimeVectorFinal(targetInd);
+                [~, paramVector, ~] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, 1, pSettings);
+
+                r2_result = paramVector.r2;
                 theta2_result = paramVector.theta2;
-%                 nu2_i_result = paramVector;
-%                 r2_i_result = paramVector;
-%                 a_result = paramVector;
-%                 b_result = paramVector;
-%                 c_result = paramVector;
-%                 efg_Mat_1_result = paramVector;
+                plot(cos(theta2_result) * r2_result, sin(theta2_result) * r2_result,'or', 'MarkerSize',5,'MarkerFaceColor','r');
+            
+            else
+%                 pState.tof_current = tofResultMatrix(deployInd, targetInd) - (time - dateResultMatrix(deployInd, targetInd));
+%                 pState.currentTime = time;
+%     
+%                 [~, paramVector, ~] = updateSwarmParameters(deployNuVector(deployInd), targetNuVector(targetInd), deployTime, targetTime, 1, pSettings);
 
-                %d_result = paramResultVector(16);
+ 
+                paramResultVector = paramResultMatrix(deployInd, targetInd, :);
+
+                mju_result = paramResultVector(1);
+                gamma1_result = paramResultVector(2);
+                gamma2_result = paramResultVector(3);
+                theta_f_result = paramResultVector(4);
+                theta1_dot_result = paramResultVector(5);
+                theta2_dot_result = paramResultVector(6);
+                r1_result = paramResultVector(7);
+                r2_result = paramResultVector(8);
+                theta1_result = paramResultVector(9);
+                theta2_result = paramResultVector(10);
+                nu2_i_result = paramResultVector(11);
+                r2_i_result = paramResultVector(12);
+                a_result = paramResultVector(13);
+                b_result = paramResultVector(14);
+                c_result = paramResultVector(15);
+                d_result = paramResultVector(16);
         
-%                 theta_vec_plot = linspace(theta_0, theta_f_result, plotAccuracy);
-%                 theta_vec_super = fGetThetaSuper(theta_vec_plot);
-%                 dT = theta_vec_super(1,2) - theta_vec_super(1,1);
+                efgVector = reshape(efgResultMatrix(deployInd, targetInd, :), [1,9]);
+                efg_Mat_1_result = [efgVector(1:3); efgVector(4:6); efgVector(7:9)];
                 
-
-                o1p = plot(cos(theta1_result) * r1_result, sin(theta1_result) * r1_result,'or', 'MarkerSize',5,'MarkerFaceColor','g');
-                o2p = plot(cos(theta2_result) * r2_result, sin(theta2_result) * r2_result,'or', 'MarkerSize',5,'MarkerFaceColor','r');
+                intermediateParamClass.mju = mju_result;
+                intermediateParamClass.gamma1 = gamma1_result;
+                intermediateParamClass.gamma2 = gamma2_result;
+                intermediateParamClass.theta_f = theta_f_result;
+                intermediateParamClass.theta1_dot = theta1_dot_result;
+                intermediateParamClass.theta2_dot = theta2_dot_result;
+                intermediateParamClass.r1 = r1_result;
+                intermediateParamClass.r2 = r2_result;
+                intermediateParamClass.theta1 = theta1_result;
+                intermediateParamClass.theta2 = theta2_result;
+                intermediateParamClass.a = a_result;
+                intermediateParamClass.b = b_result;
+                intermediateParamClass.c = c_result;
+                intermediateParamClass.efg_Mat_1 = efg_Mat_1_result;
         
-%                 x = cos(theta_vec_plot+theta1_result) .* fRadiusFunction(d_result, theta_vec_super, paramVector_o);
-%                 y = sin(theta_vec_plot+theta1_result) .* fRadiusFunction(d_result, theta_vec_super, paramVector_o);
-%                 plot(x, y, "Color", [0.2 0.7 0.2]);
+                transferTimeRatio = time - dateResultMatrix(deployInd, targetInd);
+                normalRatio = transferTimeRatio / tofResultMatrix(deployInd, targetInd);
+
+%                 if (transferTimeRatio < 0) || (transferTimeRatio > tofResultMatrix(deployInd, targetInd))
+%                     continue
+%                 end
+
+%                 time_e_min = fThetaFromTime(0, d_result, intermediateParamClass, transferTimeRatio)
+%                 time_e_max = fThetaFromTime(theta_f_result, d_result, intermediateParamClass, transferTimeRatio)
+
+                fThetaTimeHandle = @(theta) fThetaFromTime(theta, d_result, intermediateParamClass, transferTimeRatio);
+                
+                %optimset not specific to this function
+                currentTheta = fzero(fThetaTimeHandle, [-0.01, 1.01 * theta_f_result], opt_d_thetaTime_fzero);
+                superRatio = fGetThetaSuper(currentTheta);
+                
+                plotPointCount = ceil((1-normalRatio) * plotAccuracy);
+                if plotPointCount > 1
+                    theta_vec_plot = linspace(currentTheta, theta_f_result, plotPointCount);
+                    theta_vec_super = fGetThetaSuper(theta_vec_plot);
+                    dT = theta_vec_super(1,2) - theta_vec_super(1,1);
+            
+                    x = cos(theta_vec_plot+theta1_result) .* fRadiusFunction(d_result, theta_vec_super, intermediateParamClass);
+                    y = sin(theta_vec_plot+theta1_result) .* fRadiusFunction(d_result, theta_vec_super, intermediateParamClass);
+                    plot(x, y, "Color", [0.2 0.7 0.2]);
+                end
+
+                x = cos(currentTheta + theta1_result) .* fRadiusFunction(d_result, superRatio, intermediateParamClass);
+                y = sin(currentTheta + theta1_result) .* fRadiusFunction(d_result, superRatio, intermediateParamClass);
+                plot(x, y,'or', 'MarkerSize',5,'MarkerFaceColor','y');
+
+
 
             end
         end
@@ -1396,4 +1430,39 @@ function [angleError] = nuSolver(nu_time, T, n, e)
     end
 
     angleError = E-e*sin(E) - n*T;
+end
+
+%% For solving theta at a given time along the transfer orbit
+function [timeError] = fThetaFromTime(theta, d, paramVector, targetTime)
+    
+    
+    theta_f = paramVector.theta_f;
+    r2 = paramVector.r2;
+    
+    a = paramVector.a;
+    b = paramVector.b;
+    c = paramVector.c;
+                
+    efg_Mat_2 = [1/r2 - (a + b*theta_f + c*theta_f^2 + d*theta_f^3);
+                -tan(paramVector.gamma2)/r2 - (b + 2*c*theta_f + 3*d*theta_f^2); 
+                paramVector.mju/(r2^4*paramVector.theta2_dot^2) - (1/r2 + 2*c + 6*d*theta_f)];
+    
+    efg = 1/(2*theta_f^6) * paramVector.efg_Mat_1 * efg_Mat_2;
+    
+    e = efg(1);
+    f = efg(2);
+    g = efg(3);
+
+    theta_vec = linspace(0, theta, 50);
+    dT = theta_vec(2) - theta_vec(1);
+    theta_super = [theta_vec; theta_vec.^2; theta_vec.^3; theta_vec.^4; theta_vec.^5; theta_vec.^6];
+    
+    r = 1 ./ (a + b.*theta_super(1,:) + c.*theta_super(2,:) + d.*theta_super(3,:) + e.*theta_super(4,:) + f.*theta_super(5,:) + g.*theta_super(6,:));
+
+    timeStep_Vec = (r.^2./sqrt(paramVector.mju)) .* sqrt((1./r + 2.*c + 6.*d.*theta_super(1,:) + 12.*e.*theta_super(2,:) + 20.*f.*theta_super(3,:) + 30.*g.*theta_super(4,:))); 
+    
+    time_t_f = dT * (timeStep_Vec(1) + timeStep_Vec(end)) / 2 + dT * sum(timeStep_Vec(2:end-1));
+
+    timeError = time_t_f - targetTime;
+
 end

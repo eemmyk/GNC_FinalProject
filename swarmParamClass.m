@@ -11,7 +11,8 @@ classdef swarmParamClass
         tofMatrix;
         deployTime;
         targetTime;
-        %perigeeTimeMatrix;
+        perigeeTimeVectorInitial;
+        perigeeTimeVectorFinal;
     end
 end
 

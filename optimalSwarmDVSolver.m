@@ -4,35 +4,49 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
     leadNuPointCountPerOrbit = swarmParams.leadNuPointCountPerOrbit;
     datePointCount = swarmParams.datePointCount;
     extraOrbitChecks = swarmParams.extraOrbitChecks;
-    deployNuVector = swarmParams.deployNuVector;
-    targetNuVector = swarmParams.targetNuVector;
+    %deployNuVector = swarmParams.deployNuVector;
+    %targetNuVector = swarmParams.targetNuVector;
     nuCount = swarmParams.nuCount;
     dateVector = swarmParams.dateVector;
     %leadNuVector = swarmParams.leadNuVector;
     tofMatrix = swarmParams.tofMatrix;
     deployTime = swarmParams.deployTime;
     targetTime = swarmParams.targetTime;
+    perigeeTimeVectorInitial = swarmParams.perigeeTimeVectorInitial;
+    perigeeTimeVectorFinal = swarmParams.perigeeTimeVectorFinal;
 
     resultMatrix = zeros(nuCount, nuCount);
     dateResultMatrix = zeros(nuCount, nuCount);
     tofResultMatrix = zeros(nuCount, nuCount);
-    %perigeeTimeResult = zeros()
+    %leadNuResultMatrix = zeros(nuCount, nuCount);
     paramResultMatrix = zeros(nuCount, nuCount, 16);
     efgResultMatrix = zeros(nuCount, nuCount, 9);
 
     for swarmIndTarget = 1:nuCount
-        nuEnd = targetNuVector(swarmIndTarget);
+        %nuEnd = targetNuVector(swarmIndTarget);
         for swarmIndDeploy = 1:nuCount
             fprintf("Finding orbits: <strong>%.1f%%</strong>\n", 100 * ((swarmIndTarget-1) * nuCount + swarmIndDeploy)/(nuCount * nuCount));
-            nuStart = deployNuVector(swarmIndDeploy);
+            %nuStart = deployNuVector(swarmIndDeploy);
+            
+            Tp1 = perigeeTimeVectorInitial(swarmIndDeploy);
+            Tp2 = perigeeTimeVectorFinal(swarmIndTarget);
 
             deltaResult = Inf;
 
             for dateInd = 1:datePointCount
                 date = dateVector(dateInd);
-                for tofInd = 1:leadNuPointCountPerOrbit * extraOrbitChecks
+                for tofInd = 1:leadNuPointCountPerOrbit * (extraOrbitChecks+1)
                     tof = tofMatrix(swarmIndTarget, dateInd, tofInd);
+                    
+%                     leadNuIndex = mod(tofInd, leadNuPointCountPerOrbit);
+%                     if leadNuIndex == 0
+%                         leadNuIndex = leadNuPointCountPerOrbit;
+%                     end
 
+                    %leadNu = leadNuVector(leadNuIndex);
+
+
+                    pState.previousTime = -1;
 
                     if pSettings.solveDate == 1
                         pState.currentTime = date;
@@ -40,10 +54,7 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
                     else
                         pState.tof_current = tof;
                     end
-                
-                    nu1 = nuStart;
-                    nu2 = nuEnd;
-                
+                                
                     trueSolution = 0;
                     N_start = pState.N;
                     localBestDV = Inf;
@@ -64,7 +75,12 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
                         pState.testedOrbits = pState.testedOrbits + 1;
                         
                         pState.N = N_current;
-                        [resultVector, paramVector, theta_super] = updateSwarmParameters(nu1, nu2, deployTime, targetTime, 0, pSettings);
+
+                        if swarmIndDeploy == 1
+                            0;
+                        end
+
+                        [resultVector, paramVector, theta_super] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, 0, pSettings);
                         dT = theta_super(1,2) - theta_super(1,1);
                         tof_current = pState.tof_current;
                 
@@ -135,6 +151,8 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
                     
                             dateOptimal = pState.currentTime;
                             tof_optimal = pState.tof_current;
+
+                            %leadNuOptimal = leadNu;
                     
                             paramVector_opt = paramVector;
                             resultVector_opt = resultVector;
@@ -185,6 +203,7 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
             dateResultMatrix(swarmIndDeploy, swarmIndTarget) = dateOptimal;
             tofResultMatrix(swarmIndDeploy, swarmIndTarget) = tof_optimal;
             efgResultMatrix(swarmIndDeploy, swarmIndTarget, :) = [paramVector_opt.efg_Mat_1(1, :), paramVector_opt.efg_Mat_1(2, :), paramVector_opt.efg_Mat_1(3, :)];
+            %leadNuResultMatrix(swarmIndDeploy, swarmIndTarget) = leadNuOptimal;
 
             mju_result = paramVector_opt.mju;
             gamma1_result = paramVector_opt.gamma1;
