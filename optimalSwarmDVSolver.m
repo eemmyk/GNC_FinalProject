@@ -69,7 +69,7 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
                             0;
                         end
 
-                        [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLookup] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, 0, initialTimeLookup, finalTimeLookup, paramVector, pSettings);
+                        [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLookup, pState] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, 0, initialTimeLookup, finalTimeLookup, paramVector, pSettings, pState);
                         dT = theta_super(1,2) - theta_super(1,1);
                         tof_current = pState.tof_current;
                 
@@ -82,14 +82,20 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
                          end
 
                         %Calculate minimum and maximum time of flight
-                        x_min = d_minimum;
-                        f_min = fTimeFunction(x_min, theta_super, dT, paramVector) - tof_current;
                         x_max = d_maximum;
                         f_max = fTimeFunction(x_max, theta_super, dT, paramVector) - tof_current;
-                                        
-                        crossing = (f_min < 0) ~= (f_max < 0);
 
-                        if ~crossing %|| imaginary
+                        if f_max > 0
+                            continue
+                        end
+
+                        x_min = d_minimum;
+                        f_min = fTimeFunction(x_min, theta_super, dT, paramVector) - tof_current;
+
+                                        
+                        %crossing = (f_min < 0) ~= (f_max < 0);
+
+                        if (f_min < 0) %|| imaginary
                             continue
                         end
                         

@@ -23,7 +23,7 @@ rMin = bodyRadius + 250 * 1e3; %[km] Earth
 
 %% Orbital parameters
 seed = floor(rand() * 1000000);
-rng(seed);  % Cool Seeds: Good looking: 761982    Good looking: 13     Some issue to fix: 34158     NuPredict Issue: 438758      DV optim issues: 313
+rng(761982);  % Cool Seeds: Good looking: 761982    Good looking: 13     Some issue to fix: 34158     NuPredict Issue: 438758      DV optim issues: 313
 
 %Save current date and seed to a file
 baseDate = datetime('now','Format','dd-MMM-yyyy');
@@ -709,21 +709,6 @@ if optimizeSwarm
     %Needs to be generated from a time vector to get true equal spacing on
     %elliptical orbits
     perigeeTimeVectorFinal = linspace(0, (1-1/satelliteCount) * pSettings.P2, satelliteCount);
-
-%     targetNuVector = zeros(1, satelliteCount);
-%     for ind = 1:satelliteCount
-%         T_nu = perigeeTimeVectorFinal(ind);
-%         if T_nu ~= 0        
-%             n = pSettings.n2;
-%             e = pSettings.e2;
-%             nu_guess = 0;
-%     
-%             nu2 = nuFromTime(T_nu, n, e, nu_guess);
-%         else
-%             nu2 = 0;
-%         end
-%         targetNuVector(ind) = nu2;
-%     end
    
     nuCount = size(deployNuVector);
     nuCount = nuCount(2);
@@ -889,7 +874,7 @@ if optimizeSwarm
                     Tp1 = perigeeTimeVectorInitial(deployInd);
                     Tp2 = perigeeTimeVectorFinal(targetInd);
 
-                    [~, paramVector, ~, initialTimeLookup, finalTimeLookup] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, 1, initialTimeLookup, finalTimeLookup, interParam, pSettings);
+                    [~, paramVector, ~, initialTimeLookup, finalTimeLookup, pState] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, 1, initialTimeLookup, finalTimeLookup, interParam, pSettings, pState);
                     plot(cos(paramVector.theta1) * paramVector.r1, sin(paramVector.theta1) * paramVector.r1,'or', 'MarkerSize',5,'MarkerFaceColor','g');
     
                 elseif time > (dateResultMatrix(deployInd, targetInd) + tofResultMatrix(deployInd, targetInd))
@@ -899,7 +884,7 @@ if optimizeSwarm
                     Tp1 = perigeeTimeVectorInitial(deployInd);
                     Tp2 = perigeeTimeVectorFinal(targetInd);
     
-                    [~, paramVector, ~, initialTimeLookup, finalTimeLookup] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, 1, initialTimeLookup, finalTimeLookup, interParam, pSettings);
+                    [~, paramVector, ~, initialTimeLookup, finalTimeLookup, pState] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, 1, initialTimeLookup, finalTimeLookup, interParam, pSettings, pState);
                     plot(cos(paramVector.theta2) * paramVector.r2, sin(paramVector.theta2) * paramVector.r2,'or', 'MarkerSize',5,'MarkerFaceColor','r');
                 
                 else
@@ -947,9 +932,7 @@ if optimizeSwarm
                     x = cos(currentTheta + interParam.theta1) .* fRadiusFunction(d_result, superRatio, interParam);
                     y = sin(currentTheta + interParam.theta1) .* fRadiusFunction(d_result, superRatio, interParam);
                     plot(x, y,'or', 'MarkerSize',5,'MarkerFaceColor','y');
-    
-    
-    
+        
                 end
             end
             xlim(viewportLimits(1:2));

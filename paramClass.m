@@ -16,6 +16,7 @@ classdef paramClass
     b;
     c;
     efg_Mat_1;
+    efg_Mat_2_const;
     end
 end
 

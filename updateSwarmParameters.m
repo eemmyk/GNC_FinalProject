@@ -1,5 +1,5 @@
-function [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLookup] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, updateAll, initialTimeLookup, finalTimeLookup, paramVector, pSettings)
-    global pState;
+function [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLookup, pState] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, updateAll, initialTimeLookup, finalTimeLookup, paramVector, pSettings, pState)
+    %global pState;
 
     initialTimeEntry = mod(Tp1 - (deployTime - pState.currentTime), pSettings.P1);
     finalTimeEntry = mod(Tp2 - (targetTime - pState.currentTime) + pState.tof_current, pSettings.P2);
@@ -29,6 +29,8 @@ function [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLo
         gamma1 = asin(pSettings.e1 * sin(nu1) / sqrt(1+2*pSettings.e1*cos(nu1) + pSettings.e1^2));
         r1 = pSettings.p1 / (1+pSettings.e1*cos(nu1));
         theta1_dot = sqrt(pSettings.mju/pSettings.a_initial^3) * pSettings.a_initial^2/r1^2 * sqrt(1-pSettings.e1^2);
+
+        pState.previousTime = pState.currentTime;
     else
         theta1 = paramVector.theta1;
         gamma1 = paramVector.gamma1;
@@ -36,7 +38,6 @@ function [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLo
         theta1_dot = paramVector.theta1_dot;
     end
 
-    pState.previousTime = pState.currentTime;
     if ~isempty(findFinalTime)
         nu2 = finalTimeLookup(2,findFinalTime);
     else
@@ -110,7 +111,10 @@ function [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLo
     efg_Mat_1 = [30*theta_f^2  -10*theta_f^3  theta_f^4;
                 -48*theta_f     18*theta_f^2 -2*theta_f^3; 
                  20            -8*theta_f     theta_f^2];
-    
+
+    efg_Mat_2_const = [1/r2 - (a + b*theta_f + c*theta_f^2);
+                       -tan(gamma2)/r2 - (b + 2*c*theta_f); 
+                       paramVector.mju/(r2^4*theta2_dot^2) - (1/r2 + 2*c)];
 
     theta_super = [theta_vec1; theta_vec2; theta_vec3; theta_vec4; theta_vec5; theta_vec6];
 
@@ -127,8 +131,7 @@ function [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLo
     paramVector.b = b;
     paramVector.c = c;
     paramVector.efg_Mat_1 = efg_Mat_1;
-
-    resultVector = [0, 0, 1];
+    paramVector.efg_Mat_2_const = efg_Mat_2_const;
 
     %% Check if TOF is a solution 
     
@@ -153,6 +156,10 @@ function [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLo
 
         geometricMinRadius = sin(alpha1) * r1;
         geometricMinRadius = max(geometricMinRadius, pSettings.rMin);     
+        
+%         geometricMaxRadius = geometricMaxRadius * 0.6 + 0.4 * geometricMinRadius;
+%         geometricMinRadius = geometricMaxRadius * 0.4 + 0.6 * geometricMinRadius;
+%     
     else
         geometricMaxRadius = pSettings.rMax;
         geometricMinRadius = pSettings.rMin;
@@ -161,7 +168,10 @@ function [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLo
     % Could implement real root finding algorithm for this part.
 
     %Calculate the minimum value for d
-    d_minimum = fFindRadiusFunction(paramVector, geometricMaxRadius);    
+    d_minimum = fFindRadiusFunction(paramVector, geometricMaxRadius);
+
+%     restrictedSuper = theta_super;
+
     [timePart, radiusPart] = fTimeMinReal(theta_super, d_minimum, paramVector, pSettings.a_initial);
 
     if (timePart < 0) || (radiusPart < 0)
@@ -175,6 +185,12 @@ function [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLo
             d_minimum = d_minimum * pSettings.dAdjustment + 1e-15;
         end
 
+%         if numel(radiusInds) > numel(timeInds)
+%             restrictedSuper = theta_super(:, radiusInds);
+%         else
+%             restrictedSuper = theta_super(:, timeInds);
+%         end
+           
         [timePart, radiusPart] = fTimeMinReal(theta_super, d_minimum, paramVector, pSettings.a_initial);
 
         if (timePart < 0) || (radiusPart < 0)
@@ -197,6 +213,8 @@ function [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLo
         end
     end
 
+    restrictedSuper = theta_super;
+
     %Calculate the maximum value for d
     d_maximum = fFindRadiusFunction(paramVector, geometricMinRadius);
     [timePart, radiusPart] = fTimeMinReal(theta_super, d_maximum, paramVector, pSettings.a_initial);
@@ -212,7 +230,13 @@ function [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLo
             d_maximum = d_maximum / pSettings.dAdjustment - 1e-15;
         end
 
-        [timePart, ~] = fTimeMinReal(theta_super, d_maximum, paramVector, pSettings.a_initial);
+%         if numel(radiusInds) > numel(timeInds)
+%             restrictedSuper = theta_super(:, radiusInds);
+%         else
+%             restrictedSuper = theta_super(:, timeInds);
+%         end
+
+        [timePart, radiusPart] = fTimeMinReal(theta_super, d_maximum, paramVector, pSettings.a_initial);
 
         if (timePart < 0) || (radiusPart < 0)
             y1_1 = timePart;
@@ -258,17 +282,16 @@ end
 function [timeImgPart, radiusImgPart] = fTimeMinReal(theta, d, paramVector, a_initial)
 
     theta_f = paramVector.theta_f;
-    r2 = paramVector.r2;
     
     a = paramVector.a;
     b = paramVector.b;
     c = paramVector.c;
                 
-    efg_Mat_2 = [1/r2 - (a + b*theta_f + c*theta_f^2 + d*theta_f^3);
-                -tan(paramVector.gamma2)/r2 - (b + 2*c*theta_f + 3*d*theta_f^2); 
-                paramVector.mju/(r2^4*paramVector.theta2_dot^2) - (1/r2 + 2*c + 6*d*theta_f)];
-    
-    efg = 1/(2*theta_f^6) * paramVector.efg_Mat_1 * efg_Mat_2;
+    efg_d_part = [-d*theta_f^3;
+                  -3*d*theta_f^2;
+                  -6*d*theta_f];
+
+    efg = 1/(2*theta_f^6) * paramVector.efg_Mat_1 * (paramVector.efg_Mat_2_const + efg_d_part);
     
     e = efg(1);
     f = efg(2);
@@ -276,8 +299,16 @@ function [timeImgPart, radiusImgPart] = fTimeMinReal(theta, d, paramVector, a_in
 
     radiusImgPart = min(a_initial*(a + b.*theta(1,:) + c.*theta(2,:) + d.*theta(3,:) + e.*theta(4,:) + f.*theta(5,:) + g.*theta(6,:)));
     timeImgPart = min(a_initial*(a + 2.*c + (6.*d + b).*theta(1,:) + (12.*e + c).*theta(2,:) + (20.*f + d).*theta(3,:) + (30.*g + e).*theta(4,:) + f.*theta(5,:) + g.*theta(6,:)));
+
+%     radiusInds = find(radiusImgPart <= 0);
+%     timeInds = find(timeImgPart <= 0);
+% 
+%     radiusImgPart = min(radiusImgPart);
+%     timeImgPart = min(timeImgPart);
+
 end
 
+%% Solve the true anomaly from time
 function [nu] = nuFromTime(T, n, e, nu_guess)
 
     M = n*T;
