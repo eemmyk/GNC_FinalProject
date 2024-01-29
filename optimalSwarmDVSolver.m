@@ -4,30 +4,30 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
     leadNuPointCountPerOrbit = swarmParams.leadNuPointCountPerOrbit;
     datePointCount = swarmParams.datePointCount;
     extraOrbitChecks = swarmParams.extraOrbitChecks;
-    %deployNuVector = swarmParams.deployNuVector;
-    %targetNuVector = swarmParams.targetNuVector;
     nuCount = swarmParams.nuCount;
     dateVector = swarmParams.dateVector;
-    %leadNuVector = swarmParams.leadNuVector;
     tofMatrix = swarmParams.tofMatrix;
     deployTime = swarmParams.deployTime;
     targetTime = swarmParams.targetTime;
     perigeeTimeVectorInitial = swarmParams.perigeeTimeVectorInitial;
     perigeeTimeVectorFinal = swarmParams.perigeeTimeVectorFinal;
 
-    resultMatrix = zeros(nuCount, nuCount);
+    resultMatrix = Inf(nuCount, nuCount);
     dateResultMatrix = zeros(nuCount, nuCount);
     tofResultMatrix = zeros(nuCount, nuCount);
     %leadNuResultMatrix = zeros(nuCount, nuCount);
-    paramResultMatrix = zeros(nuCount, nuCount, 16);
+    paramResultMatrix = zeros(nuCount, nuCount, 14);
     efgResultMatrix = zeros(nuCount, nuCount, 9);
 
+    initialTimeLookup = zeros(2,datePointCount) - 1;
+    finalTimeLookup = zeros(2,leadNuPointCountPerOrbit * (extraOrbitChecks+1)) - 1;
+    
     for swarmIndTarget = 1:nuCount
         %nuEnd = targetNuVector(swarmIndTarget);
         for swarmIndDeploy = 1:nuCount
             fprintf("Finding orbits: <strong>%.1f%%</strong>\n", 100 * ((swarmIndTarget-1) * nuCount + swarmIndDeploy)/(nuCount * nuCount));
             %nuStart = deployNuVector(swarmIndDeploy);
-            
+
             Tp1 = perigeeTimeVectorInitial(swarmIndDeploy);
             Tp2 = perigeeTimeVectorFinal(swarmIndTarget);
 
@@ -35,26 +35,13 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
 
             for dateInd = 1:datePointCount
                 date = dateVector(dateInd);
+                pState.previousTime = -1;
+                pState.currentTime = date;
+
                 for tofInd = 1:leadNuPointCountPerOrbit * (extraOrbitChecks+1)
                     tof = tofMatrix(swarmIndTarget, dateInd, tofInd);
-                    
-%                     leadNuIndex = mod(tofInd, leadNuPointCountPerOrbit);
-%                     if leadNuIndex == 0
-%                         leadNuIndex = leadNuPointCountPerOrbit;
-%                     end
+                    pState.tof_current = tof;
 
-                    %leadNu = leadNuVector(leadNuIndex);
-
-
-                    pState.previousTime = -1;
-
-                    if pSettings.solveDate == 1
-                        pState.currentTime = date;
-                        pState.tof_current = tof;
-                    else
-                        pState.tof_current = tof;
-                    end
-                                
                     trueSolution = 0;
                     N_start = pState.N;
                     localBestDV = Inf;
@@ -66,7 +53,6 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
                         N_end = N_start;
                     end
                 
-                    
                     d_solution = 0;
                     deltaV_o = 1e24; %A big number
                 
@@ -80,7 +66,7 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
                             0;
                         end
 
-                        [resultVector, paramVector, theta_super] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, 0, pSettings);
+                        [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLookup] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, 0, initialTimeLookup, finalTimeLookup, pSettings);
                         dT = theta_super(1,2) - theta_super(1,1);
                         tof_current = pState.tof_current;
                 
@@ -91,7 +77,7 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
                          if ~realOrbit
                             continue
                          end
-                    
+
                         %Calculate minimum and maximum time of flight
                         x_min = d_minimum;
                         f_min = fTimeFunction(x_min, theta_super, dT, paramVector) - tof_current;
@@ -99,7 +85,7 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
                         f_max = fTimeFunction(x_max, theta_super, dT, paramVector) - tof_current;
                                         
                         crossing = (f_min < 0) ~= (f_max < 0);
-                
+
                         if ~crossing %|| imaginary
                             continue
                         end
@@ -198,7 +184,7 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
                     
                 end
             end
-
+            
             resultMatrix(swarmIndDeploy, swarmIndTarget) = deltaResult;
             dateResultMatrix(swarmIndDeploy, swarmIndTarget) = dateOptimal;
             tofResultMatrix(swarmIndDeploy, swarmIndTarget) = tof_optimal;
@@ -215,14 +201,14 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
             r2_result = paramVector_opt.r2;
             theta1_result = paramVector_opt.theta1;
             theta2_result = paramVector_opt.theta2;
-            nu2_i_result = paramVector_opt.nu2_i;
-            r2_i_result = paramVector_opt.r2_i;
+%             nu2_i_result = paramVector_opt.nu2_i;
+%             r2_i_result = paramVector_opt.r2_i;
             a_result = paramVector_opt.a;
             b_result = paramVector_opt.b;
             c_result = paramVector_opt.c;
             d_result = d_opt;
 
-            paramResultMatrix(swarmIndDeploy, swarmIndTarget, :) = [mju_result, gamma1_result, gamma2_result, theta_f_result, theta1_dot_result, theta2_dot_result, r1_result, r2_result, theta1_result, theta2_result, nu2_i_result, r2_i_result, a_result, b_result, c_result, d_result];
+            paramResultMatrix(swarmIndDeploy, swarmIndTarget, :) = [mju_result, gamma1_result, gamma2_result, theta_f_result, theta1_dot_result, theta2_dot_result, r1_result, r2_result, theta1_result, theta2_result, a_result, b_result, c_result, d_result];
    
         end
     end

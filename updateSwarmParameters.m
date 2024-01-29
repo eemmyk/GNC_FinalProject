@@ -1,50 +1,65 @@
-function [resultVector_o, paramVector_o, theta_super] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, updateAll, pSettings)
+function [resultVector_o, paramVector_o, theta_super, initialTimeLookup, finalTimeLookup] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, updateAll, initialTimeLookup, finalTimeLookup, pSettings)
     global pState paramVector;
 
-    if (pState.previousTime ~= pState.currentTime) || updateAll
+    
+    findInitialTime = find(initialTimeLookup(1,:) == pState.currentTime);
+    findFinalTime = find(finalTimeLookup(1,:) == (pState.currentTime + pState.tof_current));
 
-
-        T_nu = mod(Tp1 - (deployTime - pState.currentTime), pSettings.P1);
-        if T_nu ~= 0        
-            n = pSettings.n1;
-            e = pSettings.e1;
-            nu_guess = 0;
-            nu1 = nuFromTime(T_nu, n, e, nu_guess);
+    if pState.currentTime ~= pState.previousTime || updateAll
+        if ~isempty(findInitialTime)
+            nu1 = initialTimeLookup(findInitialTime);
         else
-            nu1 = 0;
+            T_nu = mod(Tp1 - (deployTime - pState.currentTime), pSettings.P1);
+            if T_nu ~= 0        
+                n = pSettings.n1;
+                e = pSettings.e1;
+                nu_guess = pi;
+                nu1 = nuFromTime(T_nu, n, e, nu_guess);
+            else
+                nu1 = 0;
+            end
+            firstIndex = 1+sum(initialTimeLookup(1,:) > -1);
+            initialTimeLookup(1,firstIndex) = pState.currentTime;
+            initialTimeLookup(2,firstIndex) = nu1;
         end
 
-        theta1 = mod(nu1 + pSettings.omega1, 2*pi);
+        theta1 = nu1 + pSettings.omega1;
         gamma1 = asin(pSettings.e1 * sin(nu1) / sqrt(1+2*pSettings.e1*cos(nu1) + pSettings.e1^2));
         r1 = pSettings.p1 / (1+pSettings.e1*cos(nu1));
         theta1_dot = sqrt(pSettings.mju/pSettings.a_initial^3) * pSettings.a_initial^2/r1^2 * sqrt(1-pSettings.e1^2);
     else
-        gamma1 = paramVector.gamma1;
-        theta1_dot = paramVector.theta1_dot;
-        r1 = paramVector.r1;
         theta1 = paramVector.theta1;
+        gamma1 = paramVector.gamma1;
+        r1 = paramVector.r1;
+        theta1_dot = paramVector.theta1_dot;
     end
 
     pState.previousTime = pState.currentTime;
-
-    T_nu = mod(Tp2 - (targetTime - pState.currentTime) + pState.tof_current, pSettings.P2);
-    if T_nu ~= 0        
-        n = pSettings.n2;
-        e = pSettings.e2;
-        nu_guess = paramVector.theta2 - pSettings.omega2;
-
-        nu2 = nuFromTime(T_nu, n, e, nu_guess);
+    if ~isempty(findFinalTime)
+        nu2 = finalTimeLookup(findFinalTime);
     else
-        nu2 = 0;
+        T_nu = mod(Tp2 - (targetTime - pState.currentTime) + pState.tof_current, pSettings.P2);
+        if T_nu ~= 0        
+            n = pSettings.n2;
+            e = pSettings.e2;
+            nu_guess = pi;%paramVector.theta2 - pSettings.omega2;
+    
+            nu2 = nuFromTime(T_nu, n, e, nu_guess);
+        else
+            nu2 = 0;
+        end
+        firstIndex = 1+sum(finalTimeLookup(1,:) > -1);
+        finalTimeLookup(1,firstIndex) = pState.currentTime + pState.tof_current;
+        finalTimeLookup(2,firstIndex) = nu2;
     end
 
-    theta2 = mod(nu2 + pSettings.omega2, 2*pi);    
+    theta2 = nu2 + pSettings.omega2;    
     theta_tilde = theta2 - theta1;
 
     if theta_tilde < 0
         theta_tilde = theta_tilde + 2*pi;
-    elseif theta_tilde > 2*pi
-        theta_tilde = theta_tilde - 2*pi;
+%     elseif theta_tilde > 2*pi
+%         theta_tilde = theta_tilde - 2*pi;
     end
    
     gamma2 = asin(pSettings.e2 * sin(nu2) / sqrt(1+2*pSettings.e2*cos(nu2) + pSettings.e2^2));
@@ -85,7 +100,7 @@ function [resultVector_o, paramVector_o, theta_super] = updateSwarmParameters(Tp
     theta_vec4 = theta_vec3.*theta_vec;
     theta_vec5 = theta_vec4.*theta_vec;
     theta_vec6 = theta_vec5.*theta_vec;
-
+    
     a = 1/r1;
     b = -tan(gamma1) / r1;
     c = 1/(2*r1) * (pSettings.mju / (r1^3 * theta1_dot^2) - 1);
