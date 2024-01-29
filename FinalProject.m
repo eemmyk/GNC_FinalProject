@@ -118,7 +118,7 @@ dateSearchSpan = 3 * max(P1,P2); %0.5 * lcm(years1, years2) * 365 * 86400;
 %Linear for option 1
 %Linear for option 2
 %Squared for option 3
-gsPointCount = 32;
+gsPointCount = 128;
 
 %Which approach to global search is taken
 %Option 1: Global search
@@ -146,9 +146,9 @@ saveSwarmTransferVideo = 0;
 initial_DeltaV = 1e24; %A big number
 resultsDeltaVs = [];
 %Predefine thrust curves
-thrustCurve_tof = [];
-thrustCurve_dV = [];
-thrustCurve_date = [];
+thrustCurve_tof = [0, 0];
+thrustCurve_dV = [0, 0];
+thrustCurve_date = [0, 0];
 
 %Configure subplots
 subXCount = optimizeTOF + optimizeDV + optimizeDATE;
@@ -218,6 +218,7 @@ dvLineWidth = 40;
 
 %% Define some optimization options here for speeeeeeeeed!
 opt_tof_fzero = [fzero_d_accuracy, fzero_f_accuracy]; % This is different due to the custom fzero function
+
 opt_tof_fzero_acc = optimset('TolX', 1e-18);%, 'TolFun', 1e-15, 'TolCon', 1e-15, 'TolX', 1e-15);
 opt_nu_fzero = optimset('TolFun', 1e-3, 'TolX', 1e-3, 'Display', 'off');
 opt_tf_angle = optimset('TolFun', 1e-3, 'Display', 'off');
@@ -689,10 +690,10 @@ end
 if optimizeSwarm
     %global resultVector_opt
 
-    leadNuPointCountPerOrbit = 25;
-    datePointCount = 25;
+    leadNuPointCountPerOrbit = 20;
+    datePointCount = 20;
 
-    extraOrbitChecks = 0;
+    extraOrbitChecks = 1;
 
     %Very primitive logic in place.
     extraOrbitChecks = extraOrbitChecks + floor((P1/P2)^(1/3));
@@ -709,20 +710,20 @@ if optimizeSwarm
     %elliptical orbits
     perigeeTimeVectorFinal = linspace(0, (1-1/satelliteCount) * pSettings.P2, satelliteCount);
 
-    targetNuVector = zeros(1, satelliteCount);
-    for ind = 1:satelliteCount
-        T_nu = perigeeTimeVectorFinal(ind);
-        if T_nu ~= 0        
-            n = pSettings.n2;
-            e = pSettings.e2;
-            nu_guess = 0;
-    
-            nu2 = nuFromTime(T_nu, n, e, nu_guess);
-        else
-            nu2 = 0;
-        end
-        targetNuVector(ind) = nu2;
-    end
+%     targetNuVector = zeros(1, satelliteCount);
+%     for ind = 1:satelliteCount
+%         T_nu = perigeeTimeVectorFinal(ind);
+%         if T_nu ~= 0        
+%             n = pSettings.n2;
+%             e = pSettings.e2;
+%             nu_guess = 0;
+%     
+%             nu2 = nuFromTime(T_nu, n, e, nu_guess);
+%         else
+%             nu2 = 0;
+%         end
+%         targetNuVector(ind) = nu2;
+%     end
    
     nuCount = size(deployNuVector);
     nuCount = nuCount(2);
@@ -862,11 +863,16 @@ if optimizeSwarm
         end
     
         interParam = paramClass;
+        interParam.mju = mju;
+
         efg_Mat_1 = zeros(3,3);
     
         swarmTimeSpan = max(requiredTOFs) + max(requiredDates - deployTime);
         firstDeployTime = min(requiredDates);
-    
+
+        initialTimeLookup = zeros(2,datePointCount) - 1;
+        finalTimeLookup = zeros(2,leadNuPointCountPerOrbit * (extraOrbitChecks+1)) - 1;
+
         for time = linspace(firstDeployTime - pSettings.P1, (firstDeployTime + swarmTimeSpan) + pSettings.P2, 2*pSettings.plotAccuracy)
             hold off
             plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
@@ -876,15 +882,14 @@ if optimizeSwarm
     
             for deployInd = 1:nuCount
                 targetInd = assignment(deployInd);
-    
-                if time < (dateResultMatrix(deployInd, targetInd))% + tofResultMatrix(deployInd, targetInd))
+                if time < (dateResultMatrix(deployInd, targetInd))
                     pState.tof_current = 0;
                     pState.currentTime = time;
-    
+        
                     Tp1 = perigeeTimeVectorInitial(deployInd);
                     Tp2 = perigeeTimeVectorFinal(targetInd);
-                    [~, paramVector, ~] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, 1, [], [], pSettings);
-    
+
+                    [~, paramVector, ~, initialTimeLookup, finalTimeLookup] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, 1, initialTimeLookup, finalTimeLookup, interParam, pSettings);
                     plot(cos(paramVector.theta1) * paramVector.r1, sin(paramVector.theta1) * paramVector.r1,'or', 'MarkerSize',5,'MarkerFaceColor','g');
     
                 elseif time > (dateResultMatrix(deployInd, targetInd) + tofResultMatrix(deployInd, targetInd))
@@ -893,11 +898,12 @@ if optimizeSwarm
     
                     Tp1 = perigeeTimeVectorInitial(deployInd);
                     Tp2 = perigeeTimeVectorFinal(targetInd);
-                    [~, paramVector, ~] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, 1, [], [], pSettings);
     
+                    [~, paramVector, ~, initialTimeLookup, finalTimeLookup] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, 1, initialTimeLookup, finalTimeLookup, interParam, pSettings);
                     plot(cos(paramVector.theta2) * paramVector.r2, sin(paramVector.theta2) * paramVector.r2,'or', 'MarkerSize',5,'MarkerFaceColor','r');
                 
                 else
+
                     paramResultVector = paramResultMatrix(deployInd, targetInd, :);
     
                     efgVector = reshape(efgResultMatrix(deployInd, targetInd, :), [1,9]);
@@ -917,15 +923,13 @@ if optimizeSwarm
                     interParam.b = paramResultVector(12);
                     interParam.c = paramResultVector(13);
                     interParam.efg_Mat_1 = efg_Mat_1_result;
-    
                     d_result = paramResultVector(14);
-    
+
                     transferTimeRatio = time - dateResultMatrix(deployInd, targetInd);
                     normalRatio = transferTimeRatio / tofResultMatrix(deployInd, targetInd);
     
                     fThetaTimeHandle = @(theta) fThetaFromTime(theta, d_result, interParam, transferTimeRatio);
                     
-                    %optimset not specific to this function
                     currentTheta = fzero(fThetaTimeHandle, [-0.01, 1.01 * interParam.theta_f], opt_d_thetaTime_fzero);
                     superRatio = fGetThetaSuper(currentTheta);
                     

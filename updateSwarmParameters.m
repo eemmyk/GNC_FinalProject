@@ -1,15 +1,17 @@
-function [resultVector_o, paramVector_o, theta_super, initialTimeLookup, finalTimeLookup] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, updateAll, initialTimeLookup, finalTimeLookup, pSettings)
-    global pState paramVector;
+function [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLookup] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, updateAll, initialTimeLookup, finalTimeLookup, paramVector, pSettings)
+    global pState;
 
-    
-    findInitialTime = find(initialTimeLookup(1,:) == pState.currentTime);
-    findFinalTime = find(finalTimeLookup(1,:) == (pState.currentTime + pState.tof_current));
+    initialTimeEntry = mod(Tp1 - (deployTime - pState.currentTime), pSettings.P1);
+    finalTimeEntry = mod(Tp2 - (targetTime - pState.currentTime) + pState.tof_current, pSettings.P2);
+
+    findFinalTime = find(finalTimeLookup(1,:) == finalTimeEntry);
 
     if pState.currentTime ~= pState.previousTime || updateAll
+        findInitialTime = find(initialTimeLookup(1,:) == initialTimeEntry);
         if ~isempty(findInitialTime)
-            nu1 = initialTimeLookup(findInitialTime);
+            nu1 = initialTimeLookup(2,findInitialTime);
         else
-            T_nu = mod(Tp1 - (deployTime - pState.currentTime), pSettings.P1);
+            T_nu = initialTimeEntry;
             if T_nu ~= 0        
                 n = pSettings.n1;
                 e = pSettings.e1;
@@ -19,7 +21,7 @@ function [resultVector_o, paramVector_o, theta_super, initialTimeLookup, finalTi
                 nu1 = 0;
             end
             firstIndex = 1+sum(initialTimeLookup(1,:) > -1);
-            initialTimeLookup(1,firstIndex) = pState.currentTime;
+            initialTimeLookup(1,firstIndex) = initialTimeEntry;
             initialTimeLookup(2,firstIndex) = nu1;
         end
 
@@ -36,9 +38,9 @@ function [resultVector_o, paramVector_o, theta_super, initialTimeLookup, finalTi
 
     pState.previousTime = pState.currentTime;
     if ~isempty(findFinalTime)
-        nu2 = finalTimeLookup(findFinalTime);
+        nu2 = finalTimeLookup(2,findFinalTime);
     else
-        T_nu = mod(Tp2 - (targetTime - pState.currentTime) + pState.tof_current, pSettings.P2);
+        T_nu = finalTimeEntry;
         if T_nu ~= 0        
             n = pSettings.n2;
             e = pSettings.e2;
@@ -49,7 +51,7 @@ function [resultVector_o, paramVector_o, theta_super, initialTimeLookup, finalTi
             nu2 = 0;
         end
         firstIndex = 1+sum(finalTimeLookup(1,:) > -1);
-        finalTimeLookup(1,firstIndex) = pState.currentTime + pState.tof_current;
+        finalTimeLookup(1,firstIndex) = finalTimeEntry;
         finalTimeLookup(2,firstIndex) = nu2;
     end
 
@@ -125,6 +127,8 @@ function [resultVector_o, paramVector_o, theta_super, initialTimeLookup, finalTi
     paramVector.b = b;
     paramVector.c = c;
     paramVector.efg_Mat_1 = efg_Mat_1;
+
+    resultVector = [0, 0, 1];
 
     %% Check if TOF is a solution 
     
@@ -232,8 +236,6 @@ function [resultVector_o, paramVector_o, theta_super, initialTimeLookup, finalTi
     end
 
     resultVector = [d_minimum, d_maximum, realOrbit];
-    resultVector_o = resultVector;
-    paramVector_o = paramVector;
 end
 
 %% Function for finding the d-coefficient where orbit reaches r (at theta_f/2)
