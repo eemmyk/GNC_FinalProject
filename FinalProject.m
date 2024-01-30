@@ -6,6 +6,8 @@ close all;
 %% Declaring globals
 global pState;
 global paramVector paramVector_opt d_opt dateOptimal tof_optimal deltaResult;
+global initialTimeLookup finalTimeLookup
+
 
 %% Central body information
 
@@ -119,6 +121,10 @@ dateSearchSpan = 3 * max(P1,P2); %0.5 * lcm(years1, years2) * 365 * 86400;
 %Linear for option 2
 %Squared for option 3
 gsPointCount = 128;
+
+%Create nu lookup tables
+initialTimeLookup = zeros(3, gsPointCount) - 1;
+finalTimeLookup = zeros(2, gsPointCount*gsPointCount) - 1;
 
 %Which approach to global search is taken
 %Option 1: Global search
@@ -329,7 +335,7 @@ pState.twMap = twMap;
 pState.twMapInds = twMapInds;
 
 %% Calculate all the rest of orbital parameters for the coming simulation
-[resultVector, paramVector] = updateParameters(1, pSettings);
+[resultVector, paramVector, ~, initialTimeLookup, finalTimeLookup] = updateParameters(1, pSettings, initialTimeLookup, finalTimeLookup);
 
 theta_f = paramVector.theta_f;
 r1 = paramVector.r1;
@@ -368,7 +374,7 @@ if optimizeTOF == 1
             if pState.N > pSettings.maxDepthN
                 break
             end
-            [resultVector, paramVector] = updateParameters(1, pSettings);
+            [resultVector, paramVector, ~, initialTimeLookup, finalTimeLookup] = updateParameters(1, pSettings, initialTimeLookup, finalTimeLookup);
 
         end
     end
@@ -421,7 +427,7 @@ if optimizeTOF == 1
 
         %Reset revolutions
         pState.N = startN;
-        [resultVector, paramVector] = updateParameters(1, pSettings);
+        [resultVector, paramVector, ~, initialTimeLookup, finalTimeLookup] = updateParameters(1, pSettings, initialTimeLookup, finalTimeLookup);
 
         theta_f = paramVector.theta_f;
         theta1 = paramVector.theta1;

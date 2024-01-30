@@ -19,8 +19,8 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
     paramResultMatrix = zeros(nuCount, nuCount, 14);
     efgResultMatrix = zeros(nuCount, nuCount, 9);
 
-    initialTimeLookup = zeros(2,datePointCount) - 1;
-    finalTimeLookup = zeros(2,leadNuPointCountPerOrbit * (extraOrbitChecks+1)) - 1;
+    initialTimeSwarmLookup = zeros(2,datePointCount*nuCount) - 1;
+    finalTimeSwarmLookup = zeros(2,leadNuPointCountPerOrbit*(extraOrbitChecks+1)*nuCount) - 1;
 
     paramVector = paramClass;
     paramVector.mju = pSettings.mju;
@@ -65,11 +65,7 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
                         
                         pState.N = N_current;
 
-                        if swarmIndDeploy == 1
-                            0;
-                        end
-
-                        [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLookup, pState] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, 0, initialTimeLookup, finalTimeLookup, paramVector, pSettings, pState);
+                        [resultVector, paramVector, theta_super, initialTimeSwarmLookup, finalTimeSwarmLookup, pState] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, 0, initialTimeSwarmLookup, finalTimeSwarmLookup, paramVector, pSettings, pState);
                         dT = theta_super(1,2) - theta_super(1,1);
                         tof_current = pState.tof_current;
                 

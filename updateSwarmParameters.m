@@ -1,13 +1,10 @@
 function [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLookup, pState] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, updateAll, initialTimeLookup, finalTimeLookup, paramVector, pSettings, pState)
-    %global pState;
 
-    initialTimeEntry = mod(Tp1 - (deployTime - pState.currentTime), pSettings.P1);
-    finalTimeEntry = mod(Tp2 - (targetTime - pState.currentTime) + pState.tof_current, pSettings.P2);
-
-    findFinalTime = find(finalTimeLookup(1,:) == finalTimeEntry);
 
     if pState.currentTime ~= pState.previousTime || updateAll
+        initialTimeEntry = mod(Tp1 - (deployTime - pState.currentTime), pSettings.P1);
         findInitialTime = find(initialTimeLookup(1,:) == initialTimeEntry);
+        
         if ~isempty(findInitialTime)
             nu1 = initialTimeLookup(2,findInitialTime);
         else
@@ -37,6 +34,9 @@ function [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLo
         r1 = paramVector.r1;
         theta1_dot = paramVector.theta1_dot;
     end
+
+    finalTimeEntry = mod(Tp2 - (targetTime - pState.currentTime) + pState.tof_current, pSettings.P2);
+    findFinalTime = find(finalTimeLookup(1,:) == finalTimeEntry);
 
     if ~isempty(findFinalTime)
         nu2 = finalTimeLookup(2,findFinalTime);
@@ -212,8 +212,6 @@ function [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLo
             end
         end
     end
-
-    restrictedSuper = theta_super;
 
     %Calculate the maximum value for d
     d_maximum = fFindRadiusFunction(paramVector, geometricMinRadius);

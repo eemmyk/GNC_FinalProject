@@ -1,5 +1,6 @@
 function [deltaV_o] = optimalDVSolver(inputVec, pSettings, twMapInds)
     global deltaResult pState; 
+    global initialTimeLookup finalTimeLookup
 
     if pSettings.solveDate == 1
         pState.currentTime = inputVec(1);
@@ -19,7 +20,6 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings, twMapInds)
         N_end = N_start;
     end
 
-    
     d_solution = 0;
     deltaV_o = 1e24; %A big number
 
@@ -28,7 +28,7 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings, twMapInds)
         pState.testedOrbits = pState.testedOrbits + 1;
         
         pState.N = N_current;
-        [resultVector, paramVector, theta_super] = updateParameters(0, pSettings);
+        [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLookup] = updateParameters(0, pSettings, initialTimeLookup, finalTimeLookup);
         dT = theta_super(1,2) - theta_super(1,1);
         tof_current = pState.tof_current;
 
