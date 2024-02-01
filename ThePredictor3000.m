@@ -130,53 +130,38 @@ y_in = outputs(:, 3)';
 % plot(yTrainTrue, yTrain, 'o');
 % title("Traning");
 
-% %Define the ANN
-% hiddenLayerSize = [20,4];
-% 
-% DV_net = fitnet(hiddenLayerSize);
-% DV_net.divideParam.trainRatio = 70/100;
-% DV_net.divideParam.valRatio = 30/100;
-% DV_net.divideParam.testRatio = 0/100;
-% [DV_net, tr] = train(DV_net, x_in, y_in_DV);
-% 
-% yTrain = DV_net(x_in(:, tr.trainInd));
-% yTrainTrue = y_in_DV(:, tr.trainInd);
-% 
-% yVal = DV_net(x_in(:, tr.valInd));
-% yValTrue = y_in_DV(:, tr.valInd);
-% 
-% figure;
-% hold on;
-% 
-% plot(yValTrue, yVal, 'o');
-% plot(yTrainTrue, yTrain, 'o')
-% 
-% legend("Validation", "Training");
+%% Define the Date ANN
+Date_net = fitrauto(x_in', y_in_Date');
 
-
-%% Define final Date model
-
-%Define the ANN
-hiddenLayerSize = [50,50,50,50,50];
-
-Date_net = fitnet(hiddenLayerSize);
-Date_net.divideParam.trainRatio = 70/100;
-Date_net.divideParam.valRatio = 30/100;
-Date_net.divideParam.testRatio = 0/100;
-[Date_net, tr] = train(Date_net, x_in, y_in_Date);
-
-
-yTrain = Date_net(x_in(:, tr.trainInd));
-yTrainTrue = y_in_Date(:, tr.trainInd);
-
-yVal = Date_net(x_in(:, tr.valInd));
-yValTrue = y_in_Date(:, tr.valInd);
-
+yVal = predict(Date_net, inputs(1:100,:));
+yValTrue = outputs(1:100, 1);
 
 figure;
 hold on;
 
 plot(yValTrue, yVal, 'o');
-plot(yTrainTrue, yTrain, 'o')
 
 legend("Validation", "Training");
+
+%% Define the DV model
+% 
+% %Define the ANN
+% %hiddenLayerSize = [50,50,50,50,50];
+% 
+% %DV_net = fitrauto(x_in', y_in_DV');
+% 
+% yVal = predict(DV_net, inputs(1:100,:));
+% yValTrue = outputs(1:100, 3);
+% 
+% % yTrain = Date_net(x_in(:, tr.trainInd));
+% % yTrainTrue = y_in_Date(:, tr.trainInd);
+% % 
+% % yVal = Date_net(x_in(:, tr.valInd));
+% % yValTrue = y_in_Date(:, tr.valInd);
+% 
+% figure;
+% hold on;
+% 
+% plot(yValTrue, yVal, 'o');
+% 
+% legend("Validation", "Training");

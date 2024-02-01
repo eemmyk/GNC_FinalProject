@@ -10,7 +10,7 @@ dataSize = size(traningData_Earth);
 % a_initial, P1, Tp1, e1, omega1, a_final, P2, Tp2, e2, omega2, dateOptimal, tof_optimal, deltaV_date
 
 
-rng(1);
+% rng(1);
 
 outPutInds = [11, 12, 13];
 
@@ -49,59 +49,58 @@ end
 %Process outputs
 
 outputs(:, 1) = traningData_Earth(:, outPutInds(1));
-outputs(:, 2) = log(1+traningData_Earth(:, outPutInds(1)));
-outputs(:, 3) = traningData_Earth(:, outPutInds(1));
+outputs(:, 2) = log(1+traningData_Earth(:, outPutInds(2)));
+outputs(:, 3) = traningData_Earth(:, outPutInds(3));
 
 y_in_Date = outputs(:, 1)';
 y_in_TOF = outputs(:, 2)';
 y_in_DV = outputs(:, 3)';
 
 %Transpose inputs and outputs
-
 x_in = inputs';
-y_in = outputs(:, 1)';
+y_in = outputs(:, 3)';
 
-maxLayerSize1 = 1;
-minLayerSize1 = 1;
-
-maxLayerSize2 = 1;
-minLayerSize2 = 1;
-
-vec_rmse_train = zeros(outputCount, maxLayerSize1, maxLayerSize2);
-vec_rmse_val = zeros(outputCount, maxLayerSize1, maxLayerSize2);
-
-
+% maxLayerSize1 = 10;
+% minLayerSize1 = 10;
+% 
+% maxLayerSize2 = 2;
+% minLayerSize2 = 2;
+% 
+% vec_rmse_train = zeros(outputCount, maxLayerSize1, maxLayerSize2);
+% vec_rmse_val = zeros(outputCount, maxLayerSize1, maxLayerSize2);
+% 
+% 
 % figure;
 % hold on;
-
+% 
 % legendTexts = {};
-
+% 
 % for j = minLayerSize2:maxLayerSize2
 %     for i = minLayerSize1:maxLayerSize1
 %         %Define the ANN
-        hiddenLayerSize = [1,1, 1, 1];
-        
-        net = fitnet(hiddenLayerSize);
-        net.divideParam.trainRatio = 70/100;
-        net.divideParam.valRatio = 30/100;
-        net.divideParam.testRatio = 0/100;
-        [net, tr] = train(net, x_in, y_in);
-            
+%         hiddenLayerSize = [i, j];
+%         
+%         net = fitnet(hiddenLayerSize);
+%         net.divideParam.trainRatio = 70/100;
+%         net.divideParam.valRatio = 30/100;
+%         net.divideParam.testRatio = 0/100;
+%         [net, tr] = train(net, x_in, y_in);
+%             
 %         yTrain = net(x_in(:, tr.trainInd));
 %         yTrainTrue = y_in(:, tr.trainInd);
-        
+%         
 %         vec_rmse_train(1, i, j) = sqrt(mean((yTrain(1, :) - yTrainTrue(1, :)).^2));
-%         vec_rmse_train(2, i, j) = sqrt(mean((yTrain(2, :) - yTrainTrue(2, :)).^2));
-%         vec_rmse_train(3, i, j) = sqrt(mean((yTrain(3, :) - yTrainTrue(3, :)).^2));
-
+% %         vec_rmse_train(2, i, j) = sqrt(mean((yTrain(2, :) - yTrainTrue(2, :)).^2));
+% %         vec_rmse_train(3, i, j) = sqrt(mean((yTrain(3, :) - yTrainTrue(3, :)).^2));
+% 
 %         yVal = net(x_in(:, tr.valInd));
 %         yValTrue = y_in(:, tr.valInd);
-        
+%         
 %         vec_rmse_val(1, i, j) = sqrt(mean((yVal(1, :) - yValTrue(1, :)).^2));
-%         vec_rmse_val(2, i, j) = sqrt(mean((yVal(2, :) - yValTrue(2, :)).^2));
-%         vec_rmse_val(3, i, j) = sqrt(mean((yVal(3, :) - yValTrue(3, :)).^2));
+% %         vec_rmse_val(2, i, j) = sqrt(mean((yVal(2, :) - yValTrue(2, :)).^2));
+% %         vec_rmse_val(3, i, j) = sqrt(mean((yVal(3, :) - yValTrue(3, :)).^2));
 %     end
-
+% 
 %     plot(1:maxLayerSize1, vec_rmse_train(1, :, j));
 %     plot(1:maxLayerSize1, vec_rmse_val(1, :, j));
 % 
@@ -110,69 +109,60 @@ vec_rmse_val = zeros(outputCount, maxLayerSize1, maxLayerSize2);
 %     legendTexts(end+1) = {''};
 %     legendTexts(end+1) = {sprintf("layer2: %.0f", j)};
 % end
-
+% 
 % legend(legendTexts);
-
-
-yTrain = net(x_in(:, tr.trainInd));
-yTrainTrue = y_in(:, tr.trainInd);
-
-yVal = net(x_in(:, tr.valInd));
-yValTrue = y_in(:, tr.valInd);
-
-
-figure;
-subplot(1,2,1);
-hold on;
-title("Validation");
-plot(yValTrue, yVal, 'o');
-
-subplot(1,2,2);
-hold on;
-title("Traning");
-
-plot(yTrainTrue, yTrain, 'o');
-
-% %Define the ANN
-% hiddenLayerSize = [9,2];
 % 
-% DV_net = fitnet(hiddenLayerSize);
-% DV_net.divideParam.trainRatio = 70/100;
-% DV_net.divideParam.valRatio = 30/100;
-% DV_net.divideParam.testRatio = 0/100;
-% [DV_net, tr] = train(DV_net, x_in, y_in_DV);
 % 
-% yTrain = DV_net(x_in(:, tr.trainInd));
-% yTrainTrue = y_in_DV(:, tr.trainInd);
+% yTrain = net(x_in(:, tr.trainInd));
+% yTrainTrue = y_in(:, tr.trainInd);
 % 
-% yVal = DV_net(x_in(:, tr.valInd));
-% yValTrue = y_in_DV(:, tr.valInd);
+% yVal = net(x_in(:, tr.valInd));
+% yValTrue = y_in(:, tr.valInd);
+% 
 % 
 % figure;
-% hold on;
-% 
+% tiledlayout(1, 2, 'Padding', 'tight', 'TileSpacing', 'tight');
+% nexttile
 % plot(yValTrue, yVal, 'o');
+% title("Validation");
 % 
-% %% Define final Date model
-% 
-% %Define the ANN
-% hiddenLayerSize = [100,40];
-% 
-% Date_net = fitnet(hiddenLayerSize);
-% Date_net.divideParam.trainRatio = 70/100;
-% Date_net.divideParam.valRatio = 30/100;
-% Date_net.divideParam.testRatio = 0/100;
-% [Date_net, tr] = train(Date_net, x_in, y_in_Date);
-% 
-% 
+% nexttile;
+% plot(yTrainTrue, yTrain, 'o');
+% title("Traning");
+
+%Define the Date ANN
+DV_net = fitrauto(x_in', y_in_DV');
+
+yVal = predict(DV_net, inputs(1:100,:));
+yValTrue = outputs(1:100, 3);
+
+figure;
+hold on;
+
+plot(yValTrue, yVal, 'o');
+
+legend("Validation", "Training");
+
+
+%% Define final Date model
+
+%Define the ANN
+%hiddenLayerSize = [50,50,50,50,50];
+
+%DV_net = fitrauto(x_in', y_in_DV');
+
+yVal = predict(DV_net, inputs(1:100,:));
+yValTrue = outputs(1:100, 3);
+
 % yTrain = Date_net(x_in(:, tr.trainInd));
 % yTrainTrue = y_in_Date(:, tr.trainInd);
 % 
 % yVal = Date_net(x_in(:, tr.valInd));
 % yValTrue = y_in_Date(:, tr.valInd);
-% 
-% 
-% figure;
-% hold on;
-% 
-% plot(yValTrue, yVal, 'o');
+
+figure;
+hold on;
+
+plot(yValTrue, yVal, 'o');
+
+legend("Validation", "Training");
