@@ -1,6 +1,6 @@
 function [deltaV_o] = optimalDVSolver(inputVec, pSettings, twMapInds)
-    global deltaResult pState; 
-    global initialTimeLookup finalTimeLookup
+    global deltaResult pState paramVector; 
+    %global initialTimeLookup finalTimeLookup
 
     if pSettings.solveDate == 1
         pState.currentTime = inputVec(1);
@@ -28,7 +28,7 @@ function [deltaV_o] = optimalDVSolver(inputVec, pSettings, twMapInds)
         pState.testedOrbits = pState.testedOrbits + 1;
         
         pState.N = N_current;
-        [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLookup] = updateParameters(0, pSettings, initialTimeLookup, finalTimeLookup);
+        [resultVector, paramVector, theta_super, pState] = updateParameters(0, paramVector, pSettings, pState);
         dT = theta_super(1,2) - theta_super(1,1);
         tof_current = pState.tof_current;
 

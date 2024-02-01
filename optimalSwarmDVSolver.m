@@ -2,8 +2,9 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
     global pState deltaResult
 
     leadNuPointCountPerOrbit = swarmParams.leadNuPointCountPerOrbit;
-    datePointCount = swarmParams.datePointCount;
+    datePointCountPerOrbit = swarmParams.datePointCountPerOrbit;
     extraOrbitChecks = swarmParams.extraOrbitChecks;
+    dateOrbitChecks = swarmParams.dateOrbitChecks;
     nuCount = swarmParams.nuCount;
     dateVector = swarmParams.dateVector;
     tofMatrix = swarmParams.tofMatrix;
@@ -19,7 +20,7 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
     paramResultMatrix = zeros(nuCount, nuCount, 14);
     efgResultMatrix = zeros(nuCount, nuCount, 9);
 
-    initialTimeSwarmLookup = zeros(2,datePointCount*nuCount) - 1;
+    initialTimeSwarmLookup = zeros(2,datePointCountPerOrbit*nuCount*dateOrbitChecks) - 1;
     finalTimeSwarmLookup = zeros(2,leadNuPointCountPerOrbit*(extraOrbitChecks+1)*nuCount) - 1;
 
     paramVector = paramClass;
@@ -36,7 +37,7 @@ function [resultMatrix, dateResultMatrix, tofResultMatrix, paramResultMatrix, ef
 
             deltaResult = Inf;
 
-            for dateInd = 1:datePointCount
+            for dateInd = 1:datePointCountPerOrbit*dateOrbitChecks
                 date = dateVector(dateInd);
                 pState.previousTime = -1;
                 pState.currentTime = date;

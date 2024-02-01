@@ -1,6 +1,5 @@
 function [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLookup, pState] = updateSwarmParameters(Tp1, Tp2, deployTime, targetTime, updateAll, initialTimeLookup, finalTimeLookup, paramVector, pSettings, pState)
 
-
     if pState.currentTime ~= pState.previousTime || updateAll
         initialTimeEntry = mod(Tp1 - (deployTime - pState.currentTime), pSettings.P1);
         findInitialTime = find(initialTimeLookup(1,:) == initialTimeEntry);
@@ -170,8 +169,6 @@ function [resultVector, paramVector, theta_super, initialTimeLookup, finalTimeLo
     %Calculate the minimum value for d
     d_minimum = fFindRadiusFunction(paramVector, geometricMaxRadius);
 
-%     restrictedSuper = theta_super;
-
     [timePart, radiusPart] = fTimeMinReal(theta_super, d_minimum, paramVector, pSettings.a_initial);
 
     if (timePart < 0) || (radiusPart < 0)
@@ -272,8 +269,18 @@ function [d_sol] = fFindRadiusFunction(paramVector, rTarget)
     r1 = paramVector.r1;
     r2 = paramVector.r2;
 
-    d_sol = (64*(1/rTarget - 1/r1 + (theta_f^6*(((5*(mju/(r1^3*theta1_dot^2) - 1)*theta_f^2)/r1 - (10*tan(gamma1)*theta_f)/r1 + 10/r1 - 10/r2)/theta_f^6 - ((4*tan(gamma2))/r2 - (4*tan(gamma1))/r1 + (4*theta_f*(mju/(r1^3*theta1_dot^2) - 1))/r1)/theta_f^5 + ((mju/(r1^3*theta1_dot^2) - 1)/r1 + 1/r2 - mju/(r2^4*theta2_dot^2))/(2*theta_f^4)))/64 + (theta_f^4*(((15*(mju/(r1^3*theta1_dot^2) - 1)*theta_f^2)/(2*r1) - (15*tan(gamma1)*theta_f)/r1 + 15/r1 - 15/r2)/theta_f^4 - ((5*tan(gamma2))/r2 - (5*tan(gamma1))/r1 + (5*theta_f*(mju/(r1^3*theta1_dot^2) - 1))/r1)/theta_f^3 + ((mju/(r1^3*theta1_dot^2) - 1)/r1 + 1/r2 - mju/(r2^4*theta2_dot^2))/(2*theta_f^2)))/16 - (theta_f^5*(((12*(mju/(r1^3*theta1_dot^2) - 1)*theta_f^2)/r1 - (24*tan(gamma1)*theta_f)/r1 + 24/r1 - 24/r2)/theta_f^5 - ((9*tan(gamma2))/r2 - (9*tan(gamma1))/r1 + (9*theta_f*(mju/(r1^3*theta1_dot^2) - 1))/r1)/theta_f^4 + ((mju/(r1^3*theta1_dot^2) - 1)/r1 + 1/r2 - mju/(r2^4*theta2_dot^2))/theta_f^3))/32 + (theta_f*tan(gamma1))/(2*r1) - (theta_f^2*(mju/(r1^3*theta1_dot^2) - 1))/(8*r1)))/theta_f^3;
- 
+%     c_g1 = cos(gamma1);
+%     c_g2 = cos(gamma2);
+% 
+%     td1sq = theta1_dot^2;
+%     td2sq = theta2_dot^2;
+
+%     d_sol = 0;
+    
+    %syms mju gamma1 gamma2 theta_f theta1_dot theta2_dot r1 r2 rTarget
+    %d_sol = -(- 128*c_g1*c_g2*r1^4*r2^4*td1sq*td2sq - rTarget*c_g1*c_g2*r1^4*r2^3*theta_f^2*td1sq*td2sq + 12*rTarget*c_g1*sin(gamma2)*r1^4*r2^3*theta_f*td1sq*td2sq + 44*rTarget*c_g1*c_g2*r1^4*r2^3*td1sq*td2sq + mju*rTarget*c_g1*c_g2*r1^4*theta_f^2*td1sq - 5*rTarget*c_g1*c_g2*r1^3*r2^4*theta_f^2*td1sq*td2sq - 32*rTarget*c_g2*sin(gamma1)*r1^3*r2^4*theta_f*td1sq*td2sq + 84*rTarget*c_g1*c_g2*r1^3*r2^4*td1sq*td2sq + 5*mju*rTarget*c_g1*c_g2*r2^4*theta_f^2*td2sq)/(2*r1^4*r2^4*rTarget*theta_f^3*td1sq*td2sq*c_g1*c_g2);
+    d_sol = -(- 128*cos(gamma1)*cos(gamma2)*r1^4*r2^4*theta1_dot^2*theta2_dot^2 - rTarget*cos(gamma1)*cos(gamma2)*r1^4*r2^3*theta_f^2*theta1_dot^2*theta2_dot^2 + 12*rTarget*cos(gamma1)*sin(gamma2)*r1^4*r2^3*theta_f*theta1_dot^2*theta2_dot^2 + 44*rTarget*cos(gamma1)*cos(gamma2)*r1^4*r2^3*theta1_dot^2*theta2_dot^2 + mju*rTarget*cos(gamma1)*cos(gamma2)*r1^4*theta_f^2*theta1_dot^2 - 5*rTarget*cos(gamma1)*cos(gamma2)*r1^3*r2^4*theta_f^2*theta1_dot^2*theta2_dot^2 - 32*rTarget*cos(gamma2)*sin(gamma1)*r1^3*r2^4*theta_f*theta1_dot^2*theta2_dot^2 + 84*rTarget*cos(gamma1)*cos(gamma2)*r1^3*r2^4*theta1_dot^2*theta2_dot^2 + 5*mju*rTarget*cos(gamma1)*cos(gamma2)*r2^4*theta_f^2*theta2_dot^2)/(2*r1^4*r2^4*rTarget*theta_f^3*theta1_dot^2*theta2_dot^2*cos(gamma1)*cos(gamma2));
+
 end
 
 %% Solve the bounds of the d-coefficient from part of the time function

@@ -1,8 +1,9 @@
 classdef swarmParamClass
     properties
         leadNuPointCountPerOrbit;
-        datePointCount;
+        datePointCountPerOrbit;
         extraOrbitChecks;
+        dateOrbitChecks;
         nuCount;
         dateVector;
         tofMatrix;

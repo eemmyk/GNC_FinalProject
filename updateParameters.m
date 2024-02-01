@@ -1,5 +1,4 @@
-function [resultVector_o, paramVector_o, theta_super] = updateParameters(updateTOF, pSettings)
-    global pState paramVector;
+function [resultVector_o, paramVector_o, theta_super, pState] = updateParameters(updateTOF, paramVector, pSettings, pState)
 
     if updateTOF
         global currentGuessVector
@@ -26,24 +25,39 @@ function [resultVector_o, paramVector_o, theta_super] = updateParameters(updateT
     end
 
     if pState.previousTime ~= pState.currentTime
-        T_nu = mod(pState.currentTime - pSettings.Tp1, pSettings.P1);
+    initialTimeEntry1 = mod(pState.currentTime - pSettings.Tp1, pSettings.P1);
+    initialTimeEntry2 = mod(pState.currentTime - pSettings.Tp2, pSettings.P2);
+%     findInitialTime1 = find(initialTimeLookup(1,:) == initialTimeEntry1);
+%     findInitialTime2 = find(initialTimeLookup(3,:) == initialTimeEntry2);
+
+%         if ~isempty(findInitialTime1)
+%             nu1_i = initialTimeLookup(2, findInitialTime1);
+%         else
+        T_nu = initialTimeEntry1;
         if T_nu ~= 0        
             n = pSettings.n1;
             e = pSettings.e1;
             nu_guess = paramVector.theta1 - pSettings.omega1;
-
+    
             nu1_i = nuFromTime(T_nu, n, e, nu_guess);
         else
             nu1_i = 0;
         end
-    
+%             firstIndex = 1+sum(initialTimeLookup(1,:) > -1);
+%             initialTimeLookup(1,firstIndex) = initialTimeEntry1;
+%             initialTimeLookup(2,firstIndex) = nu1_i;
+%         end
+
         theta1 = nu1_i + pSettings.omega1;
         gamma1 = asin(pSettings.e1 * sin(nu1_i) / sqrt(1+2*pSettings.e1*cos(nu1_i) + pSettings.e1^2));
     
         r1 = pSettings.p1 / (1+pSettings.e1*cos(nu1_i));
         theta1_dot = sqrt(pSettings.mju/pSettings.a_initial^3) * pSettings.a_initial^2/r1^2 * sqrt(1-pSettings.e1^2);
         
-        T_nu = mod(pState.currentTime - pSettings.Tp2, pSettings.P2);
+%         if ~isempty(findInitialTime2)
+%             nu2_i = initialTimeLookup(4, findInitialTime2);
+%         else
+        T_nu = initialTimeEntry2;
         if T_nu ~= 0
             n = pSettings.n2;
             e = pSettings.e2;
@@ -53,6 +67,10 @@ function [resultVector_o, paramVector_o, theta_super] = updateParameters(updateT
         else
             nu2_i = 0;
         end
+%             firstIndex = 1+sum(initialTimeLookup(2,:) > -1);
+%             initialTimeLookup(2,firstIndex) = initialTimeEntry2;
+%             initialTimeLookup(4,firstIndex) = nu2_i;
+%         end
     else
         gamma1 = paramVector.gamma1;
         theta1_dot = paramVector.theta1_dot;
@@ -62,16 +80,27 @@ function [resultVector_o, paramVector_o, theta_super] = updateParameters(updateT
     end
     pState.previousTime = pState.currentTime;
     
-    T_nu = mod(pState.currentTime + pState.tof_current - pSettings.Tp2, pSettings.P2);
-    if T_nu ~= 0
-        n = pSettings.n2;
-        e = pSettings.e2;
-        nu_guess = paramVector.theta2 - pSettings.omega2;
-
-        nu2 = nuFromTime(T_nu, n, e, nu_guess);
-    else
-        nu2 = 0;
-    end
+    
+    finalTimeEntry = mod(pState.currentTime + pState.tof_current - pSettings.Tp2, pSettings.P2);
+%     findFinalTime = sum(finalTimeLookup(1,:) == finalTimeEntry);
+% 
+%     if ~isempty(findFinalTime)
+%         nu2 = finalTimeLookup(2, findFinalTime);
+%     else
+        T_nu = finalTimeEntry;
+        if T_nu ~= 0
+            n = pSettings.n2;
+            e = pSettings.e2;
+            nu_guess = paramVector.theta2 - pSettings.omega2;
+    
+            nu2 = nuFromTime(T_nu, n, e, nu_guess);
+        else
+            nu2 = 0;
+        end
+%         firstIndex = 1+sum(finalTimeLookup(1,:) > -1);
+%         finalTimeLookup(1,firstIndex) = finalTimeEntry;
+%         finalTimeLookup(2,firstIndex) = nu2;
+%     end
 
     theta2 = nu2 + pSettings.omega2;    
     theta_tilde = theta2 - theta1;
@@ -130,7 +159,10 @@ function [resultVector_o, paramVector_o, theta_super] = updateParameters(updateT
     efg_Mat_1 = [30*theta_f^2  -10*theta_f^3  theta_f^4;
                 -48*theta_f     18*theta_f^2 -2*theta_f^3; 
                  20            -8*theta_f     theta_f^2];
-    
+
+    efg_Mat_2_const = [1/r2 - (a + b*theta_f + c*theta_f^2);
+                       -tan(gamma2)/r2 - (b + 2*c*theta_f); 
+                       paramVector.mju/(r2^4*theta2_dot^2) - (1/r2 + 2*c)];
 
     theta_super = [theta_vec1; theta_vec2; theta_vec3; theta_vec4; theta_vec5; theta_vec6];
 
@@ -149,6 +181,8 @@ function [resultVector_o, paramVector_o, theta_super] = updateParameters(updateT
     paramVector.b = b;
     paramVector.c = c;
     paramVector.efg_Mat_1 = efg_Mat_1;
+    paramVector.efg_Mat_2_const = efg_Mat_2_const;
+
 
     %% Check if TOF is a solution 
     

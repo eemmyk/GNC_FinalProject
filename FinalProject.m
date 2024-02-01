@@ -1,36 +1,55 @@
 %% Shape-Based Approach to Low-Thrust Rendezvous Trajectory Design
-tic;
-clear;
-close all;
+%tic;
+%clear;
+%close all;
 
 %% Declaring globals
 global pState;
 global paramVector paramVector_opt d_opt dateOptimal tof_optimal deltaResult;
-global initialTimeLookup finalTimeLookup
+%global initialTimeLookup finalTimeLookup
 
+%% Define central bodies
+
+Earth = centralBody;
+Earth.name = "Earth";
+Earth.mju = 3.986004418*10^14;
+Earth.radius = 6371 * 1e3; %[km]
+Earth.minAlt = 250 * 1e3; %[km]
+Earth.color = [0.1, 1.0, 0.2];
+
+Sun = centralBody;
+Sun.name = "Sun";
+Sun.mju = 1.32712440018*10^20;
+Sun.radius = 696340 * 1e3; %[km]
+Sun.minAlt = 1000000 * 1e3; %[km]
+Sun.color = [1.0, 0.8, 0.1];
 
 %% Central body information
 
+%Which central body is selected
+selectedBody = Earth;
+
 %Gravitational parameter
-mju = 3.986004418*10^14; %Earth
-%mju = 1.32712440018*10^20; %Sun
+mju = selectedBody.mju;
 
 %How large is the central body
-bodyRadius = 6371 * 1e3; %[km] Earth
-%bodyRadius = 696340 * 1e3; %[km] Sun
+bodyRadius = selectedBody.radius;
 
 %Minimum allowed radius
-rMin = bodyRadius + 250 * 1e3; %[km] Earth
-%rMin = bodyRadius + 1000000 * 1e3; %[km] Sun
+rMin = selectedBody.radius + selectedBody.minAlt;
+
+%Color of the central body
+bodyColor = selectedBody.color;
 
 %% Orbital parameters
 seed = floor(rand() * 1000000);
-rng(761982);  % Cool Seeds: Good looking: 761982    Good looking: 13     Some issue to fix: 34158     NuPredict Issue: 438758      DV optim issues: 313
+rng(seed);  % Cool Seeds: Good looking: 761982    Good looking: 13     Some issue to fix: 34158     NuPredict Issue: 438758      DV optim issues: 313
 
 %Save current date and seed to a file
 baseDate = datetime('now','Format','dd-MMM-yyyy');
 seedFile = fopen("seedList.txt", "a");
 fprintf(seedFile, "Seed: %.0f - Date: %s\n", rng().Seed, string(baseDate));
+fclose(seedFile);
 
 %--First Orbit Parameters--
 %Semimajor axis
@@ -91,8 +110,8 @@ m = 32; %kg
 %Solve TOF, optimize deltaV and/or optimize transfer date
 optimizeTOF = 0;
 optimizeDV = 0;
-optimizeDATE = 0;
-optimizeSwarm = 1;
+optimizeDATE = 1;
+optimizeSwarm = 0;
 
 %Accuracies of approximation
 intApprox = 100;
@@ -120,10 +139,10 @@ dateSearchSpan = 3 * max(P1,P2); %0.5 * lcm(years1, years2) * 365 * 86400;
 %Linear for option 1
 %Linear for option 2
 %Squared for option 3
-gsPointCount = 128;
+gsPointCount = 100;
 
 %Create nu lookup tables
-initialTimeLookup = zeros(3, gsPointCount) - 1;
+initialTimeLookup = zeros(4, gsPointCount) - 1;
 finalTimeLookup = zeros(2, gsPointCount*gsPointCount) - 1;
 
 %Which approach to global search is taken
@@ -138,8 +157,16 @@ option2starts = 3;
 %How many more points are started with in option 1
 option1pointMultiplier = 3;
 
+% --- Visual settings ---
+
+%Are the updates printed out
+printProgressUpdates = 0;
+
+%Are the results shown in a figure
+displayResults = 0;
+
 %Is the transfer window plotted
-visualizeTransferWindow = 1;
+visualizeTransferWindow = 0;
 
 %Is the Swarm Transfer animation plotted
 visualizeSwarmTransfer = 0;
@@ -158,7 +185,7 @@ thrustCurve_date = [0, 0];
 
 %Configure subplots
 subXCount = optimizeTOF + optimizeDV + optimizeDATE;
-if subXCount > 0
+if (subXCount > 0) && (displayResults == 1)
     subYCount = 5;
     figure(1);
     infoWindow = tiledlayout(subYCount, subXCount*3 + 2, 'Padding', 'tight', 'TileSpacing', 'tight');
@@ -335,7 +362,7 @@ pState.twMap = twMap;
 pState.twMapInds = twMapInds;
 
 %% Calculate all the rest of orbital parameters for the coming simulation
-[resultVector, paramVector, ~, initialTimeLookup, finalTimeLookup] = updateParameters(1, pSettings, initialTimeLookup, finalTimeLookup);
+[resultVector, paramVector, ~, pState] = updateParameters(1, paramVector, pSettings, pState);
 
 theta_f = paramVector.theta_f;
 r1 = paramVector.r1;
@@ -354,9 +381,11 @@ if optimizeTOF == 1
     solutionFound = 0;
     startN = pState.N;
 
-    %Plot results of TOF solved trajectory
-    nexttile(infoWindow, [3, 3]);
-    hold on;
+    if (displayResults == 1)
+        %Plot results of TOF solved trajectory
+        nexttile(infoWindow, [3, 3]);
+        hold on;
+    end
     while (solutionFound == 0)
         try
             %TOF solution
@@ -374,24 +403,25 @@ if optimizeTOF == 1
             if pState.N > pSettings.maxDepthN
                 break
             end
-            [resultVector, paramVector, ~, initialTimeLookup, finalTimeLookup] = updateParameters(1, pSettings, initialTimeLookup, finalTimeLookup);
+            [resultVector, paramVector, ~, pState] = updateParameters(1, paramVector, pSettings, pState);
 
         end
     end
 
     pState.N = startN;
 
+    if (displayResults == 1)
+        xlabel("Distance from central body [m]");
+        ylabel("Distance from central body [m]");
     
-    xlabel("Distance from central body [m]");
-    ylabel("Distance from central body [m]");
-
-    plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
-    plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
-    
-    plot(cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
+        plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
+        plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
         
-    rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
-        
+        plot(cos(theta1) * r1, sin(theta1) * r1,'or', 'MarkerSize',5,'MarkerFaceColor','g')
+            
+        rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor', bodyColor)
+    end
+ 
     if solutionFound == 1
 
         r1 = paramVector.r1;
@@ -412,22 +442,28 @@ if optimizeTOF == 1
         resultsDeltaVs(end+1) = deltaV_tof;
         
         time_t = fTimeFunction(d_solution, theta_vec_super, dT, paramVector);
-        
-        plot(cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
-        plot(cos(omega2 + nu2_i) * r2_i, sin(omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')   
-        
-        x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_super, paramVector);
-        y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_super, paramVector);
-        plot(x, y, "Color", [0.2 0.7 0.2]);
 
-        title(sprintf("Estimated TOF solution\nTarget TOF: %s\nAchieved TOF: %s\nRequired deltaV: %.0f m/s", secToTime(TOF_estimation, 0, []), secToTime(time_t, 0, []), deltaV_tof));
-   
+        if (displayResults == 1)
+            plot(cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+            plot(cos(omega2 + nu2_i) * r2_i, sin(omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')   
+            
+            x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_super, paramVector);
+            y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_solution, theta_vec_super, paramVector);
+            plot(x, y, "Color", [0.2 0.7 0.2]);
+    
+            title(sprintf("Estimated TOF solution\nTarget TOF: %s\nAchieved TOF: %s\nRequired deltaV: %.0f m/s", secToTime(TOF_estimation, 0, []), secToTime(time_t, 0, []), deltaV_tof));
+        
+            %legend("Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
+
+            xlim(viewportLimits(1:2));
+            ylim(viewportLimits(3:4));
+        end
     else
         fprintf("Inital Time of Flight guess not achievable\n")
 
         %Reset revolutions
         pState.N = startN;
-        [resultVector, paramVector, ~, initialTimeLookup, finalTimeLookup] = updateParameters(1, pSettings, initialTimeLookup, finalTimeLookup);
+        [resultVector, paramVector, ~, pState] = updateParameters(1, paramVector, pSettings, pState);
 
         theta_f = paramVector.theta_f;
         theta1 = paramVector.theta1;
@@ -444,29 +480,32 @@ if optimizeTOF == 1
         theta_vec_super = fGetThetaSuper(theta_vec_plot);
         dT = theta_vec_super(1,2) - theta_vec_super(1,1);
 
-        plot(cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
-        plot(cos(omega2 + nu2_i) * r2_i, sin(omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')   
-        
-        x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_vec_super, paramVector);
-        y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_vec_super, paramVector);
-        time_max = fTimeFunction(d_minimum, theta_vec_super, dT, paramVector);
-        plot(x, y, "Color", [0.5 0.9 0.5]);
+        if (displayResults == 1)
+            plot(cos(theta2) * r2, sin(theta2) * r2,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+            plot(cos(omega2 + nu2_i) * r2_i, sin(omega2 + nu2_i) * r2_i,'or', 'MarkerSize',5,'MarkerFaceColor','k')   
+            
+            x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_vec_super, paramVector);
+            y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_minimum, theta_vec_super, paramVector);
+            time_max = fTimeFunction(d_minimum, theta_vec_super, dT, paramVector);
+            plot(x, y, "Color", [0.5 0.9 0.5]);
+    
+            x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_vec_super, paramVector);
+            y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_vec_super, paramVector);
+            time_min = fTimeFunction(d_maximum, theta_vec_super, dT, paramVector);
+            plot(x, y, "Color", [0.5 0.9 0.5]);
+    
+            title(sprintf("Inital Time of Flight guess not achievable\nTarget TOF: %s\nMinimum Achieved TOF: %s\nMaximum Achieved TOF: %s", secToTime(TOF_estimation, 0, []), secToTime(time_min, 0, []), secToTime(time_max, 0, [])));
+            %legend("Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
 
-        x = cos(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_vec_super, paramVector);
-        y = sin(theta_vec_plot+theta1) .* fRadiusFunction(d_maximum, theta_vec_super, paramVector);
-        time_min = fTimeFunction(d_maximum, theta_vec_super, dT, paramVector);
-        plot(x, y, "Color", [0.5 0.9 0.5]);
+            xlim(viewportLimits(1:2));
+            ylim(viewportLimits(3:4));
+        end
 
-        title(sprintf("Inital Time of Flight guess not achievable\nTarget TOF: %s\nMinimum Achieved TOF: %s\nMaximum Achieved TOF: %s", secToTime(TOF_estimation, 0, []), secToTime(time_min, 0, []), secToTime(time_max, 0, [])));
-        
         thrustCurve_tof = [0;0];
 
     end
 
-    %legend("Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
 
-    xlim(viewportLimits(1:2));
-    ylim(viewportLimits(3:4));
 end
 %% Delta V optimization for fixed starting point + result plotting
 if optimizeDV == 1
@@ -500,33 +539,35 @@ if optimizeDV == 1
     deltaV_opt = fJerkFunction(d_opt, theta_vec_super, dT, paramVector_opt);
     pState.initial_DeltaV = deltaV_opt;
     resultsDeltaVs(end+1) = deltaV_opt;
+    
+    if (displayResults == 1)
+        time_t = fTimeFunction(d_opt, theta_vec_super, dT, paramVector_opt);
 
-    time_t = fTimeFunction(d_opt, theta_vec_super, dT, paramVector_opt);
-    
-    nexttile(infoWindow, [3, 3]);
-    hold on;
-    
-    xlabel("Distance from central body [m]");
-    ylabel("Distance from central body [m]");
-    
-    plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
-    plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
-    rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
-
-    plot(cos(theta1_opt) * r1_opt, sin(theta1_opt) * r1_opt,'or', 'MarkerSize',5,'MarkerFaceColor','g')
-    plot(cos(theta2_opt) * r2_opt, sin(theta2_opt) * r2_opt,'or', 'MarkerSize',5,'MarkerFaceColor','r')
-    plot(cos(omega2 + nu2_i_opt) * r2_i_opt, sin(omega2 + nu2_i_opt) * r2_i_opt,'or', 'MarkerSize',5,'MarkerFaceColor','k')
+        nexttile(infoWindow, [3, 3]);
+        hold on;
         
-    x = cos(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_super, paramVector_opt);
-    y = sin(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_super, paramVector_opt);
-    plot(x, y, "Color", [0.2 0.7 0.2]);
+        xlabel("Distance from central body [m]");
+        ylabel("Distance from central body [m]");
         
-    title(sprintf("DeltaV optimized TOF\nTransfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s", secToTime(initialTime, 1, baseDate), secToTime(time_t, 0, []), deltaV_opt));
+        plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
+        plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
+        rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor', bodyColor)
+    
+        plot(cos(theta1_opt) * r1_opt, sin(theta1_opt) * r1_opt,'or', 'MarkerSize',5,'MarkerFaceColor','g')
+        plot(cos(theta2_opt) * r2_opt, sin(theta2_opt) * r2_opt,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+        plot(cos(omega2 + nu2_i_opt) * r2_i_opt, sin(omega2 + nu2_i_opt) * r2_i_opt,'or', 'MarkerSize',5,'MarkerFaceColor','k')
+            
+        x = cos(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_super, paramVector_opt);
+        y = sin(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_super, paramVector_opt);
+        plot(x, y, "Color", [0.2 0.7 0.2]);
+            
+        title(sprintf("DeltaV optimized TOF\nTransfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s", secToTime(initialTime, 1, baseDate), secToTime(time_t, 0, []), deltaV_opt));
+        %legend("Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
+    
+        xlim(viewportLimits(1:2));
+        ylim(viewportLimits(3:4));
+    end
 
-    %legend("Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
-
-    xlim(viewportLimits(1:2));
-    ylim(viewportLimits(3:4));
 end
 %% Optimize the transfer date for deltaV + result plotting
 if optimizeDATE == 1
@@ -538,12 +579,14 @@ if optimizeDATE == 1
     %Reset current Time
     pState.tof_current = TOF_estimation;
 
-    %Befor changing figure
-    nexttile(infoWindow, [3 3]);
-    xlabel("Distance from central body [m]");
-    ylabel("Distance from central body [m]");
-    orbitAx = gca;
-
+    if (displayResults == 1)
+        %Befor changing figure
+        nexttile(infoWindow, [3 3]);
+        xlabel("Distance from central body [m]");
+        ylabel("Distance from central body [m]");
+        orbitAx = gca;  
+    end
+    
     if visualizeTransferWindow == 1
         twFig = figure(2);
         transferWindow = tiledlayout(1, 1, 'Padding', 'tight', 'TileSpacing', 'tight');
@@ -604,7 +647,9 @@ if optimizeDATE == 1
     %-- Solve transfer window using set dates and optimize TOF --
     if transferWindowSearchOption == 2
         for time = linspace(initialTime, initialTime + dateSearchSpan, gsPointCount)
-            fprintf("Optimizing: <strong>%.1f %%</strong> ---- Best %cV Found: <strong>%.0f m/s</strong> \n", 100 * (time - initialTime)/(dateSearchSpan), 916, deltaResult);
+            if printProgressUpdates == 1
+                fprintf("Optimizing: <strong>%.1f %%</strong> ---- Best %cV Found: <strong>%.0f m/s</strong> \n", 100 * (time - initialTime)/(dateSearchSpan), 916, deltaResult);
+            end            
             for tof_start = linspace(TofLimLow + (TofLimHigh - TofLimLow)/option2starts, TofLimHigh, option2starts)
                 pSettings.solveDate = 0;
                 pState.currentTime = time;
@@ -618,7 +663,9 @@ if optimizeDATE == 1
     if transferWindowSearchOption == 3
         pSettings.solveDate = 1;
         for time = linspace(initialTime, initialTime + dateSearchSpan, gsPointCount)
-            fprintf("Optimizing: <strong>%.1f %%</strong> ---- Best %cV Found: <strong>%.0f m/s</strong>\n", 100 * (time - initialTime)/(dateSearchSpan), 916, deltaResult);
+            if printProgressUpdates == 1
+                fprintf("Optimizing: <strong>%.1f %%</strong> ---- Best %cV Found: <strong>%.0f m/s</strong>\n", 100 * (time - initialTime)/(dateSearchSpan), 916, deltaResult);
+            end        
             for tof = linspace(TofLimLow, TofLimHigh, gsPointCount)
                 pState.currentTime = time;
                 pState.tof_current = tof;
@@ -629,7 +676,9 @@ if optimizeDATE == 1
             pState.twMapInds(2) = 1;
         end
         %Plot the image
-        imagesc([initialTime, initialTime + dateSearchSpan], [TofLimLow, TofLimHigh], pState.twMap);
+        if visualizeTransferWindow == 1
+            imagesc([initialTime, initialTime + dateSearchSpan], [TofLimLow, TofLimHigh], pState.twMap);
+        end
         %colormap(cmap);
     end
     
@@ -639,9 +688,11 @@ if optimizeDATE == 1
     pSettings.plotTransferWindow = 0;
     dvHandle = @(tof_in) optimalDVSolver(tof_in, pSettings, []);
     tf_fuelOptimal = fminsearch(dvHandle, [dateOptimal, tof_optimal], opt_dv_fminsearch);
-    fprintf("Optimization Completed! ---- Finalized %cV Found: <strong>%.0f m/s</strong> \n", 916, deltaResult);
-
-    fprintf("Tested %.0f transfer orbits out of which %1.f %% (%.0f) were achievable\n", pState.testedOrbits, 100 * (pState.successfulOrbits / pState.testedOrbits), pState.successfulOrbits);
+    
+    if printProgressUpdates == 1
+        fprintf("Optimization Completed! ---- Finalized %cV Found: <strong>%.0f m/s</strong> \n", 916, deltaResult);
+        fprintf("Tested %.0f transfer orbits out of which %1.f %% (%.0f) were achievable\n", pState.testedOrbits, 100 * (pState.successfulOrbits / pState.testedOrbits), pState.successfulOrbits);
+    end
 
     if (visualizeTransferWindow == 1) && (transferWindowSearchOption ~= 3)
         rectangle('Position',[dateOptimal-0.5*pSettings.tfWindowPixelsX, tof_optimal-0.5*pSettings.tfWindowPixelsY, ...
@@ -666,45 +717,49 @@ if optimizeDATE == 1
     deltaV_date = fJerkFunction(d_opt, theta_vec_super, dT, paramVector_opt);
     resultsDeltaVs(end+1) = deltaV_date;
 
-    time_t = fTimeFunction(d_opt, theta_vec_super, dT, paramVector_opt);
-
-    hold(orbitAx, 'on') 
+    if (displayResults == 1)
+        time_t = fTimeFunction(d_opt, theta_vec_super, dT, paramVector_opt);
     
-    plot(orbitAx, orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
-    plot(orbitAx, orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
-    
-    plot(orbitAx, cos(theta1_opt) * r1_opt, sin(theta1_opt) * r1_opt,'or', 'MarkerSize',5,'MarkerFaceColor','g')
-    plot(orbitAx, cos(theta2_opt) * r2_opt, sin(theta2_opt) * r2_opt,'or', 'MarkerSize',5,'MarkerFaceColor','r')
-    plot(orbitAx, cos(omega2 + nu2_i_opt) * r2_i_opt, sin(omega2 + nu2_i_opt) * r2_i_opt,'or', 'MarkerSize',5,'MarkerFaceColor','k')
+        hold(orbitAx, 'on') 
         
-    rectangle(orbitAx, 'Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
+        plot(orbitAx, orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
+        plot(orbitAx, orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
+        
+        plot(orbitAx, cos(theta1_opt) * r1_opt, sin(theta1_opt) * r1_opt,'or', 'MarkerSize',5,'MarkerFaceColor','g')
+        plot(orbitAx, cos(theta2_opt) * r2_opt, sin(theta2_opt) * r2_opt,'or', 'MarkerSize',5,'MarkerFaceColor','r')
+        plot(orbitAx, cos(omega2 + nu2_i_opt) * r2_i_opt, sin(omega2 + nu2_i_opt) * r2_i_opt,'or', 'MarkerSize',5,'MarkerFaceColor','k')
+            
+        rectangle(orbitAx, 'Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor', bodyColor)
+        
+        x = cos(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_super, paramVector_opt);
+        y = sin(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_super, paramVector_opt);
+       
+        plot(orbitAx, x, y, "Color", [0.2 0.7 0.2]);
     
-    x = cos(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_super, paramVector_opt);
-    y = sin(theta_vec_plot+theta1_opt) .* fRadiusFunction(d_opt, theta_vec_super, paramVector_opt);
-   
-    plot(orbitAx, x, y, "Color", [0.2 0.7 0.2]);
-
-    title(orbitAx, sprintf("Full transfer window solution\nTransfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s",secToTime(dateOptimal, 1, baseDate), secToTime(time_t, 0, []), deltaV_date));
-    
-    %legend(orbitAx, "Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
-    
-    orbitAx.XLim = viewportLimits(1:2);
-    orbitAx.YLim = viewportLimits(3:4);
+        title(orbitAx, sprintf("Full transfer window solution\nTransfer date: %s\nUsed TOF: %s\nRequired deltaV: %.0f m/s",secToTime(dateOptimal, 1, baseDate), secToTime(time_t, 0, []), deltaV_date));
+        
+        %legend(orbitAx, "Initial orbit", "Target orbit", "", "", "", "Transfer Orbit");
+        
+        orbitAx.XLim = viewportLimits(1:2);
+        orbitAx.YLim = viewportLimits(3:4);
+    end
 end
 
 %% Find solutions for a swarm of satellites
-if optimizeSwarm
+if optimizeSwarm == 1
     %global resultVector_opt
 
     leadNuPointCountPerOrbit = 20;
-    datePointCount = 20;
+    datePointCountPerOrbit = 20;
 
-    extraOrbitChecks = 1;
+    extraOrbitChecks = 0;
+    
+    dateOrbitChecks = ceil(dateSearchSpan/P1);
 
     %Very primitive logic in place.
     extraOrbitChecks = extraOrbitChecks + floor((P1/P2)^(1/3));
 
-    satelliteCount = 10;
+    satelliteCount = 20;
 
     deployTime = initialTime;
     targetTime = 0;
@@ -737,12 +792,12 @@ if optimizeSwarm
         TpVectorInd = TpVectorInd + 1;
     end   
 
-    tofMatrix = zeros(nuCount, datePointCount, leadNuPointCountPerOrbit * (extraOrbitChecks+1));
+    tofMatrix = zeros(nuCount, datePointCountPerOrbit*dateOrbitChecks, leadNuPointCountPerOrbit * (extraOrbitChecks+1));
     nuInd = 1;
     tofMatDateInd = 1;
     leadNuIndex = 1;
 
-    dateVector = linspace(initialTime, initialTime + dateSearchSpan, datePointCount);
+    dateVector = linspace(initialTime, initialTime + dateSearchSpan, datePointCountPerOrbit*dateOrbitChecks);
    
     %There needs to be logic to determine how much lead time is given based
     %on relative orbit sizes. 
@@ -769,8 +824,9 @@ if optimizeSwarm
     swarmParams = swarmParamClass;
 
     swarmParams.leadNuPointCountPerOrbit = leadNuPointCountPerOrbit;
-    swarmParams.datePointCount = datePointCount;
+    swarmParams.datePointCountPerOrbit = datePointCountPerOrbit;
     swarmParams.extraOrbitChecks = extraOrbitChecks;
+    swarmParams.dateOrbitChecks = dateOrbitChecks;
     swarmParams.nuCount = nuCount;
     swarmParams.dateVector = dateVector;
     swarmParams.tofMatrix = tofMatrix;
@@ -861,15 +917,15 @@ if optimizeSwarm
         swarmTimeSpan = max(requiredTOFs) + max(requiredDates - deployTime);
         firstDeployTime = min(requiredDates);
 
-        initialTimeLookup = zeros(2,datePointCount) - 1;
+        initialTimeLookup = zeros(2,datePointCountPerOrbit*dateOrbitChecks) - 1;
         finalTimeLookup = zeros(2,leadNuPointCountPerOrbit * (extraOrbitChecks+1)) - 1;
 
-        for time = linspace(firstDeployTime - pSettings.P1, (firstDeployTime + swarmTimeSpan) + pSettings.P2, 2*pSettings.plotAccuracy)
+        for time = linspace(firstDeployTime - pSettings.P1, (firstDeployTime + swarmTimeSpan) + pSettings.P2, pSettings.plotAccuracy)
             hold off
             plot(orbit1(1,:), orbit1(2,:), 'LineStyle',':', LineWidth=2);
             hold on
             plot(orbit2(1,:), orbit2(2,:), 'LineStyle',':', LineWidth=2);
-            rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor',"yellow")
+            rectangle('Position',[-bodyRadius, -bodyRadius, 2*bodyRadius, 2*bodyRadius],'Curvature',[1 1], 'FaceColor', bodyColor)
     
             for deployInd = 1:nuCount
                 targetInd = assignment(deployInd);
@@ -965,7 +1021,7 @@ end
 
 
 %% Plotting thrust curves and deltaV results
-if subXCount > 0
+if (subXCount > 0) && (displayResults == 1)
     nexttile(infoWindow, [subYCount, 2]);
     hold on
     ylabel("deltaV [km/s]");
@@ -1041,7 +1097,16 @@ if (visualizeTransferWindow == 1) && (optimizeDATE == 1)
     set(twFig, 'WindowButtonMotionFcn', @(src, event) hoverCallback(src, event, pSettings, axHandle));
 end
 
-toc;
+%% Save the problem data and output for ANN training
+%Save current date and seed to a file
+
+fileName = sprintf("traningData_%s.csv", selectedBody.name);
+
+seedFile = fopen(fileName, "a");
+fprintf(seedFile, "%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n", a_initial, P1, Tp1, e1, omega1, a_final, P2, Tp2, e2, omega2, dateOptimal, tof_optimal, deltaV_date);
+fclose(seedFile);
+
+%toc;
 
 %% START OF FUNCTIONS
 %% Second to time conversion
@@ -1234,7 +1299,7 @@ function hoverCallback(obj, ~, pSettings, axHandle)
             plot(axHandle, pSettings.orbit2(1,:), pSettings.orbit2(2,:), 'LineStyle',':', LineWidth=2);
 
             rectangle(axHandle, 'Position',[-pSettings.bodyRadius, -pSettings.bodyRadius, 2*pSettings.bodyRadius, 2*pSettings.bodyRadius], ...
-                     'Curvature',[1 1], 'FaceColor',"yellow")
+                     'Curvature',[1 1], 'FaceColor', bodyColor)
         end
 
         %Get the cursor position
